@@ -1,0 +1,21 @@
+## Interface: 70300
+## Title: mQoL
+## Notes: mQoL for Legion
+## Author: Mentiuszen
+## Version: 1.0.9
+## SavedVariables: mQoL_DB
+Libs\Libs_Legacy\libs.xml
+
+#Core Func
+Core/mQoL_Database.lua
+Core/mQoL_vreg.lua
+
+#Hub
+Hub/mQoL_Hub.lua
+
+#Modules
+Modules/MainQoL/mQoL_Main.lua
+Modules/Mailbox/mQoL_Mailbox.lua
+
+#First Setup
+Core/mQoL_FirstSetup.lua

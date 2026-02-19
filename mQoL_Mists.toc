@@ -1,0 +1,32 @@
+## Interface: 50500, 50501, 50502, 50503
+## Title: mQoL
+## Notes: mQoL for Classic
+## Author: Mentiuszen
+## Version: 1.0.9
+## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB
+Libs\Libs_Modern\libs.xml
+
+#Core Func
+Core/mQoL_Database.lua
+Core/mQoL_vreg.lua
+
+#Hub
+Hub/mQoL_Hub.lua
+
+#Modules
+Modules/MainQoL/mQoL_Main.lua
+Modules/Mailbox/mQoL_Mailbox.lua
+Modules/Graphics/mQoL_Graphics.lua
+
+#Pandaria Fixes
+Modules/BlizzardFixes/mQoL_FixLFG.lua
+Modules/BlizzardFixes/mQoL_FixPvPRewards.lua
+Modules/BlizzardFixes/mQoL_FixWorldMap.lua
+Modules/BlizzardFixes/mQoL_GeneralFixes.lua
+Modules/BlizzardFixes/mQoL_FixPetTalents.lua
+
+#Pandaria Improvements
+Modules/AdventureJournal/mQoL_AdventureJournal.lua
+
+#First Setup
+Core/mQoL_FirstSetup.lua

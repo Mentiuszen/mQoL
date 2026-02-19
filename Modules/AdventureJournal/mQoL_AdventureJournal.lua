@@ -1,0 +1,3 @@
+local addonName = ...
+
+-- nothing here yet

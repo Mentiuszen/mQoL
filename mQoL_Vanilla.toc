@@ -1,0 +1,22 @@
+## Interface: 11507
+## Title: mQoL
+## Notes: mQoL for Vanilla
+## Author: Mentiuszen
+## Version: 1.0.9
+## SavedVariables: mQoL_DB
+Libs\Libs_Modern\libs.xml
+
+#Core Func
+Core/mQoL_Database.lua
+Core/mQoL_vreg.lua
+
+#Hub
+Hub/mQoL_Hub.lua
+
+#Modules
+Modules/MainQoL/mQoL_Main.lua
+Modules/Mailbox/mQoL_Mailbox.lua
+Modules/Graphics/mQoL_Graphics.lua
+
+#First Setup
+Core/mQoL_FirstSetup.lua
