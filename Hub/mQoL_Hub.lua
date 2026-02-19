@@ -747,12 +747,65 @@ function mQoL_Hub:CreateAboutPanel(parent)
     header:SetText("Contact & Support")
     contentContainer.currentY = contentContainer.currentY - (header:GetStringHeight() + 14)
 
-    local info = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    info:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-    info:SetWidth(770)
-    info:SetJustifyH("LEFT")
-    info:SetText("|cffffff00Author:|r Mentiuszen-KulTiras (EU)\n|cffffff00Discord:|r @Mentiuszen\n|cffffff00Bug reports:|r https://github.com/Mentiuszen/mQoL/issues")
-    contentContainer.currentY = contentContainer.currentY - (info:GetStringHeight() + 12)
+    local meta = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    meta:SetPoint("TOPLEFT", 20, contentContainer.currentY)
+    meta:SetWidth(770)
+    meta:SetJustifyH("LEFT")
+    meta:SetText(string.format("|cffffff00Author:|r %s\n|cffffff00Version:|r %s (Build %s)", "Mentiuszen-KulTiras (EU)", tostring(self.version or "?"), tostring(self.build or "?")))
+    contentContainer.currentY = contentContainer.currentY - (meta:GetStringHeight() + 14)
+
+    local function CreateCopyableLinkRow(labelText, valueText, y)
+        local row = CreateFrame("Frame", nil, contentContainer)
+        row:SetSize(770, 28)
+        row:SetPoint("TOPLEFT", 20, y)
+
+        local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        label:SetPoint("LEFT", row, "LEFT", 0, 0)
+        label:SetWidth(150)
+        label:SetJustifyH("LEFT")
+        label:SetText(labelText or "")
+
+        local editBox = CreateCustomInputBox(row, 560, 26)
+        editBox:SetPoint("LEFT", label, "RIGHT", 14, 0)
+        editBox:SetText(valueText or "")
+        editBox:SetCursorPosition(0)
+
+        local locked = false
+        editBox:SetScript("OnTextChanged", function(self, userInput)
+            if locked then return end
+            if userInput then
+                locked = true
+                self:SetText(valueText or "")
+                self:SetCursorPosition(0)
+                self:HighlightText()
+                locked = false
+            end
+        end)
+        editBox:SetScript("OnEditFocusGained", function(self)
+            self:HighlightText()
+        end)
+        editBox:SetScript("OnEditFocusLost", function(self)
+            self:HighlightText(0, 0)
+            self:SetCursorPosition(0)
+        end)
+        editBox:SetScript("OnMouseUp", function(self)
+            self:SetFocus()
+            self:HighlightText()
+        end)
+
+        return y - 34
+    end
+
+    local section = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    section:SetPoint("TOPLEFT", 20, contentContainer.currentY)
+    section:SetWidth(770)
+    section:SetJustifyH("LEFT")
+    section:SetText("|cffffff00Quick Links|r")
+    contentContainer.currentY = contentContainer.currentY - (section:GetStringHeight() + 10)
+
+    contentContainer.currentY = CreateCopyableLinkRow("Discord", "@Mentiuszen", contentContainer.currentY)
+    contentContainer.currentY = CreateCopyableLinkRow("GitHub Repo", "https://github.com/Mentiuszen/mQoL", contentContainer.currentY)
+    contentContainer.currentY = CreateCopyableLinkRow("Bug Reports", "https://github.com/Mentiuszen/mQoL/issues", contentContainer.currentY)
 
     panel.UpdateScrollChildHeight = function()
         mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
