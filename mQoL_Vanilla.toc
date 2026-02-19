@@ -1,0 +1,31 @@
+## Interface: 11508
+## Title: mQoL
+## Notes: Central Addon For Mentiuszen Addons
+## Author: Mentiuszen
+## Version: 1.1.0
+## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB
+Libs\Libs_Modern\libs.xml
+
+#Core Func
+Core/mQoL_Database.lua
+Core/mQoL_VersionDetection.lua
+Core/mQoL_vreg.lua
+Core/mQoL_DatabaseSafety.lua
+
+#Hub
+Hub/Templates/mQoL_Templates.lua
+Hub/Templates/mQoL_Styles.lua
+Hub/mQoL_Hub.lua
+Hub/mQoL_Intro.lua
+Core/mQoL_Modules.lua
+
+#Modules
+Modules/MainQoL/mQoL_Main.lua
+Modules/Mailbox/mQoL_Mailbox.lua
+Modules/Graphics/mQoL_Graphics.lua
+Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
+Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
+Modules/RaidProfiles/mQoL_RaidProfiles.lua
+
+#First Setup
+Core/mQoL_FirstSetup.lua
