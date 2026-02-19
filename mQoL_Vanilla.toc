@@ -2,7 +2,7 @@
 ## Title: mQoL
 ## Notes: Central Addon For Mentiuszen Addons
 ## Author: Mentiuszen
-## Version: 1.1.0
+## Version: 1.1.1
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB
 Libs\Libs_Modern\libs.xml
 
