@@ -798,7 +798,7 @@ function mQoL_EditMode:CreateEditModePanel(parent)
 
     local function GetForcedProfileDropdownItems()
         local items = {}
-        table.insert(items, { text = SITUATIONAL_MODE_KEY, value = SITUATIONAL_MODE_KEY, color = {r=1, g=0.82, b=0} })
+        table.insert(items, { text = SITUATIONAL_MODE_KEY, value = SITUATIONAL_MODE_KEY, underline = true })
         for _, name in ipairs(module:GetEditModeProfiles()) do
             table.insert(items, { text = name, value = name })
         end

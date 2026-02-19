@@ -59,6 +59,7 @@ mQoL_Hub.searchIndex = {
     { label = "Friends List", panel = "Mailbox", available = true },
 	{ label = "View Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
     { label = "Fog Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
+    { label = "Edit Mode Profile Mode", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
     { label = "Force Edit Mode Profile", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
     { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = true },
     { label = "Saved Raid Profiles", panel = "Raid Profiles", available = true },
@@ -715,11 +716,6 @@ function mQoL_Hub:CreateHomePanel(parent)
     separator:SetPoint("BOTTOMLEFT", 20, 80)
     separator:SetSize(770, 1)
 
-    -- Author
-    local authorText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    authorText:SetPoint("BOTTOM", separator, "TOP", 0, 15)
-    authorText:SetText("Created by Mentiuszen-KulTiras (EU)")
-
     -- Footer Text
     local footerText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     footerText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
@@ -747,26 +743,24 @@ function mQoL_Hub:CreateAboutPanel(parent)
     header:SetText("Contact & Support")
     contentContainer.currentY = contentContainer.currentY - (header:GetStringHeight() + 14)
 
-    local meta = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    meta:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-    meta:SetWidth(770)
-    meta:SetJustifyH("LEFT")
-    meta:SetText(string.format("|cffffff00Author:|r %s\n|cffffff00Version:|r %s (Build %s)", "Mentiuszen-KulTiras (EU)", tostring(self.version or "?"), tostring(self.build or "?")))
-    contentContainer.currentY = contentContainer.currentY - (meta:GetStringHeight() + 14)
-
     local function CreateCopyableLinkRow(labelText, valueText, y)
+        local rowWidth = 770
+        local labelWidth = 150
+        local gap = 14
+
         local row = CreateFrame("Frame", nil, contentContainer)
-        row:SetSize(770, 28)
+        row:SetSize(rowWidth, 28)
         row:SetPoint("TOPLEFT", 20, y)
 
         local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         label:SetPoint("LEFT", row, "LEFT", 0, 0)
-        label:SetWidth(150)
+        label:SetWidth(labelWidth)
         label:SetJustifyH("LEFT")
         label:SetText(labelText or "")
 
-        local editBox = CreateCustomInputBox(row, 560, 26)
-        editBox:SetPoint("LEFT", label, "RIGHT", 14, 0)
+        local editBoxWidth = rowWidth - labelWidth - gap
+        local editBox = CreateCustomInputBox(row, editBoxWidth, 26)
+        editBox:SetPoint("LEFT", label, "RIGHT", gap, 0)
         editBox:SetText(valueText or "")
         editBox:SetCursorPosition(0)
 
@@ -796,19 +790,39 @@ function mQoL_Hub:CreateAboutPanel(parent)
         return y - 34
     end
 
-    local section = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    section:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-    section:SetWidth(770)
-    section:SetJustifyH("LEFT")
-    section:SetText("|cffffff00Quick Links|r")
-    contentContainer.currentY = contentContainer.currentY - (section:GetStringHeight() + 10)
-
     contentContainer.currentY = CreateCopyableLinkRow("Discord", "@Mentiuszen", contentContainer.currentY)
     contentContainer.currentY = CreateCopyableLinkRow("GitHub Repo", "https://github.com/Mentiuszen/mQoL", contentContainer.currentY)
     contentContainer.currentY = CreateCopyableLinkRow("Bug Reports", "https://github.com/Mentiuszen/mQoL/issues", contentContainer.currentY)
+    contentContainer.currentY = contentContainer.currentY - 20
+
+    local footerHeight = 100
+    local _, _, _, _, containerYOffset = contentContainer:GetPoint()
+    containerYOffset = containerYOffset or 0
+    local contentHeight = math.abs(containerYOffset) + math.abs(contentContainer.currentY or 0)
+    local minHeight = (scrollFrame and scrollFrame:GetHeight()) or 0
+    local totalHeight = math.max(contentHeight + footerHeight, minHeight)
+    panel:SetHeight(totalHeight)
+
+    local separator = panel:CreateTexture(nil, "ARTWORK")
+    separator:SetColorTexture(1, 1, 1, 0.15)
+    separator:SetPoint("BOTTOMLEFT", 20, 80)
+    separator:SetSize(770, 1)
+
+    local authorText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    authorText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
+    authorText:SetWidth(770)
+    authorText:SetJustifyH("CENTER")
+    authorText:SetText("Created by Mentiuszen-KulTiras (EU)")
 
     panel.UpdateScrollChildHeight = function()
-        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
+        local _, _, _, _, cY = contentContainer:GetPoint()
+        cY = cY or 0
+        local cH = math.abs(cY) + math.abs(contentContainer.currentY or 0)
+        local minH = (scrollFrame and scrollFrame:GetHeight()) or 0
+        panel:SetHeight(math.max(cH + footerHeight, minH))
+        if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
+            scrollFrame.scrollbar:UpdateScrollbar()
+        end
     end
     panel.UpdateScrollChildHeight()
 

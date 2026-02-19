@@ -1499,7 +1499,7 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         table.insert(savedDropdownItems, {
             text = SITUATIONAL_MODE_KEY,
             value = SITUATIONAL_MODE_KEY,
-            color = {r=1, g=0.82, b=0}
+            underline = true
         })
 
         for _, name in ipairs(savedProfiles) do

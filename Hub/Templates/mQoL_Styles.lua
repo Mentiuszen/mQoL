@@ -497,140 +497,144 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
     -- Options list
     local itemHeight = 20
     local buttons = {}
+    local highlightR, highlightG, highlightB = 1, 0.82, 0
 
-    C_Timer.After(0, function()
-        SyncListScale()
-        for i, item in ipairs(items) do
-            local btn = CreateFrame("Button", nil, list)
-            btn:SetSize(dropdown:GetWidth(), itemHeight)
-            btn:SetPoint("TOPLEFT", 0, -((i - 1) * itemHeight))
-
-            btn.bg = btn:CreateTexture(nil, "BACKGROUND")
-            btn.bg:SetAllPoints()
-            btn.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
-
-            btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            btn.text:SetPoint("LEFT", 8, 0)
-            btn.text:SetText(item.text or tostring(item.value))
-
-            -- Default text color
-            if item.value == selectedValue then
-                btn.text:SetTextColor(1, 0.82, 0)
-            else
-                btn.text:SetTextColor(1, 1, 1)
-            end
-
-            btn:SetScript("OnEnter", function(self)
-                self.text:SetTextColor(1, 0.82, 0)
-            end)
-
-            btn:SetScript("OnLeave", function(self)
-                if item.value == dropdown.value then
-                    self.text:SetTextColor(1, 0.82, 0)
-                else
-                    self.text:SetTextColor(1, 1, 1)
-                end
-            end)
-
-            btn:SetScript("OnClick", function()
-                dropdown.text:SetText(item.text or tostring(item.value))
-                dropdown.value = item.value
-
-                for _, otherBtn in ipairs(buttons) do
-                    if otherBtn.text then
-                        if otherBtn == btn then
-                            otherBtn.text:SetTextColor(1, 0.82, 0)
-                        else
-                            otherBtn.text:SetTextColor(1, 1, 1)
-                        end
-                    end
-                end
-
-                if item.onSelect then
-                    item.onSelect(item.value)
-                elseif onSelect then
-                    onSelect(item.value)
-                end
-
-                HideList()
-            end)
-
-            table.insert(buttons, btn)
+    local function GetItemColorField(item, field)
+        if type(item) ~= "table" then return nil end
+        local c = item[field]
+        if type(c) ~= "table" then return nil end
+        local r = c.r or c[1]
+        local g = c.g or c[2]
+        local b = c.b or c[3]
+        if type(r) == "number" and type(g) == "number" and type(b) == "number" then
+            return r, g, b
         end
+        return nil
+    end
 
-        list:SetHeight(math.max(1, #buttons * itemHeight))
-    end)
+    local function IsSeparatorItem(item)
+        return type(item) == "table" and (item.separator == true or item.isSeparator == true or item.type == "separator")
+    end
 
-    function dropdown:SetList(newItems)
-        items = newItems or {}
-        -- Clean up existing buttons
+    local function ApplyBaseTextColor(btn)
+        if not btn or not btn.text then return end
+        local item = btn.mQoL_item
+        local isSelected = item and item.value ~= nil and item.value == dropdown.value
+        if isSelected then
+            local sr, sg, sb = GetItemColorField(item, "selectedColor")
+            if sr then
+                btn.text:SetTextColor(sr, sg, sb)
+            else
+                btn.text:SetTextColor(highlightR, highlightG, highlightB)
+            end
+            return
+        end
+        local r, g, b = GetItemColorField(item, "color")
+        if r then
+            btn.text:SetTextColor(r, g, b)
+        else
+            btn.text:SetTextColor(1, 1, 1)
+        end
+    end
+
+    local function RebuildButtons()
         for _, btn in ipairs(buttons) do
             btn:Hide()
             btn:SetParent(nil)
         end
         buttons = {}
 
-        -- Rebuild list
         SyncListScale()
-        for i, item in ipairs(items) do
-            local btn = CreateFrame("Button", nil, list)
-            btn:SetSize(dropdown:GetWidth(), itemHeight)
-            btn:SetPoint("TOPLEFT", 0, -((i - 1) * itemHeight))
 
-            btn.bg = btn:CreateTexture(nil, "BACKGROUND")
-            btn.bg:SetAllPoints()
-            btn.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+        local yOffset = 0
+        local sepHeight = 10
 
-            btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            btn.text:SetPoint("LEFT", 8, 0)
-            btn.text:SetText(item.text or tostring(item.value))
-
-            -- Default text color
-            if item.value == dropdown.value then
-                btn.text:SetTextColor(1, 0.82, 0)
+        for _, item in ipairs(items) do
+            if IsSeparatorItem(item) then
+                local sep = CreateFrame("Frame", nil, list)
+                sep:SetSize(dropdown:GetWidth(), sepHeight)
+                sep:SetPoint("TOPLEFT", 0, -yOffset)
+                local line = sep:CreateTexture(nil, "BORDER")
+                line:SetColorTexture(1, 1, 1, 0.40)
+                line:SetPoint("TOPLEFT", 8, 0)
+                line:SetPoint("TOPRIGHT", -8, 0)
+                line:SetHeight(1)
+                yOffset = yOffset + sepHeight
+                table.insert(buttons, sep)
             else
-                 btn.text:SetTextColor(1, 1, 1)
-            end
+                local btn = CreateFrame("Button", nil, list)
+                btn:SetSize(dropdown:GetWidth(), itemHeight)
+                btn:SetPoint("TOPLEFT", 0, -yOffset)
 
-            btn:SetScript("OnEnter", function(self)
-                 self.text:SetTextColor(1, 0.82, 0)
-            end)
+                btn.bg = btn:CreateTexture(nil, "BACKGROUND")
+                btn.bg:SetAllPoints()
+                btn.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
 
-            btn:SetScript("OnLeave", function(self)
-                if item.value == dropdown.value then
-                    self.text:SetTextColor(1, 0.82, 0)
-                else
-                     self.text:SetTextColor(1, 1, 1)
+                btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+                btn.text:SetPoint("LEFT", 8, 0)
+                btn.text:SetText(item.text or tostring(item.value))
+
+                btn.mQoL_item = item
+                ApplyBaseTextColor(btn)
+
+                if type(item) == "table" and item.underline == true then
+                    local underline = btn:CreateTexture(nil, "OVERLAY")
+                    underline:SetColorTexture(1, 1, 1, 0.55)
+                    underline:SetPoint("TOPLEFT", btn.text, "BOTTOMLEFT", 0, -1)
+                    underline:SetPoint("TOPRIGHT", btn.text, "BOTTOMRIGHT", 0, -1)
+                    underline:SetHeight(1)
+                    btn.mQoL_underline = underline
                 end
-            end)
 
-            btn:SetScript("OnClick", function()
-                dropdown.text:SetText(item.text or tostring(item.value))
-                dropdown.value = item.value
-
-                for _, otherBtn in ipairs(buttons) do
-                    if otherBtn.text then
-                        if otherBtn == btn then
-                            otherBtn.text:SetTextColor(1, 0.82, 0)
+                btn:SetScript("OnEnter", function(self)
+                    if self.text then
+                        local hr, hg, hb = GetItemColorField(self.mQoL_item, "hoverColor")
+                        if hr then
+                            self.text:SetTextColor(hr, hg, hb)
                         else
-                            otherBtn.text:SetTextColor(1, 1, 1)
+                            self.text:SetTextColor(highlightR, highlightG, highlightB)
                         end
                     end
-                end
+                end)
 
-                if item.onSelect then
-                    item.onSelect(item.value)
-                elseif onSelect then
-                    onSelect(item.value)
-                end
+                btn:SetScript("OnLeave", function(self)
+                    ApplyBaseTextColor(self)
+                end)
 
-                HideList()
-            end)
+                btn:SetScript("OnClick", function()
+                    dropdown.text:SetText(item.text or tostring(item.value))
+                    dropdown.value = item.value
 
-            table.insert(buttons, btn)
+                    for _, otherBtn in ipairs(buttons) do
+                        if otherBtn and otherBtn.text then
+                            ApplyBaseTextColor(otherBtn)
+                        end
+                    end
+
+                    if item.onSelect then
+                        item.onSelect(item.value)
+                    elseif onSelect then
+                        onSelect(item.value)
+                    end
+
+                    HideList()
+                end)
+
+                table.insert(buttons, btn)
+                yOffset = yOffset + itemHeight
+            end
         end
 
-        list:SetHeight(math.max(1, #buttons * itemHeight))
+        list:SetHeight(math.max(1, yOffset))
+    end
+
+    C_Timer.After(0, function()
+        RebuildButtons()
+    end)
+
+    function dropdown:SetList(newItems)
+        items = newItems or {}
+        RebuildButtons()
     end
 
     function dropdown:SetValue(value)
