@@ -12,7 +12,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 -- Addon Version
 mQoL_Hub.version = "1.1.1"
 mQoL_Hub.build = "193"
-mQoL_Hub.vendor = "test"	--dev / test / release
+mQoL_Hub.vendor = "release"	--dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
