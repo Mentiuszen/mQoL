@@ -160,16 +160,49 @@ function mQoL_EditMode:ForceEditModeProfile(profileName)
         return false
     end
 
+    -- Use C_EditMode directly to avoid tainting EditModeManagerFrame
+    if C_EditMode and C_EditMode.SetActiveLayout then
+        local layouts = nil
+        if C_EditMode.GetLayouts then
+            local layoutInfo = C_EditMode.GetLayouts()
+            if layoutInfo and layoutInfo.layouts then
+                layouts = layoutInfo.layouts
+            end
+        end
+        
+        if not layouts and EditModeManagerFrame and EditModeManagerFrame.GetLayouts then
+             local layoutInfo = EditModeManagerFrame:GetLayouts()
+             if layoutInfo and layoutInfo.layouts then
+                 layouts = layoutInfo.layouts
+             elseif layoutInfo and #layoutInfo > 0 then
+                 layouts = layoutInfo
+             end
+        end
+        
+        if layouts then
+            for i, layout in ipairs(layouts) do
+                if layout and layout.layoutName == profileName then
+                     if clientInfo.isRetail then
+                         if layout.layoutIdentifier then
+                             C_EditMode.SetActiveLayout(layout.layoutIdentifier)
+                             return true
+                         end
+                     else
+                         -- BCC uses index instead of identifier
+                         C_EditMode.SetActiveLayout(i)
+                         return true
+                     end
+                end
+            end
+        end
+    end
+
+    -- Legacy Fallback (Only used if C_EditMode fails or layout not found)
     if EditModeManagerFrame and EditModeManagerFrame.GetLayouts and EditModeManagerFrame.SelectLayout then
         local layouts = EditModeManagerFrame:GetLayouts()
         for i, layout in ipairs(layouts) do
             if layout and layout.layoutName == profileName then
                 EditModeManagerFrame:SelectLayout(i)
-                C_Timer.After(0.1, function()
-                    if EditModeManagerFrame and EditModeManagerFrame.UpdateLayout then
-                        EditModeManagerFrame:UpdateLayout()
-                    end
-                end)
                 return true
             end
         end
@@ -217,6 +250,26 @@ function mQoL_EditMode:UpdateCurrentProfile(immediate)
         elseif mode == "Advanced" then
             local _, classFile = UnitClass("player")
             local specID = GetPlayerSpecID()
+            
+            -- Check if specID is a valid main spec (handles Initial Spec / low level cases)
+            local isValidSpec = false
+            if specID then
+                local getNum = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializations) or GetNumSpecializations
+                local getInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
+                if getNum and getInfo then
+                    for i = 1, (getNum() or 0) do
+                        local id = getInfo(i)
+                        if id == specID then
+                            isValidSpec = true
+                            break
+                        end
+                    end
+                end
+            end
+
+            if not isValidSpec and classFile then
+                specID = classFile .. "_NoSpec"
+            end
 
             local specProfile = specID and s.advancedSpecProfiles and s.advancedSpecProfiles[specID]
             local classProfile = classFile and s.advancedClassProfiles and s.advancedClassProfiles[classFile]
@@ -547,6 +600,9 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                                 table.insert(items, {id=id, name=className .. ": " .. specName, color=color, assigned=s.advancedSpecProfiles[id]})
                             end
                         end
+                        
+                        local noSpecID = classFile .. "_NoSpec"
+                        table.insert(items, {id=noSpecID, name=className .. ": No Specialization", color=color, assigned=s.advancedSpecProfiles[noSpecID]})
                     end
                 end)
             end

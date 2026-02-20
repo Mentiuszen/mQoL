@@ -285,6 +285,26 @@ function mQoL_RaidProfiles:UpdateCurrentProfile(immediate)
             local specID
             if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC or clientInfo.isLegion then
                 specID = GetPlayerSpecID()
+                
+                -- Check if specID is a valid main spec (handles Initial Spec / low level cases)
+                local isValidSpec = false
+                if specID then
+                    local getNum = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializations) or GetNumSpecializations
+                    local getInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
+                    if getNum and getInfo then
+                        for i = 1, (getNum() or 0) do
+                            local id = getInfo(i)
+                            if id == specID then
+                                isValidSpec = true
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if not isValidSpec and classFile then
+                    specID = classFile .. "_NoSpec"
+                end
             end
 
             local specProfile = specID and s.advancedSpecProfiles and s.advancedSpecProfiles[specID]

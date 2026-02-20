@@ -108,288 +108,271 @@ end
 function mQoL_RaidProfiles:HookSettingsPanelClassic()
     if self.hookedClassicSettings then return end
 
-    if not SettingsPanel then 
-        -- Fallback for clients without SettingsPanel (Wrath/Cata Classic)
-        if CompactUnitFrameProfiles then
-             self:HookSettingsPanelLegion()
-             self.hookedClassicSettings = true
-        end
+    if not SettingsPanel or not RaidProfilesMixin or not RaidProfilesMixin.Init then
         return
     end
 
-    local function FindButtonByLabel(parent, pattern)
-        if not parent then return nil end
-
-        local regions = {parent:GetRegions()}
-        for _, region in ipairs(regions) do
-            if region:GetObjectType() == "FontString" then
-                local text = region:GetText()
-                if text and text:match(pattern) then
-                    if parent:IsObjectType("Button") then
-                        return parent
-                    end
-                    local p = region:GetParent()
-                    if p and p:IsObjectType("Button") then
-                        return p
-                    end
-                end
-            end
+    local function AttachSaveButton(control)
+        if control.mQoLSaveButton then
+            return
         end
 
-        local children = {parent:GetChildren()}
-        for _, child in ipairs(children) do
-            local found = FindButtonByLabel(child, pattern)
-            if found then return found end
+        local newBtn = control.NewButton
+        local deleteBtn = control.DeleteButton
+        if not newBtn or not deleteBtn then
+            return
         end
 
-        if parent.GetScrollChild then
-            local scrollChild = parent:GetScrollChild()
-            if scrollChild then
-                local found = FindButtonByLabel(scrollChild, pattern)
-                if found then return found end
-            end
-        end
-
-        return nil
-    end
-
-    local function CreateTransferButton()
-        if self.classicTransferBtn and self.classicTransferBtn:GetParent() ~= SettingsPanel then 
-            if self.classicTransferBtn:IsShown() then return end
-        end
-
-        local deleteBtn = FindButtonByLabel(SettingsPanel, "Delete") or FindButtonByLabel(SettingsPanel, "DELETE")
-        local newProfileBtn = FindButtonByLabel(SettingsPanel, "New Profile") or FindButtonByLabel(SettingsPanel, "New")
-
-        local anchorParent = SettingsPanel
-        if deleteBtn then anchorParent = deleteBtn:GetParent() 
-        elseif newProfileBtn then anchorParent = newProfileBtn:GetParent() end
-
-        if not self.classicTransferBtn then
-            local btn = CreateFrame("Button", "mQoL_ClassicTransferBtn", anchorParent, "UIPanelButtonTemplate")
-            btn:SetSize(130, 22)
-            btn:SetText("Save to mQoL")
-            btn:SetFrameStrata("DIALOG")
-
-            self.classicTransferBtn = btn
-
-            btn:SetScript("OnClick", function()
-                 if mQoL_Styles and mQoL_Styles.ShowCustomPopup then
-                    mQoL_Styles.ShowCustomPopup({
-                        text = "Enter name for this Raid Profile to save in mQoL:",
-                        hasEditBox = true,
-                        maxLetters = 32,
-                        acceptText = "Save",
-                        onAccept = function(editBox)
-                             local text = editBox:GetText()
-                             if text and text ~= "" then
-                                if text:lower() == "none" then
-                                     print(addonName .. ": Error: Profile name cannot be 'None'.")
-                                     return
-                                end
-                                mQoL_RaidProfiles:SaveRaidProfile(text)
+        local function OnClick()
+            if mQoL_Styles and mQoL_Styles.ShowCustomPopup then
+                mQoL_Styles.ShowCustomPopup({
+                    text = "Enter name for this Raid Profile to save in mQoL:",
+                    hasEditBox = true,
+                    maxLetters = 32,
+                    acceptText = "Save",
+                    onAccept = function(editBox)
+                         local text = editBox:GetText()
+                         if text and text ~= "" then
+                            if text:lower() == "none" then
+                                 print(addonName .. ": Error: Profile name cannot be 'None'.")
+                                 return
                             end
+                            mQoL_RaidProfiles:SaveRaidProfile(text)
                         end
-                    })
-                end
-            end)
-
-            btn:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-                GameTooltip:AddLine("Save Raid Profile to mQoL", 1, 0.82, 0)
-                GameTooltip:AddLine("Save current Raid Frame settings to mQoL's account-wide storage.", 1, 1, 1, true)
-                GameTooltip:Show()
-            end)
-            btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        end
-
-        if self.classicTransferBtn:GetParent() ~= anchorParent then
-            self.classicTransferBtn:SetParent(anchorParent)
-            self.classicTransferBtn:SetFrameLevel(anchorParent:GetFrameLevel() + 10)
-        end
-
-        self.classicTransferBtn:ClearAllPoints()
-
-        local isActuallyVisible = false
-
-        if deleteBtn and deleteBtn:IsVisible() then
-            self.classicTransferBtn:SetPoint("LEFT", deleteBtn, "RIGHT", 5, 0)
-            isActuallyVisible = true
-        elseif newProfileBtn and newProfileBtn:IsVisible() then
-            self.classicTransferBtn:SetPoint("LEFT", newProfileBtn, "RIGHT", 130, 0)
-            isActuallyVisible = true
-        else
-             if anchorParent ~= SettingsPanel and anchorParent:IsVisible() then
-                 self.classicTransferBtn:SetPoint("TOPRIGHT", anchorParent, "TOPRIGHT", -10, 0)
-                 isActuallyVisible = true
+                    end
+                })
             else
-                self.classicTransferBtn:Hide()
-                return
+                 print(addonName .. ": Error - Styles module not found.")
             end
         end
 
-        if isActuallyVisible then
-            self.classicTransferBtn:Show()
+        local btn = CreateFrame("Button", nil, control, "UIPanelButtonTemplate")
+        btn:SetSize(130, 22)
+        btn:SetText("Save to mQoL")
+        btn:SetScript("OnClick", OnClick)
 
-            if newProfileBtn and not self.buttonsCentered then
-                local point, relativeTo, relativePoint, x, y = newProfileBtn:GetPoint()
-                if point and x then
-                    newProfileBtn:SetPoint(point, relativeTo, relativePoint, x - 67.5, y)
-                    self.buttonsCentered = true
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+            GameTooltip:AddLine("Save Raid Profile to mQoL", 1, 0.82, 0)
+            GameTooltip:AddLine("Save current Raid Frame settings to mQoL's account-wide storage.", 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        local dropdown = control.Control and control.Control.Dropdown
+        if dropdown then
+            local spacing = 5
+            local newWidth = newBtn:GetWidth()
+            local deleteWidth = deleteBtn:GetWidth()
+            local saveWidth = btn:GetWidth()
+
+            if newWidth == 0 then newWidth = 100 end
+            if deleteWidth == 0 then deleteWidth = 100 end
+            if saveWidth == 0 then saveWidth = 130 end
+
+            local totalWidth = newWidth + deleteWidth + saveWidth + (spacing * 2)
+
+            newBtn:ClearAllPoints()
+            deleteBtn:ClearAllPoints()
+            btn:ClearAllPoints()
+
+            newBtn:SetPoint("TOPLEFT", dropdown, "BOTTOM", -totalWidth / 2, 0)
+            deleteBtn:SetPoint("LEFT", newBtn, "RIGHT", spacing, 0)
+            btn:SetPoint("LEFT", deleteBtn, "RIGHT", spacing, 0)
+        else
+            btn:SetPoint("LEFT", deleteBtn, "RIGHT", 5, 0)
+        end
+
+        control.mQoLSaveButton = btn
+    end
+
+    hooksecurefunc(RaidProfilesMixin, "Init", function(control)
+        AttachSaveButton(control)
+    end)
+
+    local function DisableAutoActivateSettings()
+        if self.classicAutoActivateDisabled then
+            return
+        end
+
+        if not Settings or not Settings.INTERFACE_CATEGORY_ID then
+            return
+        end
+
+        local category = Settings.GetCategory(Settings.INTERFACE_CATEGORY_ID)
+        if not category then
+            return
+        end
+
+        local layout = SettingsPanel:GetLayout(category)
+        if not layout then
+            return
+        end
+
+        local targets = {
+            PROXY_RAID_AUTO_ACTIVATE = true,
+            PROXY_RAID_AUTO_ACTIVATE_2 = true,
+            PROXY_RAID_AUTO_ACTIVATE_3 = true,
+            PROXY_RAID_AUTO_ACTIVATE_5 = true,
+            PROXY_RAID_AUTO_ACTIVATE_10 = true,
+            PROXY_RAID_AUTO_ACTIVATE_15 = true,
+            PROXY_RAID_AUTO_ACTIVATE_20 = true,
+            PROXY_RAID_AUTO_ACTIVATE_40 = true,
+        }
+
+        local foundAny = false
+        for _, initializer in layout:EnumerateInitializers() do
+            if initializer.GetSetting then
+                local setting = initializer:GetSetting()
+                local variable = setting and setting.GetVariable and setting:GetVariable()
+                if variable and targets[variable] then
+                    foundAny = true
+                    initializer:AddModifyPredicate(function()
+                        return false
+                    end)
+                    initializer:SetSettingIntercept(function()
+                        return true
+                    end)
+                    if initializer.data then
+                        initializer.data.tooltip = "Auto-Activation is disabled because mQoL manages Raid Profiles."
+                    end
                 end
             end
         end
+
+        if foundAny then
+            self.classicAutoActivateDisabled = true
+        end
     end
 
-    local function FindFontStringByText(parent, pattern)
-        if not parent then return nil end
-
-        local regions = {parent:GetRegions()}
-        for _, region in ipairs(regions) do
-            if region:IsObjectType("FontString") then
-                local text = region:GetText()
-                if text and text:match(pattern) then
-                    return region
-                end
-            end
-        end
-
-        local children = {parent:GetChildren()}
-        for _, child in ipairs(children) do
-            local found = FindFontStringByText(child, pattern)
-            if found then return found end
-        end
-
-        if parent.GetScrollChild then
-            local scrollChild = parent:GetScrollChild()
-            if scrollChild then
-                local found = FindFontStringByText(scrollChild, pattern)
-                if found then return found end
-            end
-        end
-
-        return nil
-    end
-
-    local function DisableAutoActivateOptions()
-        local scrollBox = SettingsPanel 
-            and SettingsPanel.Container 
+    local function AttachToExisting()
+        local scrollBox = SettingsPanel.Container 
             and SettingsPanel.Container.SettingsList 
             and SettingsPanel.Container.SettingsList.ScrollBox
-
-        if not scrollBox then return end
-
-        local scrollTarget = scrollBox.ScrollTarget
-        if not scrollTarget then return end
+        local scrollTarget = scrollBox and scrollBox.ScrollTarget
+        if not scrollTarget then
+            return
+        end
 
         local children = {scrollTarget:GetChildren()}
-        for _, settingRow in ipairs(children) do
-            local control = settingRow.Control
-            if control then
-                local dropdown = control.Dropdown
-                if dropdown then
-                    local isAutoActivate = false
-
-                    local regions = {settingRow:GetRegions()}
-                    for _, region in ipairs(regions) do
-                        if region:IsObjectType("FontString") then
-                            local text = region:GetText()
-                            if text and text:match("Auto%-Activate") then
-                                isAutoActivate = true
-                                break
-                            end
-                        end
-                    end
-
-                    if isAutoActivate then
-                        if dropdown.SetEnabled then
-                            dropdown:SetEnabled(false)
-                        elseif dropdown.Disable then
-                            dropdown:Disable()
-                        end
-
-                        local arrowButtons = {control.IncrementButton, control.DecrementButton}
-                        local controlChildren = {control:GetChildren()}
-                        for _, child in ipairs(controlChildren) do
-                            if child:IsObjectType("Button") and child ~= dropdown then
-                                table.insert(arrowButtons, child)
-                            end
-                        end
-
-                        for _, arrowBtn in ipairs(arrowButtons) do
-                            if arrowBtn then
-                                if arrowBtn.SetEnabled then
-                                    arrowBtn:SetEnabled(false)
-                                elseif arrowBtn.Disable then
-                                    arrowBtn:Disable()
-                                end
-                            end
-                        end
-
-                        if dropdown.SetMotionScriptsWhileDisabled then
-                            dropdown:SetMotionScriptsWhileDisabled(true)
-                        end
-                        dropdown:SetScript("OnEnter", function(self)
-                            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                            GameTooltip:AddLine("Option Disabled by mQoL", 1, 0.5, 0)
-                            GameTooltip:AddLine("Auto-Activation is disabled because mQoL manages Raid Profiles.", 1, 1, 1, true)
-                            GameTooltip:Show()
-                        end)
-                        dropdown:SetScript("OnLeave", function() GameTooltip:Hide() end)
-
-                        return
-                    end
-                end
+        for _, child in ipairs(children) do
+            if child.NewButton and child.DeleteButton then
+                AttachSaveButton(child)
             end
         end
-    end
-
-    local attempts = 0
-    local lastUpdateTime = 0
-
-    local function AttemptHook()
-        attempts = attempts + 1
-        CreateTransferButton()
-        DisableAutoActivateOptions()
-
-        if attempts < 20 and (self.classicTransferBtn and self.classicTransferBtn:GetParent() == SettingsPanel) then
-            C_Timer.After(0.5, AttemptHook)
-        end
-    end
-
-    local function OnSettingsUpdate()
-        local now = GetTime()
-        if now - lastUpdateTime < 0.2 then return end
-        lastUpdateTime = now
-
-        CreateTransferButton()
-        DisableAutoActivateOptions()
     end
 
     SettingsPanel:HookScript("OnShow", function()
-        attempts = 0
-        AttemptHook()
+        AttachToExisting()
+        DisableAutoActivateSettings()
     end)
 
-    local scrollBox = SettingsPanel.Container 
-        and SettingsPanel.Container.SettingsList 
-        and SettingsPanel.Container.SettingsList.ScrollBox
-
-    if scrollBox then
-        if scrollBox.RegisterCallback then
-            scrollBox:RegisterCallback("OnScroll", OnSettingsUpdate, self)
-        end
-        if scrollBox.HookScript then
-            scrollBox:HookScript("OnMouseWheel", OnSettingsUpdate)
-        end
-        scrollBox:HookScript("OnUpdate", OnSettingsUpdate)
-    end
-
     if SettingsPanel:IsShown() then
-        AttemptHook()
+        AttachToExisting()
+        DisableAutoActivateSettings()
     end
 
     self.hookedClassicSettings = true
+end
+
+function mQoL_RaidProfiles:HookSettingsPanelBCC()
+    if self.hookedBCCSettings then return end
+
+    if not Settings or not Settings.RegisterVerticalLayoutCategory or not CreateSettingsButtonInitializer or not SettingsPanel then
+        return
+    end
+
+    local function AddSaveButton()
+        if not Settings.INTERFACE_CATEGORY_ID then
+            return false
+        end
+
+        local category = Settings.GetCategory(Settings.INTERFACE_CATEGORY_ID)
+        if not category then
+            return false
+        end
+
+        local layout = SettingsPanel:GetLayout(category)
+        if not layout then
+            return false
+        end
+
+        if layout.GetInitializers then
+            local initializers = layout:GetInitializers()
+            for _, init in ipairs(initializers) do
+                if init.GetName and init:GetName() == "mQoL Save Profile" then
+                    return true
+                end
+            end
+        end
+
+        local function OnClick()
+            if mQoL_Styles and mQoL_Styles.ShowCustomPopup then
+                mQoL_Styles.ShowCustomPopup({
+                    text = "Enter name for this Raid Profile to save in mQoL:",
+                    hasEditBox = true,
+                    maxLetters = 32,
+                    acceptText = "Save",
+                    onAccept = function(editBox)
+                         local text = editBox:GetText()
+                         if text and text ~= "" then
+                            if text:lower() == "none" then
+                                 print(addonName .. ": Error: Profile name cannot be 'None'.")
+                                 return
+                            end
+                            mQoL_RaidProfiles:SaveRaidProfile(text)
+                        end
+                    end
+                })
+            else
+                 print(addonName .. ": Error - Styles module not found.")
+            end
+        end
+
+        local initializer = CreateSettingsButtonInitializer(
+            "mQoL Save Profile",
+            "Save Raid Profile to mQoL",
+            OnClick,
+            function() Settings.CreateOptionsInitTooltip(nil, "Save Profile", "Save your current Raid Frame settings to mQoL's account-wide storage.", nil) end,
+            true
+        )
+
+        local inserted = false
+        if layout.GetInitializers then
+            local initializers = layout:GetInitializers()
+            local raidFramesIndex = nil
+
+            for i, init in ipairs(initializers) do
+                if init.GetName and init:GetName() == RAID_FRAMES_LABEL then
+                    raidFramesIndex = i
+                    break
+                end
+            end
+
+            if raidFramesIndex then
+                table.insert(initializers, raidFramesIndex + 1, initializer)
+                inserted = true
+            end
+        end
+
+        if not inserted then
+            layout:AddInitializer(initializer)
+        end
+
+        return true
+    end
+
+    SettingsPanel:HookScript("OnShow", function()
+        if AddSaveButton() then
+            self.hookedBCCSettings = true
+        end
+    end)
+
+    if SettingsPanel:IsShown() then
+        if AddSaveButton() then
+            self.hookedBCCSettings = true
+        end
+    end
 end
 
 function mQoL_RaidProfiles:HookSettingsPanelLegion()
@@ -442,7 +425,9 @@ end
 function mQoL_RaidProfiles:HookSettingsPanel()
     if clientInfo.isRetail then
         self:HookSettingsPanelRetail()
-    elseif clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+    elseif clientInfo.isBCC then
+        self:HookSettingsPanelBCC()
+    elseif clientInfo.isClassic or clientInfo.isEra then
         self:HookSettingsPanelClassic()
     elseif clientInfo.isLegion then
         self:HookSettingsPanelLegion()
@@ -857,6 +842,9 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
                                 table.insert(items, {id=id, name=className..": "..specName, color=color, assigned=s.advancedSpecProfiles[id]})
                             end
                         end
+                        
+                        local noSpecID = classFile .. "_NoSpec"
+                        table.insert(items, {id=noSpecID, name=className .. ": No Specialization", color=color, assigned=s.advancedSpecProfiles[noSpecID]})
                     end
                 end)
 
@@ -1113,6 +1101,12 @@ function mQoL_RaidProfiles:CreateProfileManagerPopup()
     popup:EnableMouse(true)
     popup:SetMovable(true)
     popup:SetClampedToScreen(true)
+    popup:EnableKeyboard(true)
+    popup:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:Hide()
+        end
+    end)
 
     local function ApplyHubScale()
         local db = _G["mQoL_Database"]
@@ -1496,17 +1490,25 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         table.sort(savedProfiles)
 
         local savedDropdownItems = {}
-        table.insert(savedDropdownItems, {
-            text = SITUATIONAL_MODE_KEY,
-            value = SITUATIONAL_MODE_KEY,
-            underline = true
-        })
 
-        for _, name in ipairs(savedProfiles) do
+        if #savedProfiles == 0 then
+             table.insert(savedDropdownItems, {
+                text = "No profiles found",
+                value = "",
+             })
+        else
             table.insert(savedDropdownItems, {
-                text = name,
-                value = name
+                text = SITUATIONAL_MODE_KEY,
+                value = SITUATIONAL_MODE_KEY,
+                underline = true
             })
+
+            for _, name in ipairs(savedProfiles) do
+                table.insert(savedDropdownItems, {
+                    text = name,
+                    value = name
+                })
+            end
         end
         return savedDropdownItems
     end
@@ -1674,13 +1676,15 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
                 if item.value == selectedSavedProfile then exists = true break end
             end
             if not exists then 
-                if selectedSavedProfile == SITUATIONAL_MODE_KEY then
-                    exists = true
-                else
-                    s.forcedRaidProfile = ""
-                    selectedSavedProfile = ""
-                    if dropdownControl.SetValue then dropdownControl:SetValue("") end
-                    if dropdownControl.text then dropdownControl.text:SetText("None") end
+                s.forcedRaidProfile = ""
+                selectedSavedProfile = ""
+                if dropdownControl.SetValue then dropdownControl:SetValue("") end
+                if dropdownControl.text then 
+                    if #newItems == 1 and newItems[1].text == "No profiles found" then
+                        dropdownControl.text:SetText("No profiles found")
+                    else
+                        dropdownControl.text:SetText("None")
+                    end
                 end
             end
 

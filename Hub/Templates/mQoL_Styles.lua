@@ -946,6 +946,15 @@ function mQoL_Styles.ShowCustomPopup(opts)
         f:RegisterForDrag("LeftButton")
         f:SetScript("OnDragStart", f.StartMoving)
         f:SetScript("OnDragStop", f.StopMovingOrSizing)
+        f:EnableKeyboard(true)
+        f:SetScript("OnKeyDown", function(self, key)
+            if key == "ESCAPE" then
+                if self.currentCancelCallback then
+                    self.currentCancelCallback()
+                end
+                self:Hide()
+            end
+        end)
 
         -- Popup background
         f.bg = f:CreateTexture(nil, "BACKGROUND")
@@ -1000,7 +1009,12 @@ function mQoL_Styles.ShowCustomPopup(opts)
                      f:Hide()
                 end)
                 f.editBox:SetPoint("CENTER", 0, 0)
-                f.editBox:SetScript("OnEscapePressed", function() f:Hide() end)
+                f.editBox:SetScript("OnEscapePressed", function()
+                    if f.currentCancelCallback then
+                        f.currentCancelCallback()
+                    end
+                    f:Hide()
+                end)
             end
             return f.editBox
         end
@@ -1065,7 +1079,12 @@ function mQoL_Styles.ShowCustomPopup(opts)
                 if f.currentAcceptCallback then f.currentAcceptCallback(self) end
                 f:Hide()
             end)
-            f.editBox:SetScript("OnEscapePressed", function() f:Hide() end)
+            f.editBox:SetScript("OnEscapePressed", function()
+                if f.currentCancelCallback then
+                    f.currentCancelCallback()
+                end
+                f:Hide()
+            end)
             f.editBox:Hide()
         end
         f.text:SetPoint("TOP", 0, -40)
@@ -1073,6 +1092,7 @@ function mQoL_Styles.ShowCustomPopup(opts)
 
     -- Store callback for EditBox enter press
     f.currentAcceptCallback = opts.onAccept
+    f.currentCancelCallback = opts.onCancel
 
     -- Callbacks
     acceptBtn:SetScript("OnClick", function()
@@ -1092,5 +1112,11 @@ function mQoL_Styles.ShowCustomPopup(opts)
     end)
 
     f:Show()
+    if opts.hasEditBox and f.editBox then
+        f.editBox:SetFocus()
+        if f.editBox.HighlightText then
+            f.editBox:HighlightText()
+        end
+    end
     return f
 end
