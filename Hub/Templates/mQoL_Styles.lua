@@ -374,8 +374,10 @@ function mQoL_Styles.CreateCustomButton(parent, text, width, height)
 end
 
 -- Dropdown - Custom dropdown menu with modern style
+mQoL_Styles.dropdownCounter = 0
 function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, onSelect)
     mQoL_Styles._openDropdownLists = mQoL_Styles._openDropdownLists or {}
+    mQoL_Styles.dropdownCounter = mQoL_Styles.dropdownCounter + 1
 
     local dropdown = CreateFrame("Frame", nil, parent)
     dropdown:SetSize(width or 140, 26)
@@ -409,11 +411,17 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
     arrow:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Down")
 
     -- List of options (hidden by default)
-    local list = CreateFrame("Frame", nil, UIParent)  -- Parent to UIParent for proper stacking
+    local listName = "mQoL_DropdownList_" .. mQoL_Styles.dropdownCounter
+    local list = CreateFrame("Frame", listName, UIParent)
     list:SetPoint("TOPLEFT", dropdown, "BOTTOMLEFT", 0, -2)
     list:SetFrameStrata("FULLSCREEN_DIALOG")
     list:SetFrameLevel(100)
+    list:EnableMouse(true)
     list:Hide()
+    
+    if _G.UISpecialFrames then
+        table.insert(_G.UISpecialFrames, listName)
+    end
 
     list.bg = list:CreateTexture(nil, "BACKGROUND")
     list.bg:SetAllPoints()
@@ -476,6 +484,10 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
         list.fadeGroup = UIFrameFadeIn(list, fadeDuration, 0, 1)
         arrow:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Up")
     end
+    
+    dropdown:SetScript("OnHide", function()
+        HideList()
+    end)
 
     -- Hide dropdown when clicking outside
 	mouseWatcher = CreateFrame("Frame", nil, dropdown)
@@ -554,11 +566,16 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
                 local sep = CreateFrame("Frame", nil, list)
                 sep:SetSize(dropdown:GetWidth(), sepHeight)
                 sep:SetPoint("TOPLEFT", 0, -yOffset)
-                local line = sep:CreateTexture(nil, "BORDER")
-                line:SetColorTexture(1, 1, 1, 0.40)
-                line:SetPoint("TOPLEFT", 8, 0)
-                line:SetPoint("TOPRIGHT", -8, 0)
+                sep:SetFrameLevel(list:GetFrameLevel() + 2)
+
+                local line = sep:CreateTexture(nil, "ARTWORK")
+                line:SetColorTexture(1, 1, 1, 0.50)
                 line:SetHeight(1)
+                line:SetPoint("LEFT", sep, "LEFT", 8, 0)
+                line:SetPoint("RIGHT", sep, "RIGHT", -8, 0)
+                line:SetPoint("CENTER", sep, "CENTER", 0, 0)
+                sep.line = line
+
                 yOffset = yOffset + sepHeight
                 table.insert(buttons, sep)
             else

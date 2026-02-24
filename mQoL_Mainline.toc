@@ -2,7 +2,7 @@
 ## Title: mQoL
 ## Notes: mQoL for Retail
 ## Author: Mentiuszen
-## Version: 1.1.1
+## Version: 1.2.0
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB
 Libs\Libs_Modern\libs.xml
 
@@ -27,6 +27,7 @@ Modules/EditMode/mQoL_EditMode.lua
 Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
+Modules/DungeonTeleports/DungeonTeleportsTab.lua
 
 #First Setup
 Core/mQoL_FirstSetup.lua
