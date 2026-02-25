@@ -24,10 +24,78 @@ local function GetSpellNameWrapper(spellID)
     end
 
     if C_Spell and C_Spell.GetSpellName then
-        return C_Spell.GetSpellName(spellID)
+        local name = C_Spell.GetSpellName(spellID)
+        if name then
+            return name
+        end
+    end
+
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(spellID)
+        if info and info.name then
+            return info.name
+        end
+    end
+
+    if _G.GetSpellLink then
+        local link = _G.GetSpellLink(spellID)
+        if link then
+            local name = link:match("%[(.-)%]")
+            if name and name ~= "" then
+                return name
+            end
+        end
     end
 
     return nil
+end
+
+local function ClearTeleportButtonAction(btn)
+    if not btn then
+        return
+    end
+
+    btn:SetAttribute("type", nil)
+    btn:SetAttribute("type1", nil)
+    btn:SetAttribute("spell", nil)
+    btn:SetAttribute("spell1", nil)
+end
+
+local function ShouldUseActionButtonKeyDown()
+    if _G.GetCVarBool then
+        return _G.GetCVarBool("ActionButtonUseKeyDown")
+    end
+    if _G.GetCVar then
+        return tostring(_G.GetCVar("ActionButtonUseKeyDown")) == "1"
+    end
+    return false
+end
+
+local function ConfigureTeleportButtonClicks(btn)
+    if not btn or not btn.RegisterForClicks then
+        return
+    end
+
+    if ShouldUseActionButtonKeyDown() then
+        btn:RegisterForClicks("LeftButtonDown")
+    else
+        btn:RegisterForClicks("LeftButtonUp")
+    end
+end
+
+local function SetTeleportButtonSpellAction(btn, spellID)
+    if not btn or not spellID or spellID <= 0 then
+        ClearTeleportButtonAction(btn)
+        return false
+    end
+
+    -- Prefer localized spell name but always fallback to spellID token.
+    local spellToken = GetSpellNameWrapper(spellID) or spellID
+    btn:SetAttribute("type", "spell")
+    btn:SetAttribute("type1", "spell")
+    btn:SetAttribute("spell", spellToken)
+    btn:SetAttribute("spell1", spellToken)
+    return true
 end
 
 local function RefreshButtonCooldown(btn)
@@ -308,6 +376,7 @@ local function InitDungeonTeleportsTab()
             if not contentFrame.buttons[i] then
                 local btn = CreateFrame("Button", nil, scrollChild, "SecureActionButtonTemplate")
                 btn:SetSize(btnWidth, btnHeight)
+                ConfigureTeleportButtonClicks(btn)
                 
                 -- Card Background
                 btn.bg = btn:CreateTexture(nil, "BACKGROUND")
@@ -385,6 +454,9 @@ local function InitDungeonTeleportsTab()
                 if btn.cooldown.SetDrawBling then
                     btn.cooldown:SetDrawBling(false)
                 end
+                if btn.cooldown.EnableMouse then
+                    btn.cooldown:EnableMouse(false)
+                end
                 btn.cooldown:SetHideCountdownNumbers(false)
                 
                 for _, region in ipairs({btn.cooldown:GetRegions()}) do
@@ -435,27 +507,18 @@ local function InitDungeonTeleportsTab()
                 btn:SetAlpha(1)
                 btn.imageArea:SetDesaturated(false)
                 btn.nameText:SetTextColor(1, 0.82, 0)
-                local spellName = GetSpellNameWrapper(spellToUse)
-                if spellName then
-                    btn:SetAttribute("type", "spell")
-                    btn:SetAttribute("type1", "spell")
-                    btn:SetAttribute("spell", spellName)
-                    btn:SetAttribute("spell1", spellName)
-                else
-                    btn:SetAttribute("type", nil)
-                    btn:SetAttribute("type1", nil)
-                    btn:SetAttribute("spell", nil)
-                    btn:SetAttribute("spell1", nil)
+                if not SetTeleportButtonSpellAction(btn, spellToUse) then
+                    btn:Disable()
+                    btn:SetAlpha(0.5)
+                    btn.imageArea:SetDesaturated(true)
+                    btn.nameText:SetTextColor(0.5, 0.5, 0.5)
                 end
             else -- Not known, disable button
                 btn:Disable()
                 btn:SetAlpha(0.5) -- Grayed out
                 btn.imageArea:SetDesaturated(true)
                 btn.nameText:SetTextColor(0.5, 0.5, 0.5)
-                btn:SetAttribute("type", nil)
-                btn:SetAttribute("type1", nil)
-                btn:SetAttribute("spell", nil)
-                btn:SetAttribute("spell1", nil)
+                ClearTeleportButtonAction(btn)
             end
             
             -- Store current spell ID for tooltip
@@ -510,7 +573,7 @@ local function InitDungeonTeleportsTab()
     end
 
     -- Event Handler for cooldowns and deferred secure updates
-    contentFrame:SetScript("OnEvent", function(self, event)
+    contentFrame:SetScript("OnEvent", function(self, event, arg1)
         if event == "SPELL_UPDATE_COOLDOWN" then
             if not self:IsShown() then
                 return
@@ -522,6 +585,13 @@ local function InitDungeonTeleportsTab()
             end
         elseif event == "SPELLS_CHANGED" then
             RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
+        elseif event == "CVAR_UPDATE" then
+            local cvarName = tostring(arg1 or ""):gsub("_", ""):lower()
+            if cvarName == "actionbuttonusekeydown" and not IsInCombat() then
+                for _, btn in pairs(contentFrame.buttons) do
+                    ConfigureTeleportButtonClicks(btn)
+                end
+            end
         elseif event == "PLAYER_REGEN_ENABLED" then
             if pendingCategoryValue then
                 RequestCategoryUpdate(pendingCategoryValue, pendingCategoryText)
@@ -533,9 +603,11 @@ local function InitDungeonTeleportsTab()
     contentFrame:SetScript("OnShow", function(self)
         self:RegisterEvent("SPELL_UPDATE_COOLDOWN")
         self:RegisterEvent("SPELLS_CHANGED")
+        self:RegisterEvent("CVAR_UPDATE")
         RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
         for _, btn in pairs(self.buttons) do
             if btn:IsShown() then
+                ConfigureTeleportButtonClicks(btn)
                 RefreshButtonCooldown(btn)
             end
         end
@@ -543,6 +615,7 @@ local function InitDungeonTeleportsTab()
     contentFrame:SetScript("OnHide", function(self)
         self:UnregisterEvent("SPELL_UPDATE_COOLDOWN")
         self:UnregisterEvent("SPELLS_CHANGED")
+        self:UnregisterEvent("CVAR_UPDATE")
     end)
 
     -- Dropdown

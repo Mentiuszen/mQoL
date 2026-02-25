@@ -1,6 +1,13 @@
 local addonName, mQoL = ...
 mQoL_Styles = mQoL_Styles or {}
 
+local addonFolder = tostring(addonName or "DungeonTeleportsTab")
+local textureBasePath = "Interface\\AddOns\\" .. addonFolder .. "\\Media\\Textures\\"
+
+local function GetTexturePath(fileName)
+    return textureBasePath .. tostring(fileName or "")
+end
+
 -- Scrollbar - Custom scrollbar with modern look
 function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
     opts = opts or {}
@@ -59,8 +66,8 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
 
     local upBtn, downBtn, scrollbar
 
-    upBtn = CreateArrowButton("TOPRIGHT", -2, "Interface\\AddOns\\mQoL\\Media\\Textures\\Up")
-    downBtn = CreateArrowButton("BOTTOMRIGHT", 2, "Interface\\AddOns\\mQoL\\Media\\Textures\\Down")
+    upBtn = CreateArrowButton("TOPRIGHT", -2, GetTexturePath("Up"))
+    downBtn = CreateArrowButton("BOTTOMRIGHT", 2, GetTexturePath("Down"))
 
     scrollbar = CreateFrame("Slider", nil, scrollFrame)
     local trackWidth = buttonSize - 2
@@ -408,7 +415,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
     local arrow = dropdown:CreateTexture(nil, "OVERLAY")
     arrow:SetSize(16, 16)
     arrow:SetPoint("RIGHT", -8, 0)
-    arrow:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Down")
+    arrow:SetTexture(GetTexturePath("Down"))
 
     -- List of options (hidden by default)
     local listName = "mQoL_DropdownList_" .. mQoL_Styles.dropdownCounter
@@ -465,7 +472,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 		end
 
 		list.fadeGroup = UIFrameFadeOut(list, fadeDuration, 1, 0)
-		arrow:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Down")
+		arrow:SetTexture(GetTexturePath("Down"))
 
 		C_Timer.After(fadeDuration, function()
 			if list and list.Hide and list:IsShown() then
@@ -482,7 +489,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
         if mouseWatcher then mouseWatcher:Show() end -- Start watching
         if list.fadeGroup then list.fadeGroup:Stop() end
         list.fadeGroup = UIFrameFadeIn(list, fadeDuration, 0, 1)
-        arrow:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Up")
+        arrow:SetTexture(GetTexturePath("Up"))
     end
     
     dropdown:SetScript("OnHide", function()
@@ -894,7 +901,7 @@ function mQoL_Styles.CreateCustomCheckbox(parent, labelText)
     wrapper.cross = wrapper:CreateTexture(nil, "ARTWORK")
     wrapper.cross:SetSize(12, 12)
     wrapper.cross:SetPoint("CENTER", 0, 0)
-    wrapper.cross:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Cross")
+    wrapper.cross:SetTexture(GetTexturePath("Cross"))
     wrapper.cross:SetAlpha(0)
 
     wrapper._value = false
