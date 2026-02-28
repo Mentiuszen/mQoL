@@ -57,6 +57,110 @@ local function GetServerAndFaction()
     return realm, faction
 end
 
+local function GetProfileKeyForClient(realm, faction)
+    if clientInfo.isRetail then
+        return realm
+    end
+    return realm .. "-" .. faction
+end
+
+local function NormalizeRecipientName(name)
+    if type(name) ~= "string" then return nil end
+    local trimmed = string.trim and string.trim(name) or name:match("^%s*(.-)%s*$")
+    if not trimmed or trimmed == "" then return nil end
+    return trimmed
+end
+
+local function MergeUniqueRecipientLists(...)
+    local merged = {}
+    local seen = {}
+
+    for i = 1, select("#", ...) do
+        local list = select(i, ...)
+        if type(list) == "table" then
+            for _, name in ipairs(list) do
+                local normalized = NormalizeRecipientName(name)
+                if normalized then
+                    local dedupeKey = normalized:lower()
+                    if not seen[dedupeKey] then
+                        seen[dedupeKey] = true
+                        table.insert(merged, normalized)
+                    end
+                end
+            end
+        end
+    end
+
+    return merged
+end
+
+local function MigrateRetailFactionProfiles(accountDB)
+    if not (clientInfo and clientInfo.isRetail) then return false end
+    if not accountDB or type(accountDB.profiles) ~= "table" then return false end
+
+    local groupedByRealm = {}
+    local legacyKeys = {}
+
+    for profileKey, profileData in pairs(accountDB.profiles) do
+        if type(profileKey) == "string" and type(profileData) == "table" then
+            local realm, faction = profileKey:match("^(.-)%-(Horde)$")
+            if not realm then
+                realm, faction = profileKey:match("^(.-)%-(Alliance)$")
+            end
+
+            if realm and faction then
+                groupedByRealm[realm] = groupedByRealm[realm] or {}
+                groupedByRealm[realm][faction] = profileData
+                table.insert(legacyKeys, profileKey)
+            end
+        end
+    end
+
+    if next(groupedByRealm) == nil then
+        return false
+    end
+
+    for realm, factionProfiles in pairs(groupedByRealm) do
+        local baseProfile = accountDB.profiles[realm]
+        if type(baseProfile) ~= "table" then
+            baseProfile = TableCopy(mQoL_Mailbox.profileDefaults)
+            accountDB.profiles[realm] = baseProfile
+        end
+
+        local hordeProfile = factionProfiles.Horde
+        local allianceProfile = factionProfiles.Alliance
+
+        baseProfile.altsList = MergeUniqueRecipientLists(
+            baseProfile.altsList,
+            hordeProfile and hordeProfile.altsList,
+            allianceProfile and allianceProfile.altsList
+        )
+        baseProfile.guildList = MergeUniqueRecipientLists(
+            baseProfile.guildList,
+            hordeProfile and hordeProfile.guildList,
+            allianceProfile and allianceProfile.guildList
+        )
+        baseProfile.friendsList = MergeUniqueRecipientLists(
+            baseProfile.friendsList,
+            hordeProfile and hordeProfile.friendsList,
+            allianceProfile and allianceProfile.friendsList
+        )
+
+        if not NormalizeRecipientName(baseProfile.lastRecipient) then
+            baseProfile.lastRecipient = NormalizeRecipientName(
+                (hordeProfile and hordeProfile.lastRecipient) or
+                (allianceProfile and allianceProfile.lastRecipient)
+            ) or ""
+        end
+    end
+
+    for _, legacyKey in ipairs(legacyKeys) do
+        accountDB.profiles[legacyKey] = nil
+    end
+
+    return true
+end
+
 -- Get mailbox database (handles migration from old format)
 local function GetMailboxDB()
     mQoL_Mailbox_DB = mQoL_Mailbox_DB or {}
@@ -113,6 +217,10 @@ local function GetMailboxDB()
         print("|cff00ff00[mQoL Mailbox]|r Migrated data to new database format.")
     end
 
+    if MigrateRetailFactionProfiles(accountDB) then
+        print("|cff00ff00[mQoL Mailbox]|r Migrated Retail profiles from Realm-Faction to Realm.")
+    end
+
     return accountDB
 end
 
@@ -121,9 +229,9 @@ function mQoL_Mailbox:InitializeDB()
     local accountDB = GetMailboxDB()
     self.db = { settings = accountDB.settings }
 
-    -- Get/create profile for current server-faction
+    -- Get/create profile for current server/faction format (Retail uses realm-only key)
     local realm, faction = GetServerAndFaction()
-    local profileKey = realm .. "-" .. faction
+    local profileKey = GetProfileKeyForClient(realm, faction)
 
     if not accountDB.profiles[profileKey] then
         accountDB.profiles[profileKey] = TableCopy(self.profileDefaults)
@@ -423,7 +531,7 @@ end
 -- Not used
 function mQoL_Mailbox:GetProfileKey()
     local realm, faction = GetServerAndFaction()
-    return realm .. "-" .. faction
+    return GetProfileKeyForClient(realm, faction)
 end
 
 string.trim = string.trim or function(s)
