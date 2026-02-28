@@ -202,6 +202,63 @@ local function ParseYMD(ymd)
     return year, month, day
 end
 
+local function ShiftYMDByDays(ymd, days)
+    local year, month, day = ParseYMD(ymd)
+    if not year then
+        return ymd
+    end
+
+    if not days or days == 0 then
+        return tonumber(string.format("%04d%02d%02d", year, month, day))
+    end
+
+    local shifted = time({ year = year, month = month, day = day, hour = 12, min = 0, sec = 0 })
+    if not shifted then
+        return ymd
+    end
+
+    local shiftedDate = date("*t", shifted + (days * 86400))
+    if not shiftedDate then
+        return ymd
+    end
+
+    return tonumber(string.format("%04d%02d%02d", shiftedDate.year, shiftedDate.month, shiftedDate.day))
+end
+
+local function DetectRegionForWeeklyReset()
+    local portal = _G.GetCVar and _G.GetCVar("portal")
+    if portal and portal ~= "" then
+        portal = string.upper(portal)
+        if portal == "EU" then
+            return "EU"
+        end
+        if portal == "KR" or portal == "TW" or portal == "CN" then
+            return "ASIA"
+        end
+        return "US"
+    end
+
+    if _G.GetCurrentRegion then
+        local regionID = _G.GetCurrentRegion()
+        if regionID == 3 then
+            return "EU"
+        end
+        if regionID == 2 or regionID == 4 or regionID == 5 then
+            return "ASIA"
+        end
+    end
+
+    return "EU"
+end
+
+local function ConvertEUWeeklyYMDToCurrentRegion(ymd)
+    local region = DetectRegionForWeeklyReset()
+    if region == "US" then
+        return ShiftYMDByDays(ymd, -1) -- US is 1 day before EU for weekly resets
+    end
+    return tonumber(ymd) or ymd
+end
+
 local function GetResetTimeOfDay(resetType)
     local now = GetServerTime()
     local seconds
@@ -270,7 +327,8 @@ local function FormatRemainingDuration(remaining)
 end
 
 local function GetSeasonEndTimestampForDisplay(endsYMD)
-    local endsNumber = tonumber(endsYMD)
+    local regionEndsYMD = ConvertEUWeeklyYMDToCurrentRegion(endsYMD)
+    local endsNumber = tonumber(regionEndsYMD)
     if not endsNumber then
         return nil
     end
@@ -282,11 +340,11 @@ local function GetSeasonEndTimestampForDisplay(endsYMD)
         end
     end
 
-    return GetYMDTimestampAtReset(endsYMD, "weekly")
+    return GetYMDTimestampAtReset(regionEndsYMD, "weekly")
 end
 
 local function GetPostSeasonEndTimestamp(postEndsYMD)
-    return GetYMDTimestampAtReset(postEndsYMD, "weekly")
+    return GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(postEndsYMD), "weekly")
 end
 
 -- Teleport Data Structure
@@ -589,7 +647,7 @@ local function InitDungeonTeleportsTab()
                         if self.teleportObtainable == false then
                             GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
                         elseif self.teleportObtainable == "starts" then
-                            local startTimestamp = GetYMDTimestampAtReset(self.teleportStarts, "weekly")
+                            local startTimestamp = GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(self.teleportStarts), "weekly")
                             if startTimestamp then
                                 local remaining = startTimestamp - GetServerTime()
                                 if remaining > 0 then
