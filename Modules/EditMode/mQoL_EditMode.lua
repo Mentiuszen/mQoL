@@ -58,7 +58,7 @@ local function GetAccountEditModeDB()
 
     local keysToRemove = {}
     for key, data in pairs(mQoL_EditMode_DB) do
-        if key ~= "Account" and type(data) == "table" then
+        if key ~= "Account" and key ~= "ProfileBackups" and type(data) == "table" then
             for k, v in pairs(data) do
                 if accountDB[k] == nil then
                     accountDB[k] = v
@@ -127,6 +127,137 @@ local function GetPlayerSpecID()
     local specID = getSpecInfo(specIndex)
     if specID and specID ~= 0 then return specID end
     return nil
+end
+
+local function IsBlizzardDefaultLayoutName(layoutName)
+    if type(layoutName) ~= "string" then return false end
+    return layoutName == "Classic" or layoutName == "Modern"
+end
+
+local function GetLayoutsForBackup()
+    local layouts = nil
+
+    if C_EditMode and C_EditMode.GetLayouts then
+        local ok, layoutInfo = pcall(C_EditMode.GetLayouts)
+        if ok and layoutInfo then
+            if layoutInfo.layouts then
+                layouts = layoutInfo.layouts
+            elseif type(layoutInfo) == "table" and #layoutInfo > 0 then
+                layouts = layoutInfo
+            end
+        end
+    end
+
+    if not layouts and EditModeManagerFrame and EditModeManagerFrame.GetLayouts then
+        local ok, layoutInfo = pcall(function()
+            return EditModeManagerFrame:GetLayouts()
+        end)
+        if ok and layoutInfo then
+            if layoutInfo.layouts then
+                layouts = layoutInfo.layouts
+            elseif type(layoutInfo) == "table" and #layoutInfo > 0 then
+                layouts = layoutInfo
+            end
+        end
+    end
+
+    return layouts or {}
+end
+
+local function ExportLayoutString(layout, fallbackIndex)
+    if not (layout and C_EditMode and C_EditMode.ConvertLayoutInfoToString) then
+        return nil
+    end
+
+    if C_EditMode.GetLayoutInfo then
+        local identifier = layout.layoutIdentifier or layout.layoutIndex or fallbackIndex
+        if identifier ~= nil then
+            local okInfo, layoutInfo = pcall(C_EditMode.GetLayoutInfo, identifier)
+            if okInfo and layoutInfo then
+                local okExport, exportString = pcall(C_EditMode.ConvertLayoutInfoToString, layoutInfo)
+                if okExport and type(exportString) == "string" and exportString ~= "" then
+                    return exportString
+                end
+            end
+        end
+    end
+
+    local okExport, exportString = pcall(C_EditMode.ConvertLayoutInfoToString, layout)
+    if okExport and type(exportString) == "string" and exportString ~= "" then
+        return exportString
+    end
+
+    return nil
+end
+
+function mQoL_EditMode:BackupPlayerProfiles(force)
+    if self._backupDoneThisSession and not force then return end
+    if not force then
+        self._backupDoneThisSession = true
+    end
+
+    mQoL_EditMode_DB = mQoL_EditMode_DB or {}
+    mQoL_EditMode_DB.ProfileBackups = mQoL_EditMode_DB.ProfileBackups or {}
+    local backupStore = mQoL_EditMode_DB.ProfileBackups
+
+    -- Migrate old character-keyed backup format to profile-keyed version history.
+    local now = (GetServerTime and GetServerTime()) or time()
+
+    for key, value in pairs(backupStore) do
+        if type(value) == "table" and type(value.profiles) == "table" then
+            for profileName, oldEntry in pairs(value.profiles) do
+                if type(profileName) == "string" and type(oldEntry) == "table" and type(oldEntry.exportString) == "string" and oldEntry.exportString ~= "" then
+                    local profileBucket = backupStore[profileName]
+                    if type(profileBucket) ~= "table" then
+                        profileBucket = { versions = {} }
+                        backupStore[profileName] = profileBucket
+                    end
+                    profileBucket.versions = profileBucket.versions or {}
+                    local versions = profileBucket.versions
+                    local latest = versions[#versions]
+                    if not latest or latest.exportString ~= oldEntry.exportString then
+                        table.insert(versions, {
+                            exportString = oldEntry.exportString,
+                            savedAt = oldEntry.updatedAt or now
+                        })
+                        while #versions > 5 do
+                            table.remove(versions, 1)
+                        end
+                    end
+                end
+            end
+            backupStore[key] = nil
+        end
+    end
+
+    local layouts = GetLayoutsForBackup()
+
+    for index, layout in ipairs(layouts) do
+        local layoutName = layout and layout.layoutName
+        if layoutName and layoutName ~= "" and not IsBlizzardDefaultLayoutName(layoutName) then
+            local exportString = ExportLayoutString(layout, index)
+            if exportString then
+                local profileBucket = backupStore[layoutName]
+                if type(profileBucket) ~= "table" then
+                    profileBucket = { versions = {} }
+                    backupStore[layoutName] = profileBucket
+                end
+                profileBucket.versions = profileBucket.versions or {}
+                local versions = profileBucket.versions
+                local latest = versions[#versions]
+
+                if not latest or latest.exportString ~= exportString then
+                    table.insert(versions, {
+                        exportString = exportString,
+                        savedAt = now
+                    })
+                    while #versions > 5 do
+                        table.remove(versions, 1)
+                    end
+                end
+            end
+        end
+    end
 end
 
 function mQoL_EditMode:GetCurrentSituation()
@@ -1036,6 +1167,7 @@ local lastSpecID = nil
 
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_LOGOUT")
 eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
 
@@ -1058,8 +1190,14 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         lastSpecID = GetPlayerSpecID()
 
         C_Timer.After(1, function()
+            mQoL_EditMode:BackupPlayerProfiles()
             mQoL_EditMode:UpdateCurrentProfile(true)
         end)
+        return
+    end
+
+    if event == "PLAYER_LOGOUT" then
+        mQoL_EditMode:BackupPlayerProfiles(true)
         return
     end
 
