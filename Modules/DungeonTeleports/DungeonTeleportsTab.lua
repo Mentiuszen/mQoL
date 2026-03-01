@@ -368,7 +368,7 @@ local TeleportData = {
     ["TWW_S3"] = {
         obtainable = "ends",
         ends = 20260121,
-        postEnds = 20260301, --not confirmed date just on weekly reset
+        postEnds = 20260304, --not confirmed date just on weekly reset
         ids = { 2660, 2662, 2649, 2773, 2830, 2287, 2441, 2810, },
     },
     ["MID_S1"] = {
