@@ -189,17 +189,72 @@ local function ParseYMD(ymd)
         return nil
     end
 
-    local probe = time({ year = year, month = month, day = day, hour = 12, min = 0, sec = 0 })
-    if not probe then
+    if month < 1 or month > 12 then
         return nil
     end
 
-    local normalized = date("*t", probe)
-    if not normalized or normalized.year ~= year or normalized.month ~= month or normalized.day ~= day then
+    local daysInMonth = ({31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31})[month]
+    local isLeapYear = (year % 4 == 0 and year % 100 ~= 0) or (year % 400 == 0)
+    if month == 2 and isLeapYear then
+        daysInMonth = 29
+    end
+
+    if day < 1 or day > daysInMonth then
         return nil
     end
 
     return year, month, day
+end
+
+-- Converts a YMD date to the number of days since the Unix epoch (January 1, 1970).
+-- This code will make sure addon will function correctly even if the client is using a non-Gregorian calendar or has a different epoch, as it relies on the same underlying date calculations as the game's date functions.
+local function YMDToEpochDays(year, month, day)
+    local y = year
+    if month <= 2 then
+        y = y - 1
+    end
+    local era
+    if y >= 0 then
+        era = math.floor(y / 400)
+    else
+        era = math.floor((y - 399) / 400)
+    end
+    local yoe = y - (era * 400)
+    local mp
+    if month > 2 then
+        mp = month - 3
+    else
+        mp = month + 9
+    end
+    local doy = math.floor((153 * mp + 2) / 5) + day - 1
+    local doe = yoe * 365 + math.floor(yoe / 4) - math.floor(yoe / 100) + doy
+    return era * 146097 + doe - 719468
+end
+
+local function EpochDaysToYMD(daysSinceEpoch)
+    local z = daysSinceEpoch + 719468
+    local era
+    if z >= 0 then
+        era = math.floor(z / 146097)
+    else
+        era = math.floor((z - 146096) / 146097)
+    end
+    local doe = z - era * 146097
+    local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+    local y = yoe + era * 400
+    local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+    local mp = math.floor((5 * doy + 2) / 153)
+    local day = doy - math.floor((153 * mp + 2) / 5) + 1
+    local month
+    if mp < 10 then
+        month = mp + 3
+    else
+        month = mp - 9
+    end
+    if month <= 2 then
+        y = y + 1
+    end
+    return y, month, day
 end
 
 local function ShiftYMDByDays(ymd, days)
@@ -212,17 +267,9 @@ local function ShiftYMDByDays(ymd, days)
         return tonumber(string.format("%04d%02d%02d", year, month, day))
     end
 
-    local shifted = time({ year = year, month = month, day = day, hour = 12, min = 0, sec = 0 })
-    if not shifted then
-        return ymd
-    end
-
-    local shiftedDate = date("*t", shifted + (days * 86400))
-    if not shiftedDate then
-        return ymd
-    end
-
-    return tonumber(string.format("%04d%02d%02d", shiftedDate.year, shiftedDate.month, shiftedDate.day))
+    local shiftedDays = YMDToEpochDays(year, month, day) + days
+    local shiftedYear, shiftedMonth, shiftedDay = EpochDaysToYMD(shiftedDays)
+    return tonumber(string.format("%04d%02d%02d", shiftedYear, shiftedMonth, shiftedDay))
 end
 
 local function DetectRegionForWeeklyReset()
@@ -259,28 +306,6 @@ local function ConvertEUWeeklyYMDToCurrentRegion(ymd)
     return tonumber(ymd) or ymd
 end
 
-local function GetResetTimeOfDay(resetType)
-    local now = GetServerTime()
-    local seconds
-
-    if resetType == "daily" then
-        seconds = GetSecondsUntilDailyReset()
-    else
-        seconds = GetSecondsUntilWeeklyReset()
-    end
-
-    if not seconds then
-        return 0, 0, 0
-    end
-
-    local resetDate = date("*t", now + seconds)
-    if not resetDate then
-        return 0, 0, 0
-    end
-
-    return resetDate.hour, resetDate.min, resetDate.sec
-end
-
 local function GetNextResetTimestamp(resetType)
     local now = GetServerTime()
     local seconds = resetType == "daily" and GetSecondsUntilDailyReset() or GetSecondsUntilWeeklyReset()
@@ -296,15 +321,19 @@ local function GetYMDTimestampAtReset(ymd, resetType)
         return nil
     end
 
-    local hour, min, sec = GetResetTimeOfDay(resetType or "weekly")
-    return time({
-        year = year,
-        month = month,
-        day = day,
-        hour = hour,
-        min = min,
-        sec = sec,
-    })
+    local nextReset = GetNextResetTimestamp(resetType or "weekly")
+    if not nextReset then
+        return nil
+    end
+
+    local resetDate = date("*t", nextReset)
+    if not resetDate then
+        return nil
+    end
+
+    local baseDays = YMDToEpochDays(resetDate.year, resetDate.month, resetDate.day)
+    local targetDays = YMDToEpochDays(year, month, day)
+    return nextReset + ((targetDays - baseDays) * 86400)
 end
 
 local function GetTodayYMD()
@@ -386,9 +415,9 @@ local TeleportData = {
         { id = 2825, name = "Den of Nalorakk", texture = 7478533, spellID = 0, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
         { id = 2859, name = "The Blinding Vale", texture = 7478531, spellID = 0, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
         { id = 2923, name = "Voidscar Arena", texture = 7479111, spellID = 0, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, location = "	Voidstorm", source = "Unknown", obtainable = "soon" }, --Unconfirmed
-        --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, location = "Harandar", source = "Unknown", obtainable = "soon" }, --Unconfirmed
-        --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, location = "Eversong Woods", source = "Unknown", obtainable = "soon" }, --Unconfirmed
+        --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, location = "	Voidstorm", source = "Unknown" }, --Unconfirmed
+        --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, location = "Harandar", source = "Unknown" }, --Unconfirmed
+        --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, location = "Eversong Woods", source = "Unknown" }, --Unconfirmed
     },
     ["The War Within"] = {
         { id = 2660, name = "Ara-Kara, City of Echoes", texture = 5912537, spellID = 445417, location = "Azj-Kahet", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
@@ -413,9 +442,9 @@ local TeleportData = {
         { id = 2515, name = "The Azure Vault", texture = 4742932, spellID = 393279, location = "Azure Span", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 2516, name = "The Nokhud Offensive", texture = 4742934, spellID = 393262, location = "Ohn'ahran Plains", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 2451, name = "Uldaman: Legacy of Tyr", texture = 4742940, spellID = 393222, location = "Badlands", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2522, name = "Vault of the Incarnates", texture = 4742941, spellID = 432254, location = "Thaldraszus", source = "Complete Achivement Mythic: Awakening the Dragonflight Raids" },
-        { id = 2569, name = "Aberrus, the Shadowed Crucible", texture = 5149417, spellID = 432257, location = "Zaralek Cavern", source = "Complete Achivement Mythic: Awakening the Dragonflight Raids" },
-        { id = 2549, name = "Amirdrassil, the Dream's Hope", texture = 5409262, spellID = 432258, location = "Emerald Dream", source = "Complete Achivement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2522, name = "Vault of the Incarnates", texture = 4742941, spellID = 432254, location = "Thaldraszus", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2569, name = "Aberrus, the Shadowed Crucible", texture = 5149417, spellID = 432257, location = "Zaralek Cavern", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2549, name = "Amirdrassil, the Dream's Hope", texture = 5409262, spellID = 432258, location = "Emerald Dream", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
     },
     ["Shadowlands"] = {
         { id = 2286, name = "The Necrotic Wake", texture = 3759920, spellID = 354462, location = "Bastion", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
@@ -427,9 +456,9 @@ local TeleportData = {
         { id = 2285, name = "Spires of Ascension", texture = 3759923, spellID = 354466, location = "Bastion", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 2284, name = "Sanguine Depths", texture = 3759922, spellID = 354469, location = "Revendreth", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 2441, name = "Tazavesh, the Veiled Market", texture = 4182024, spellID = 367416, location = "Tazavesh", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2296, name = "Castle Nathria", texture = 3759916, spellID = 373190, location = "Revendreth", source = "Complete Achivement Mythic: Fates of the Shadowlands Raids" },
-        { id = 2450, name = "Sanctum of Domination", texture = 4182023, spellID = 373191, location = "The Maw", source = "Complete Achivement Mythic: Fates of the Shadowlands Raids" },
-        { id = 2481, name = "Sepulcher of the First Ones", texture = 4425895, spellID = 373192, location = "Zereth Mortis", source = "Complete Achivement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2296, name = "Castle Nathria", texture = 3759916, spellID = 373190, location = "Revendreth", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2450, name = "Sanctum of Domination", texture = 4182023, spellID = 373191, location = "The Maw", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2481, name = "Sepulcher of the First Ones", texture = 4425895, spellID = 373192, location = "Zereth Mortis", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
     },
     ["Battle for Azeroth"] = {
         { id = 1763, name = "Atal'Dazar", texture = 1778890, spellID = 424187, location = "Zuldazar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
@@ -885,10 +914,107 @@ local function InitDungeonTeleportsTab()
     scrollFrame:SetScrollChild(scrollChild)
     contentFrame.scrollChild = scrollChild
     contentFrame.buttons = {}
+    contentFrame.cooldownRefreshPending = false
     
     -- Custom Scrollbar (from mQoL Addon Styles)
     if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar then
         mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild)
+    end
+
+    local function OnButtonEnter(self)
+        self.border:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        
+        if self.teleportName then
+            GameTooltip:AddLine(self.teleportName, 1, 1, 1)
+        end
+        if self.teleportLocation then
+            GameTooltip:AddLine(self.teleportLocation, 0.7, 0.7, 0.7)
+        end
+
+        if not self.isKnown then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
+
+            if self.teleportObtainable == false then
+                GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
+            elseif self.teleportObtainable == "starts" then
+                local startTimestamp = GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(self.teleportStarts), "weekly")
+                if startTimestamp then
+                    local remaining = startTimestamp - GetServerTime()
+                    if remaining > 0 then
+                        GameTooltip:AddLine("Season starts in " .. FormatRemainingDuration(remaining), 1, 1, 0)
+                    else
+                        GameTooltip:AddLine("Season Started", 0, 1, 0)
+                    end
+                else
+                    GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
+                end
+            elseif self.teleportObtainable == "ends" then
+                local text = "Season ends in"
+                if self.teleportEnds then
+                    local endTimestamp = GetSeasonEndTimestampForDisplay(self.teleportEnds)
+                    local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
+                    local currentTime = GetServerTime()
+                    local remaining = endTimestamp and (endTimestamp - currentTime) or nil
+                    if remaining > 0 then
+                        text = text .. " " .. FormatRemainingDuration(remaining)
+                    else
+                        local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
+                        if postRemaining and postRemaining > 0 then
+                            text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
+                        else
+                            self.teleportObtainable = false
+                            text = "NOT CURRENTLY OBTAINABLE"
+                        end
+                    end
+                else
+                    text = "NOT CURRENTLY OBTAINABLE"
+                end
+                GameTooltip:AddLine(text, 1, 0, 0)
+            end
+
+            if self.teleportSource then
+                GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
+            else
+                GameTooltip:AddLine("Complete this dungeon on Mythic Keystone Level 10+ within the time limit.", 1, 1, 1, true)
+            end
+        end
+
+        GameTooltip:Show()
+    end
+
+    local function OnButtonLeave(self)
+        self.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        GameTooltip:Hide()
+    end
+
+    local function RefreshVisibleButtonCooldowns()
+        if not contentFrame:IsShown() then
+            return
+        end
+        for _, btn in pairs(contentFrame.buttons) do
+            if btn:IsShown() then
+                RefreshButtonCooldown(btn)
+            end
+        end
+    end
+
+    local function QueueCooldownRefresh()
+        if contentFrame.cooldownRefreshPending then
+            return
+        end
+
+        contentFrame.cooldownRefreshPending = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.1, function()
+                contentFrame.cooldownRefreshPending = false
+                RefreshVisibleButtonCooldowns()
+            end)
+        else
+            contentFrame.cooldownRefreshPending = false
+            RefreshVisibleButtonCooldowns()
+        end
     end
 
     -- Functions
@@ -980,72 +1106,8 @@ local function InitDungeonTeleportsTab()
                 btn.locText:SetMaxLines(1)
 
                 -- Hover Effect
-                btn:SetScript("OnEnter", function(self)
-                    self.border:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    
-                    if self.teleportName then
-                        GameTooltip:AddLine(self.teleportName, 1, 1, 1)
-                    end
-                    if self.teleportLocation then
-                        GameTooltip:AddLine(self.teleportLocation, 0.7, 0.7, 0.7)
-                    end
-
-                    if not self.isKnown then
-                        GameTooltip:AddLine(" ")
-                        GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
-
-                        if self.teleportObtainable == false then
-                            GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
-                        elseif self.teleportObtainable == "starts" then
-                            local startTimestamp = GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(self.teleportStarts), "weekly")
-                            if startTimestamp then
-                                local remaining = startTimestamp - GetServerTime()
-                                if remaining > 0 then
-                                    GameTooltip:AddLine("Season starts in " .. FormatRemainingDuration(remaining), 1, 1, 0)
-                                else
-                                    GameTooltip:AddLine("Season Started", 0, 1, 0)
-                                end
-                            else
-                                GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
-                            end
-                        elseif self.teleportObtainable == "ends" then
-                            local text = "Season ends in"
-                            if self.teleportEnds then
-                                local endTimestamp = GetSeasonEndTimestampForDisplay(self.teleportEnds)
-                                local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
-                                local currentTime = GetServerTime()
-                                local remaining = endTimestamp and (endTimestamp - currentTime) or nil
-                                if remaining > 0 then
-                                    text = text .. " " .. FormatRemainingDuration(remaining)
-                                else
-                                    local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
-                                    if postRemaining and postRemaining > 0 then
-                                        text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
-                                    else
-                                        self.teleportObtainable = false
-                                        text = "NOT CURRENTLY OBTAINABLE"
-                                    end
-                                end
-                            else
-                                text = "NOT CURRENTLY OBTAINABLE"
-                            end
-                            GameTooltip:AddLine(text, 1, 0, 0)
-                        end
-
-                        if self.teleportSource then
-                            GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
-                        else
-                            GameTooltip:AddLine("Complete this dungeon on Mythic Keystone Level 10+ within the time limit.", 1, 1, 1, true)
-                        end
-                    end
-
-                    GameTooltip:Show()
-                end)
-                btn:SetScript("OnLeave", function(self)
-                    self.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-                    GameTooltip:Hide()
-                end)
+                btn:SetScript("OnEnter", OnButtonEnter)
+                btn:SetScript("OnLeave", OnButtonLeave)
                   
                 contentFrame.buttons[i] = btn
             end
@@ -1119,7 +1181,7 @@ local function InitDungeonTeleportsTab()
             -- Determine player faction for faction specific spell ID selection (if applicable)
             local faction = UnitFactionGroup("player")
             
-            -- Determine which spell ID to use based on faction (for few dungeons that have different IDs for Horde/Ally due to faction specific enterance)
+            -- Determine which spell ID to use based on faction (for few dungeons that have different IDs for Horde/Ally due to faction specific entrance)
             if info.spellIDHorde and info.spellIDAlly then
                 if faction == "Horde" then
                     spellToUse = info.spellIDHorde
@@ -1205,14 +1267,7 @@ local function InitDungeonTeleportsTab()
     -- Event Handler for cooldowns and deferred secure updates
     contentFrame:SetScript("OnEvent", function(self, event, arg1)
         if event == "SPELL_UPDATE_COOLDOWN" then
-            if not self:IsShown() then
-                return
-            end
-            for _, btn in pairs(contentFrame.buttons) do
-                if btn:IsShown() then
-                    RefreshButtonCooldown(btn)
-                end
-            end
+            QueueCooldownRefresh()
         elseif event == "SPELLS_CHANGED" then
             RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
         elseif event == "CVAR_UPDATE" then
@@ -1241,11 +1296,13 @@ local function InitDungeonTeleportsTab()
                 RefreshButtonCooldown(btn)
             end
         end
+        QueueCooldownRefresh()
     end)
     contentFrame:SetScript("OnHide", function(self)
         self:UnregisterEvent("SPELL_UPDATE_COOLDOWN")
         self:UnregisterEvent("SPELLS_CHANGED")
         self:UnregisterEvent("CVAR_UPDATE")
+        self.cooldownRefreshPending = false
     end)
 
     -- Dropdown
