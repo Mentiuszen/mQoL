@@ -376,10 +376,56 @@ local function GetPostSeasonEndTimestamp(postEndsYMD)
     return GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(postEndsYMD), "weekly")
 end
 
+local function GetSeasonStartTimestamp(startsYMD)
+    if not startsYMD then
+        return nil
+    end
+    return GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(startsYMD), "weekly")
+end
+
+local function ResolveObtainableState(obtainable, startsYMD, endsYMD, postEndsYMD)
+    if obtainable == false then
+        return false
+    end
+
+    local now = GetServerTime()
+    local startTimestamp = GetSeasonStartTimestamp(startsYMD)
+    if startTimestamp and now < startTimestamp then
+        return "starts"
+    end
+
+    local endTimestamp = endsYMD and GetSeasonEndTimestampForDisplay(endsYMD) or nil
+    local postEndTimestamp = postEndsYMD and GetPostSeasonEndTimestamp(postEndsYMD) or nil
+
+    if endTimestamp then
+        if now < endTimestamp then
+            return "ends"
+        end
+        if postEndTimestamp and now < postEndTimestamp then
+            return "ends"
+        end
+        return false
+    end
+
+    if postEndTimestamp then
+        if now < postEndTimestamp then
+            return "ends"
+        end
+        return false
+    end
+
+    if obtainable == "starts" or obtainable == "ends" then
+        return true
+    end
+
+    return obtainable
+end
+
 -- Teleport Data Structure
 local TeleportCategories = {
     { text = "TWW Season 3", value = "TWW_S3" },
     { text = "Midnight Season 1", value = "MID_S1" },
+    --{ text = "Midnight Season 2", value = "MID_S2" },
     { separator = true },
     { text = "Midnight", value = "Midnight" },
     { text = "The War Within", value = "The War Within" },
@@ -403,7 +449,16 @@ local TeleportData = {
     ["MID_S1"] = {
         obtainable = "starts",
         starts = 20260318,
+        --ends = 20260723, most likely July 2026 (date is speculative)
+        --postEnds = 20260806, most likely August 2026 (date is speculative)
         ids = { 658, 1209, 1753, 2526, 2805, 2811, 2874, 2915, },
+    },
+    ["MID_S2"] = {
+        obtainable = false,
+        --starts = 20260806, (date is speculative)
+        --ends = UNKNOWN,
+        --postEnds = UNKNOWN,
+        ids = { 2813, 2825, 2859, 2923, },
     },
 
     ["Midnight"] = {
@@ -612,19 +667,9 @@ local function ApplySeasonMeta(entry, seasonMeta)
 
     if seasonMeta.obtainable ~= nil then
         merged.obtainable = seasonMeta.obtainable
-        if seasonMeta.obtainable == "starts" then
-            merged.starts = seasonMeta.starts
-            merged.ends = nil
-            merged.postEnds = nil
-        elseif seasonMeta.obtainable == "ends" then
-            merged.ends = seasonMeta.ends
-            merged.postEnds = seasonMeta.postEnds
-            merged.starts = nil
-        else
-            merged.starts = seasonMeta.starts
-            merged.ends = seasonMeta.ends
-            merged.postEnds = seasonMeta.postEnds
-        end
+        merged.starts = seasonMeta.starts
+        merged.ends = seasonMeta.ends
+        merged.postEnds = seasonMeta.postEnds
     end
 
     return merged
@@ -768,11 +813,12 @@ local function InitDungeonTeleportsTab()
         end
 
         local now = GetServerTime()
+        local state = ResolveObtainableState(seasonMeta.obtainable, seasonMeta.starts, seasonMeta.ends, seasonMeta.postEnds)
 
-        if seasonMeta.obtainable == "starts" then
+        if state == "starts" then
             local startsText = "Start date unavailable"
             if seasonMeta.starts then
-                local startTimestamp = GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(seasonMeta.starts), "weekly")
+                local startTimestamp = GetSeasonStartTimestamp(seasonMeta.starts)
                 if startTimestamp then
                     local remaining = startTimestamp - now
                     if remaining > 0 then
@@ -786,7 +832,7 @@ local function InitDungeonTeleportsTab()
             return true, string.format("%s Season %s - %s", seasonName, seasonNumber, startsText)
         end
 
-        if seasonMeta.obtainable == "ends" then
+        if state == "ends" then
             local endTimestamp = seasonMeta.ends and GetSeasonEndTimestampForDisplay(seasonMeta.ends) or nil
             local postEndTimestamp = seasonMeta.postEnds and GetPostSeasonEndTimestamp(seasonMeta.postEnds) or nil
 
@@ -798,6 +844,10 @@ local function InitDungeonTeleportsTab()
                 return true, string.format("%s Post-Season %s - Ends in %s", seasonName, seasonNumber, FormatRemainingDuration(postEndTimestamp - now))
             end
 
+            return false, nil
+        end
+
+        if state == false then
             return false, nil
         end
 
@@ -935,11 +985,12 @@ local function InitDungeonTeleportsTab()
         if not self.isKnown then
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
+            local tooltipObtainable = ResolveObtainableState(self.teleportObtainable, self.teleportStarts, self.teleportEnds, self.teleportPostEnds)
 
-            if self.teleportObtainable == false then
+            if tooltipObtainable == false then
                 GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
-            elseif self.teleportObtainable == "starts" then
-                local startTimestamp = GetYMDTimestampAtReset(ConvertEUWeeklyYMDToCurrentRegion(self.teleportStarts), "weekly")
+            elseif tooltipObtainable == "starts" then
+                local startTimestamp = GetSeasonStartTimestamp(self.teleportStarts)
                 if startTimestamp then
                     local remaining = startTimestamp - GetServerTime()
                     if remaining > 0 then
@@ -950,26 +1001,21 @@ local function InitDungeonTeleportsTab()
                 else
                     GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
                 end
-            elseif self.teleportObtainable == "ends" then
+            elseif tooltipObtainable == "ends" then
                 local text = "Season ends in"
-                if self.teleportEnds then
-                    local endTimestamp = GetSeasonEndTimestampForDisplay(self.teleportEnds)
-                    local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
-                    local currentTime = GetServerTime()
-                    local remaining = endTimestamp and (endTimestamp - currentTime) or nil
-                    if remaining > 0 then
-                        text = text .. " " .. FormatRemainingDuration(remaining)
-                    else
-                        local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
-                        if postRemaining and postRemaining > 0 then
-                            text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
-                        else
-                            self.teleportObtainable = false
-                            text = "NOT CURRENTLY OBTAINABLE"
-                        end
-                    end
+                local endTimestamp = self.teleportEnds and GetSeasonEndTimestampForDisplay(self.teleportEnds) or nil
+                local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
+                local currentTime = GetServerTime()
+                local remaining = endTimestamp and (endTimestamp - currentTime) or nil
+                if remaining and remaining > 0 then
+                    text = text .. " " .. FormatRemainingDuration(remaining)
                 else
-                    text = "NOT CURRENTLY OBTAINABLE"
+                    local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
+                    if postRemaining and postRemaining > 0 then
+                        text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
+                    else
+                        text = "NOT CURRENTLY OBTAINABLE"
+                    end
                 end
                 GameTooltip:AddLine(text, 1, 0, 0)
             end
@@ -1157,18 +1203,7 @@ local function InitDungeonTeleportsTab()
             if effectiveObtainable == nil then
                 effectiveObtainable = false
             end
-            if effectiveObtainable == "ends" and info.ends then
-                local endTimestamp = GetSeasonEndTimestampForDisplay(info.ends)
-                local postEndTimestamp = info.postEnds and GetPostSeasonEndTimestamp(info.postEnds) or nil
-                local currentTime = GetServerTime()
-                if endTimestamp and endTimestamp <= currentTime then
-                    if postEndTimestamp and postEndTimestamp > currentTime then
-                        effectiveObtainable = "ends"
-                    else
-                        effectiveObtainable = false
-                    end
-                end
-            end
+            effectiveObtainable = ResolveObtainableState(effectiveObtainable, info.starts, info.ends, info.postEnds)
             btn.teleportObtainable = effectiveObtainable
             btn.teleportStarts = info.starts
             btn.teleportEnds = info.ends
@@ -1317,6 +1352,9 @@ local function InitDungeonTeleportsTab()
         dropdown:SetPoint("TOPRIGHT", -5, -30)
     end
 
+    local UpdateDungeonTeleportsTabTextColor
+    local isDungeonTeleportsTabForceDisabled = false
+
     local function HideDungeonTeleportsFrame()
         if IsInCombat() then
             pendingHideAfterCombat = true
@@ -1329,6 +1367,9 @@ local function InitDungeonTeleportsTab()
         end
         if PanelTemplates_DeselectTab then
             PanelTemplates_DeselectTab(tab)
+        end
+        if UpdateDungeonTeleportsTabTextColor then
+            UpdateDungeonTeleportsTabTextColor()
         end
         return true
     end
@@ -1374,20 +1415,38 @@ local function InitDungeonTeleportsTab()
         if UpdateUIPanelPositions then
             UpdateUIPanelPositions(PVEFrame)
         end
+        if UpdateDungeonTeleportsTabTextColor then
+            UpdateDungeonTeleportsTabTextColor()
+        end
+    end
+
+    UpdateDungeonTeleportsTabTextColor = function()
+        local text = tab.Text or _G[tab:GetName() .. "Text"]
+        if not text then
+            return
+        end
+
+        if isDungeonTeleportsTabForceDisabled then
+            text:SetTextColor(0.5, 0.5, 0.5)
+            return
+        end
+
+        local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+        local isActive = selectedTabID == tab:GetID() or (contentFrame and contentFrame:IsShown())
+        local isHovered = tab:IsMouseOver()
+
+        if isActive or isHovered then
+            text:SetTextColor(1, 1, 1)
+        else
+            text:SetTextColor(1, 0.82, 0)
+        end
     end
 
     local function SetDungeonTeleportsTabDisabled(isDisabled)
+        isDungeonTeleportsTabForceDisabled = isDisabled and true or false
         tab:SetEnabled(not isDisabled)
         tab:SetAlpha(1)
-
-        local text = tab.Text or _G[tab:GetName() .. "Text"]
-        if text then
-            if isDisabled then
-                text:SetTextColor(0.5, 0.5, 0.5)
-            else
-                text:SetTextColor(1, 0.82, 0)
-            end
-        end
+        UpdateDungeonTeleportsTabTextColor()
     end
 
     local function UpdateDungeonTeleportsTabState()
@@ -1425,7 +1484,11 @@ local function InitDungeonTeleportsTab()
         end
 
         SetDungeonTeleportsTabDisabled(inCombat)
+        UpdateDungeonTeleportsTabTextColor()
     end
+
+    tab:HookScript("OnEnter", UpdateDungeonTeleportsTabTextColor)
+    tab:HookScript("OnLeave", UpdateDungeonTeleportsTabTextColor)
 
     tab:SetScript("OnClick", function()
         if IsInCombat() then
