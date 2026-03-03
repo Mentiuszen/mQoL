@@ -938,6 +938,9 @@ local function InitDungeonTeleportsTab()
     end
     tab:SetPoint("LEFT", PVEFrameTab3, "RIGHT", 6, 0)
     tab:Show()
+    if PanelTemplates_DeselectTab then
+        PanelTemplates_DeselectTab(tab)
+    end
     
     -- Create the content frame
     local contentFrame = CreateFrame("Frame", "DungeonTeleportsFrame", PVEFrame)
@@ -1354,6 +1357,7 @@ local function InitDungeonTeleportsTab()
 
     local UpdateDungeonTeleportsTabTextColor
     local isDungeonTeleportsTabForceDisabled = false
+    local isInternalTabSwitch = false
 
     local function HideDungeonTeleportsFrame()
         if IsInCombat() then
@@ -1372,6 +1376,20 @@ local function InitDungeonTeleportsTab()
             UpdateDungeonTeleportsTabTextColor()
         end
         return true
+    end
+
+    local function SwitchToMythicPlusTab()
+        if not PVEFrame or not PVEFrame:IsShown() or isInternalTabSwitch then
+            return
+        end
+
+        isInternalTabSwitch = true
+        if PVEFrame_ShowFrame then
+            PVEFrame_ShowFrame("ChallengesFrame")
+        elseif PVEFrame_TabOnClick and PVEFrameTab3 then
+            PVEFrame_TabOnClick(PVEFrameTab3)
+        end
+        isInternalTabSwitch = false
     end
 
     local function ShowDungeonTeleportsFrame()
@@ -1454,6 +1472,7 @@ local function InitDungeonTeleportsTab()
         if inCombat then
             if PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
                 pendingHideAfterCombat = true
+                SwitchToMythicPlusTab()
             end
             if PanelTemplates_DisableTab then
                 PanelTemplates_DisableTab(PVEFrame, 4)
@@ -1464,6 +1483,10 @@ local function InitDungeonTeleportsTab()
                 PanelTemplates_DeselectTab(tab)
             end
         else
+            local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+            if contentFrame and contentFrame:IsShown() and selectedTabID ~= 4 then
+                HideDungeonTeleportsFrame()
+            end
             if pendingHideAfterCombat and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
                 if HideDungeonTeleportsFrame() then
                     if PVEFrame_TabOnClick and PVEFrameTab3 then
@@ -1480,6 +1503,8 @@ local function InitDungeonTeleportsTab()
             end
             if contentFrame:IsShown() and PanelTemplates_SelectTab then
                 PanelTemplates_SelectTab(tab)
+            elseif PanelTemplates_DeselectTab then
+                PanelTemplates_DeselectTab(tab)
             end
         end
 
@@ -1502,15 +1527,15 @@ local function InitDungeonTeleportsTab()
     RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
 
     hooksecurefunc("PVEFrame_TabOnClick", function(clickedTab)
-        if clickedTab and clickedTab:GetID() ~= 4 then
-            HideDungeonTeleportsFrame()
+        if isInternalTabSwitch then
+            return
         end
         UpdateDungeonTeleportsTabState()
     end)
 
     hooksecurefunc("PVEFrame_ShowFrame", function(sidePanelName)
-        if sidePanelName ~= "DungeonTeleportsFrame" then
-            HideDungeonTeleportsFrame()
+        if isInternalTabSwitch then
+            return
         end
         UpdateDungeonTeleportsTabState()
     end)
