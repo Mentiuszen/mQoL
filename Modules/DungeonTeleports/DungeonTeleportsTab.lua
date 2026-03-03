@@ -394,10 +394,10 @@ local TeleportCategories = {
 }
 
 local TeleportData = {
-    ["TWW_S3"] = {
+    ["TWW_S3"] = {  -- The War Within Season 3 - Ended code will disable tab automatically.
         obtainable = "ends",
         ends = 20260121,
-        postEnds = 20260304, --not confirmed date just on weekly reset
+        postEnds = 20260303,
         ids = { 2660, 2662, 2649, 2773, 2830, 2287, 2441, 2810, },
     },
     ["MID_S1"] = {
