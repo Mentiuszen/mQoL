@@ -448,7 +448,7 @@ local TeleportData = {
     },
     ["MID_S1"] = {
         obtainable = "starts",
-        starts = 20260318,
+        starts = 20260325,
         --ends = 20260723, most likely July 2026 (date is speculative)
         --postEnds = 20260806, most likely August 2026 (date is speculative)
         ids = { 658, 1209, 1753, 2526, 2805, 2811, 2874, 2915, },
