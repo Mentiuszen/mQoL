@@ -73,7 +73,12 @@ end
 
 local function ConfigureTeleportButtonClicks(btn)
     if not btn or not btn.RegisterForClicks then
-        return
+        return false
+    end
+
+    -- SecureActionButton click registration is protected in combat.
+    if InCombatLockdown and InCombatLockdown() then
+        return false
     end
 
     if ShouldUseActionButtonKeyDown() then
@@ -81,6 +86,7 @@ local function ConfigureTeleportButtonClicks(btn)
     else
         btn:RegisterForClicks("LeftButtonUp")
     end
+    return true
 end
 
 local function SetTeleportButtonSpellAction(btn, spellID)
@@ -423,7 +429,6 @@ end
 
 -- Teleport Data Structure
 local TeleportCategories = {
-    { text = "TWW Season 3", value = "TWW_S3" },
     { text = "Midnight Season 1", value = "MID_S1" },
     --{ text = "Midnight Season 2", value = "MID_S2" },
     { separator = true },
@@ -440,12 +445,6 @@ local TeleportCategories = {
 }
 
 local TeleportData = {
-    ["TWW_S3"] = {  -- The War Within Season 3 - Ended code will disable tab automatically.
-        obtainable = "ends",
-        ends = 20260121,
-        postEnds = 20260303,
-        ids = { 2660, 2662, 2649, 2773, 2830, 2287, 2441, 2810, },
-    },
     ["MID_S1"] = {
         obtainable = "starts",
         starts = 20260325,
@@ -544,15 +543,15 @@ local TeleportData = {
         { id = 1209, name = "Skyreach", texture = 1041989, spellID = 159898, location = "Spires of Arak", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Mists of Pandaria"] = {
-        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, spellID = 131204, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 961, name = "Stormstout Brewery", texture = 632282, spellID = 131205, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 959, name = "Shado-Pan Monastery", texture = 632281, spellID = 131206, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 994, name = "Mogu'shan Palace", texture = 632279, spellID = 131222, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 962, name = "Gate of the Setting Sun", texture = 632277, spellID = 131225, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, spellID = 131228, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1001, name = "Scarlet Halls", texture = 643265, spellID = 131231, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1004, name = "Scarlet Monastery", texture = 608253, spellID = 131229, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1007, name = "Scholomance", texture = 608254, spellID = 131232, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)" },
+        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, spellID = 131204, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit.", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 961, name = "Stormstout Brewery", texture = 632282, spellID = 131205, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 959, name = "Shado-Pan Monastery", texture = 632281, spellID = 131206, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 994, name = "Mogu'shan Palace", texture = 632279, spellID = 131222, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 962, name = "Gate of the Setting Sun", texture = 632277, spellID = 131225, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, spellID = 131228, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1001, name = "Scarlet Halls", texture = 643265, spellID = 131231, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1004, name = "Scarlet Monastery", texture = 608253, spellID = 131229, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1007, name = "Scholomance", texture = 608254, spellID = 131232, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
     },
     ["Cataclysm"] = {
         { id = 657, name = "Vortex Pinnacle", texture = 526414, spellID = 410080, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
@@ -675,6 +674,25 @@ local function ApplySeasonMeta(entry, seasonMeta)
     return merged
 end
 
+local function ApplyClientEntryOverrides(entry)
+    if type(entry) ~= "table" then
+        return entry
+    end
+
+    local merged = ShallowCopyTable(entry)
+
+    if clientInfo.isClassic then
+        if merged.sourceClassic ~= nil then
+            merged.source = merged.sourceClassic
+        end
+        if merged.obtainableClassic ~= nil then
+            merged.obtainable = merged.obtainableClassic
+        end
+    end
+
+    return merged
+end
+
 local function GetSeasonMetaForTeleportId(teleportID)
     if not teleportID then
         return nil
@@ -754,18 +772,38 @@ local function ResolveTeleportEntry(categoryValue, entry, seasonMeta)
         effectiveSeasonMeta = GetSeasonMetaForTeleportId(teleportID or resolved.id)
     end
 
-    return ApplySeasonMeta(resolved, effectiveSeasonMeta)
+    return ApplyClientEntryOverrides(ApplySeasonMeta(resolved, effectiveSeasonMeta))
+end
+
+local function GetDungeonTeleportsTabConfig()
+    local isClassicLayout = clientInfo.isClassic and true or false
+
+    return {
+        isClassicLayout = isClassicLayout,
+        usesNativePVEPanelTabState = not isClassicLayout,
+        tabName = isClassicLayout and "DungeonTeleportsClassicTab" or "PVEFrameTab4",
+        tabTemplate = isClassicLayout and (_G.PVEFrameTabTemplate and "PVEFrameTabTemplate" or "CharacterFrameTabButtonTemplate") or "PanelTabButtonTemplate",
+        tabID = isClassicLayout and 0 or 4,
+        tabOffsetX = isClassicLayout and -16 or 6,
+        selectedCategoryValue = isClassicLayout and "Mists of Pandaria" or "MID_S1",
+        selectedCategoryText = isClassicLayout and "Mists of Pandaria" or "Midnight Season 1",
+    }
 end
 
 local function InitDungeonTeleportsTab()
-    if _G["PVEFrameTab4"] then return end
+    local config = GetDungeonTeleportsTabConfig()
+    if _G[config.tabName] then return end
     if not PVEFrame or not PVEFrameTab3 then return end
 
+    local tabName = config.tabName
+    local isClassicLayout = config.isClassicLayout
+    local usesNativePVEPanelTabState = config.usesNativePVEPanelTabState
     local pendingCategoryValue
     local pendingCategoryText
     local pendingHideAfterCombat = false
-    local selectedCategoryValue = "TWW_S3"
-    local selectedCategoryText = "TWW Season 3"
+    local isClassicCombatSuspended = false
+    local selectedCategoryValue = config.selectedCategoryValue
+    local selectedCategoryText = config.selectedCategoryText
     local availableCategories = {}
     local dropdown
     local InitializeDropdown
@@ -855,6 +893,12 @@ local function InitDungeonTeleportsTab()
     end
 
     local function BuildVisibleCategories()
+        if isClassicLayout then
+            return {
+                { text = "Mists of Pandaria", dynamicText = "Mists of Pandaria", value = "Mists of Pandaria" },
+            }
+        end
+
         local result = {}
 
         for _, cat in ipairs(TeleportCategories) do
@@ -930,27 +974,35 @@ local function InitDungeonTeleportsTab()
     end
 
     -- Create the new tab
-    local tab = CreateFrame("Button", "PVEFrameTab4", PVEFrame, "PanelTabButtonTemplate")
-    tab:SetID(4)
+    local tab = CreateFrame("Button", tabName, PVEFrame, config.tabTemplate)
+    tab:SetID(config.tabID)
     tab:SetText("Dungeon Teleports")
     if PanelTemplates_TabResize then
         PanelTemplates_TabResize(tab, 0)
     end
-    tab:SetPoint("LEFT", PVEFrameTab3, "RIGHT", 6, 0)
+    tab:SetPoint("LEFT", PVEFrameTab3, "RIGHT", config.tabOffsetX, 0)
     tab:Show()
     if PanelTemplates_DeselectTab then
         PanelTemplates_DeselectTab(tab)
     end
-    
+
     -- Create the content frame
     local contentFrame = CreateFrame("Frame", "DungeonTeleportsFrame", PVEFrame)
     contentFrame:SetAllPoints(PVEFrame)
     contentFrame:Hide()
 
+    if isClassicLayout then
+        local referenceFrame = GroupFinderFrame or PVPQueueFrame or ChallengesFrame or PVEFrame
+        if referenceFrame then
+            contentFrame:SetFrameStrata(referenceFrame:GetFrameStrata())
+            contentFrame:SetFrameLevel(math.max((referenceFrame:GetFrameLevel() or 3) - 2, 1))
+        end
+    end
+
     -- Title
     local title = contentFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOPLEFT", 70, -35)
-    title:SetText("TWW Season 3")
+    title:SetText(selectedCategoryText)
 
     -- Background Inset
     local inset = CreateFrame("Frame", "$parentInset", contentFrame, "InsetFrameTemplate")
@@ -961,14 +1013,24 @@ local function InitDungeonTeleportsTab()
     local scrollFrame = CreateFrame("ScrollFrame", "$parentScrollFrame", inset)
     scrollFrame:SetPoint("TOPLEFT", 10, -10)
     scrollFrame:SetPoint("BOTTOMRIGHT", -5, 10)
-    
+
     local scrollChild = CreateFrame("Frame")
     scrollChild:SetSize(inset:GetWidth()-30, 500)
     scrollFrame:SetScrollChild(scrollChild)
     contentFrame.scrollChild = scrollChild
     contentFrame.buttons = {}
     contentFrame.cooldownRefreshPending = false
-    
+
+    local classicCombatBlocker
+    if isClassicLayout then
+        classicCombatBlocker = CreateFrame("Frame", nil, inset)
+        classicCombatBlocker:SetAllPoints(scrollFrame)
+        classicCombatBlocker:EnableMouse(true)
+        classicCombatBlocker:SetFrameStrata(scrollFrame:GetFrameStrata())
+        classicCombatBlocker:SetFrameLevel(scrollFrame:GetFrameLevel() + 20)
+        classicCombatBlocker:Hide()
+    end
+
     -- Custom Scrollbar (from mQoL Addon Styles)
     if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar then
         mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild)
@@ -977,7 +1039,7 @@ local function InitDungeonTeleportsTab()
     local function OnButtonEnter(self)
         self.border:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        
+
         if self.teleportName then
             GameTooltip:AddLine(self.teleportName, 1, 1, 1)
         end
@@ -1026,7 +1088,7 @@ local function InitDungeonTeleportsTab()
             if self.teleportSource then
                 GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
             else
-                GameTooltip:AddLine("Complete this dungeon on Mythic Keystone Level 10+ within the time limit.", 1, 1, 1, true)
+                GameTooltip:AddLine("Complete Mythic Keystone on Level 10 or higher within the time limit.", 1, 1, 1, true)
             end
         end
 
@@ -1076,7 +1138,7 @@ local function InitDungeonTeleportsTab()
         for _, btn in pairs(contentFrame.buttons) do
             btn:Hide()
         end
-        
+
         local data, seasonMeta = GetCategoryEntriesAndMeta(categoryValue)
         if not data then return true end
 
@@ -1087,7 +1149,7 @@ local function InitDungeonTeleportsTab()
                 table.insert(resolvedData, resolvedEntry)
             end
         end
-        
+
         -- Card Style Layout
         local availableWidth = scrollChild:GetWidth() or 520
         local cols = 3
@@ -1097,19 +1159,19 @@ local function InitDungeonTeleportsTab()
         local startY = -10
 
         local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
-        local btnHeight = 95 
-        
+        local btnHeight = 95
+
         for i, info in ipairs(resolvedData) do
             if not contentFrame.buttons[i] then
                 local btn = CreateFrame("Button", nil, scrollChild, "SecureActionButtonTemplate")
                 btn:SetSize(btnWidth, btnHeight)
                 ConfigureTeleportButtonClicks(btn)
-                
+
                 -- Card Background
                 btn.bg = btn:CreateTexture(nil, "BACKGROUND")
                 btn.bg:SetAllPoints()
                 btn.bg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
-                
+
                 -- Border
                 btn.border = CreateFrame("Frame", nil, btn, "BackdropTemplate")
                 btn.border:SetAllPoints()
@@ -1125,12 +1187,12 @@ local function InitDungeonTeleportsTab()
                 btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
                 btn.imageContainer:SetHeight(btnHeight * 0.6)
                 btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
-                
+
                 btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
                 btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
                 btn.imageArea:SetSize(btnHeight * 0.6, btnHeight * 0.6)
                 btn.imageArea:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                
+
                 -- Info Section (Instance Name and Location)
                 btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
                 btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
@@ -1157,10 +1219,10 @@ local function InitDungeonTeleportsTab()
                 -- Hover Effect
                 btn:SetScript("OnEnter", OnButtonEnter)
                 btn:SetScript("OnLeave", OnButtonLeave)
-                  
+
                 contentFrame.buttons[i] = btn
             end
-            
+
             local btn = contentFrame.buttons[i]
 
             -- Ensure cooldown frame exists
@@ -1175,14 +1237,14 @@ local function InitDungeonTeleportsTab()
                     btn.cooldown:EnableMouse(false)
                 end
                 btn.cooldown:SetHideCountdownNumbers(false)
-                
+
                 for _, region in ipairs({btn.cooldown:GetRegions()}) do
                     if region:GetObjectType() == "FontString" then
                         region:SetTextColor(1, 0.82, 0)
                     end
                 end
             end
-            
+
             -- Update Size
             btn:SetSize(btnWidth, btnHeight)
             btn.imageContainer:SetHeight(btnHeight * 0.6)
@@ -1191,11 +1253,11 @@ local function InitDungeonTeleportsTab()
             -- Grid Position
             local col = (i - 1) % cols
             local row = math.floor((i - 1) / cols)
-            
+
             btn:ClearAllPoints()
             btn:SetPoint("TOPLEFT", startX + (col * (btnWidth + marginX)), startY - (row * (btnHeight + marginY)))
             btn:Show()
-            
+
             btn.nameText:SetText(info.name)
             btn.locText:SetText(info.location or "Unknown Location")
 
@@ -1215,10 +1277,10 @@ local function InitDungeonTeleportsTab()
             -- Setup click and visual state
             local isKnown = false
             local spellToUse = nil
-            
+
             -- Determine player faction for faction specific spell ID selection (if applicable)
             local faction = UnitFactionGroup("player")
-            
+
             -- Determine which spell ID to use based on faction (for few dungeons that have different IDs for Horde/Ally due to faction specific entrance)
             if info.spellIDHorde and info.spellIDAlly then
                 if faction == "Horde" then
@@ -1229,7 +1291,7 @@ local function InitDungeonTeleportsTab()
             else
                 spellToUse = info.spellID
             end
-            
+
             isKnown = IsTeleportSpellKnown(spellToUse)
 
             if isKnown then
@@ -1244,13 +1306,13 @@ local function InitDungeonTeleportsTab()
                     btn.nameText:SetTextColor(0.5, 0.5, 0.5)
                 end
             else -- Not known, visual disable only
-                btn:Enable() 
+                btn:Enable()
                 btn:SetAlpha(0.5) -- Grayed out
                 btn.imageArea:SetDesaturated(true)
                 btn.nameText:SetTextColor(0.5, 0.5, 0.5)
                 ClearTeleportButtonAction(btn)
             end
-            
+
             -- Store current spell ID for tooltip
             btn.currentSpellID = spellToUse
             btn.isKnown = isKnown
@@ -1261,7 +1323,7 @@ local function InitDungeonTeleportsTab()
             else
                 btn.cooldown:Hide()
             end
-            
+
             -- Set Texture using texture FileID
             if info.texture and info.texture > 0 then
                 btn.imageArea:ClearAllPoints()
@@ -1270,9 +1332,9 @@ local function InitDungeonTeleportsTab()
                 btn.imageArea:SetTexCoord(0.08, 0.65, 0.14, 0.58)
             end
         end
-    
+
         local totalRows = math.ceil(#resolvedData / cols)
-        local totalHeight = math.abs(startY) + (totalRows * (btnHeight + marginY)) 
+        local totalHeight = math.abs(startY) + (totalRows * (btnHeight + marginY))
         scrollChild:SetHeight(totalHeight)
         if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar and scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
              scrollFrame.scrollbar.UpdateScrollbar()
@@ -1280,7 +1342,7 @@ local function InitDungeonTeleportsTab()
 
         return true
     end
-    
+
     local function RequestCategoryUpdate(categoryValue, categoryText)
         RefreshCategoryOptions(categoryValue)
         selectedCategoryText = categoryText or GetCategoryTextByValue(selectedCategoryValue, availableCategories, true)
@@ -1316,6 +1378,11 @@ local function InitDungeonTeleportsTab()
                 end
             end
         elseif event == "PLAYER_REGEN_ENABLED" then
+            for _, btn in pairs(contentFrame.buttons) do
+                if btn and btn:IsShown() then
+                    ConfigureTeleportButtonClicks(btn)
+                end
+            end
             if pendingCategoryValue then
                 RequestCategoryUpdate(pendingCategoryValue, pendingCategoryText)
             else
@@ -1359,8 +1426,141 @@ local function InitDungeonTeleportsTab()
     local isDungeonTeleportsTabForceDisabled = false
     local isInternalTabSwitch = false
 
-    local function HideDungeonTeleportsFrame()
-        if IsInCombat() then
+    local function GetFallbackPVEFrameName()
+        if isClassicLayout then
+            return "GroupFinderFrame"
+        end
+        return "ChallengesFrame"
+    end
+
+    local function GetFallbackPVEFrameTab()
+        if isClassicLayout and PVEFrameTab1 then
+            return PVEFrameTab1
+        end
+        if PVEFrameTab3 then
+            return PVEFrameTab3
+        end
+        return PVEFrameTab1
+    end
+
+    local function SelectClassicFallbackTabVisual()
+        local fallbackTab = GetFallbackPVEFrameTab()
+        if fallbackTab and PanelTemplates_SelectTab then
+            PanelTemplates_SelectTab(fallbackTab)
+        end
+    end
+
+    local function SwitchToFallbackPVEFrame()
+        local fallbackTab = GetFallbackPVEFrameTab()
+        if PVEFrame_ShowFrame then
+            PVEFrame_ShowFrame(GetFallbackPVEFrameName())
+        elseif PVEFrame_TabOnClick and fallbackTab then
+            PVEFrame_TabOnClick(fallbackTab)
+        end
+    end
+
+    local function HideBuiltInPVEPanels()
+        if GroupFinderFrame then GroupFinderFrame:Hide() end
+        if PVPUIFrame then PVPUIFrame:Hide() end
+        if PVPQueueFrame then PVPQueueFrame:Hide() end
+        if ChallengesFrame then ChallengesFrame:Hide() end
+    end
+
+    local function DeselectBuiltInPVETabs()
+        if not PanelTemplates_DeselectTab then
+            return
+        end
+
+        if PVEFrameTab1 then PanelTemplates_DeselectTab(PVEFrameTab1) end
+        if PVEFrameTab2 then PanelTemplates_DeselectTab(PVEFrameTab2) end
+        if PVEFrameTab3 then PanelTemplates_DeselectTab(PVEFrameTab3) end
+    end
+
+    local function RestoreBuiltInPVEChrome()
+        if PVEFrame_ShowLeftInset then
+            PVEFrame_ShowLeftInset()
+            return
+        end
+
+        if PVEFrameLeftInset then PVEFrameLeftInset:Show() end
+        if PVEFrameBlueBg then PVEFrameBlueBg:Show() end
+        if PVEFrameTLCorner then PVEFrameTLCorner:Show() end
+        if PVEFrameTRCorner then PVEFrameTRCorner:Show() end
+        if PVEFrameBRCorner then PVEFrameBRCorner:Show() end
+        if PVEFrameBLCorner then PVEFrameBLCorner:Show() end
+        if PVEFrameLLVert then PVEFrameLLVert:Show() end
+        if PVEFrameRLVert then PVEFrameRLVert:Show() end
+        if PVEFrameBottomLine then PVEFrameBottomLine:Show() end
+        if PVEFrameTopLine then PVEFrameTopLine:Show() end
+        if PVEFrameTopFiligree then PVEFrameTopFiligree:Show() end
+        if PVEFrameBottomFiligree then PVEFrameBottomFiligree:Show() end
+        if PVEFrame and PVEFrame.shadows then
+            PVEFrame.shadows:Show()
+        end
+    end
+
+    local function IsClassicFallbackFrameShown()
+        return (GroupFinderFrame and GroupFinderFrame:IsShown())
+            or (PVPUIFrame and PVPUIFrame:IsShown())
+            or (PVPQueueFrame and PVPQueueFrame:IsShown())
+            or (ChallengesFrame and ChallengesFrame:IsShown())
+    end
+
+    local function SetClassicDungeonTeleportsCombatSuspended(isSuspended)
+        if usesNativePVEPanelTabState or not contentFrame then
+            return
+        end
+
+        isClassicCombatSuspended = isSuspended and true or false
+
+        local targetAlpha = isSuspended and 0 or 1
+        contentFrame:SetAlpha(1)
+
+        if title then
+            title:SetAlpha(targetAlpha)
+        end
+        if inset then
+            inset:SetAlpha(targetAlpha)
+        end
+        if scrollFrame then
+            scrollFrame:SetAlpha(targetAlpha)
+        end
+        if scrollChild then
+            scrollChild:SetAlpha(targetAlpha)
+        end
+        if scrollFrame and scrollFrame.scrollbar then
+            scrollFrame.scrollbar:SetAlpha(targetAlpha)
+            if scrollFrame.scrollbar.EnableMouse then
+                scrollFrame.scrollbar:EnableMouse(not isSuspended)
+            end
+        end
+        if dropdown then
+            dropdown:SetAlpha(targetAlpha)
+            if dropdown.EnableMouse then
+                dropdown:EnableMouse(not isSuspended)
+            end
+        end
+        if classicCombatBlocker then
+            if isSuspended then
+                classicCombatBlocker:Show()
+            else
+                classicCombatBlocker:Hide()
+            end
+        end
+
+        if isSuspended then
+            RestoreBuiltInPVEChrome()
+        elseif contentFrame:IsShown() then
+            if PVEFrame_HideLeftInset then
+                PVEFrame_HideLeftInset()
+            elseif PVEFrameLeftInset then
+                PVEFrameLeftInset:Hide()
+            end
+        end
+    end
+
+    local function HideDungeonTeleportsFrame(allowInCombat)
+        if IsInCombat() and allowInCombat ~= true then
             pendingHideAfterCombat = true
             return false
         end
@@ -1368,6 +1568,10 @@ local function InitDungeonTeleportsTab()
         pendingHideAfterCombat = false
         if contentFrame then
             contentFrame:Hide()
+        end
+        SetClassicDungeonTeleportsCombatSuspended(false)
+        if isClassicLayout then
+            RestoreBuiltInPVEChrome()
         end
         if PanelTemplates_DeselectTab then
             PanelTemplates_DeselectTab(tab)
@@ -1378,16 +1582,15 @@ local function InitDungeonTeleportsTab()
         return true
     end
 
-    local function SwitchToMythicPlusTab()
+    local function SwitchToFallbackTab()
         if not PVEFrame or not PVEFrame:IsShown() or isInternalTabSwitch then
             return
         end
 
         isInternalTabSwitch = true
-        if PVEFrame_ShowFrame then
-            PVEFrame_ShowFrame("ChallengesFrame")
-        elseif PVEFrame_TabOnClick and PVEFrameTab3 then
-            PVEFrame_TabOnClick(PVEFrameTab3)
+        SwitchToFallbackPVEFrame()
+        if not usesNativePVEPanelTabState then
+            SelectClassicFallbackTabVisual()
         end
         isInternalTabSwitch = false
     end
@@ -1401,18 +1604,12 @@ local function InitDungeonTeleportsTab()
             ShowUIPanel(PVEFrame)
         end
 
-        if PanelTemplates_DeselectTab then
-            if PVEFrameTab1 then PanelTemplates_DeselectTab(PVEFrameTab1) end
-            if PVEFrameTab2 then PanelTemplates_DeselectTab(PVEFrameTab2) end
-            if PVEFrameTab3 then PanelTemplates_DeselectTab(PVEFrameTab3) end
-        end
+        DeselectBuiltInPVETabs()
         if PanelTemplates_SelectTab then
             PanelTemplates_SelectTab(tab)
         end
 
-        if GroupFinderFrame then GroupFinderFrame:Hide() end
-        if PVPUIFrame then PVPUIFrame:Hide() end
-        if ChallengesFrame then ChallengesFrame:Hide() end
+        HideBuiltInPVEPanels()
 
         if PVEFrame_HideLeftInset then
             PVEFrame_HideLeftInset()
@@ -1421,6 +1618,8 @@ local function InitDungeonTeleportsTab()
         end
 
         RefreshCategoryOptions()
+        pendingHideAfterCombat = false
+        SetClassicDungeonTeleportsCombatSuspended(false)
         contentFrame:Show()
         RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
         PVEFrame:SetTitle("Dungeon Teleports")
@@ -1429,9 +1628,11 @@ local function InitDungeonTeleportsTab()
         elseif PortraitFrame_SetPortraitToAsset then
             PortraitFrame_SetPortraitToAsset(PVEFrame, "Interface\\Icons\\Spell_Arcane_TeleportDalaran")
         end
-        PVEFrame:SetWidth(PVE_FRAME_BASE_WIDTH or 563)
-        if UpdateUIPanelPositions then
-            UpdateUIPanelPositions(PVEFrame)
+        if not isClassicLayout then
+            PVEFrame:SetWidth(PVE_FRAME_BASE_WIDTH or 563)
+            if UpdateUIPanelPositions then
+                UpdateUIPanelPositions(PVEFrame)
+            end
         end
         if UpdateDungeonTeleportsTabTextColor then
             UpdateDungeonTeleportsTabTextColor()
@@ -1449,8 +1650,13 @@ local function InitDungeonTeleportsTab()
             return
         end
 
-        local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
-        local isActive = selectedTabID == tab:GetID() or (contentFrame and contentFrame:IsShown())
+        local selectedTabID = usesNativePVEPanelTabState and PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+        local isClassicTabActive = not usesNativePVEPanelTabState
+            and contentFrame
+            and contentFrame:IsShown()
+            and not isClassicCombatSuspended
+            and not IsClassicFallbackFrameShown()
+        local isActive = (usesNativePVEPanelTabState and selectedTabID == tab:GetID()) or isClassicTabActive
         local isHovered = tab:IsMouseOver()
 
         if isActive or isHovered then
@@ -1470,33 +1676,62 @@ local function InitDungeonTeleportsTab()
     local function UpdateDungeonTeleportsTabState()
         local inCombat = IsInCombat()
         if inCombat then
-            if PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+            if not usesNativePVEPanelTabState and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
                 pendingHideAfterCombat = true
-                SwitchToMythicPlusTab()
+                if not IsClassicFallbackFrameShown() then
+                    SwitchToFallbackTab()
+                end
+                SetClassicDungeonTeleportsCombatSuspended(true)
             end
-            if PanelTemplates_DisableTab then
+            if usesNativePVEPanelTabState and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+                pendingHideAfterCombat = true
+                SwitchToFallbackTab()
+            end
+            if usesNativePVEPanelTabState and PanelTemplates_DisableTab then
                 PanelTemplates_DisableTab(PVEFrame, 4)
             else
                 tab:Disable()
             end
-            if not contentFrame:IsShown() and PanelTemplates_DeselectTab then
-                PanelTemplates_DeselectTab(tab)
+            if (not usesNativePVEPanelTabState and isClassicCombatSuspended) or not contentFrame:IsShown() then
+                if PanelTemplates_DeselectTab then
+                    PanelTemplates_DeselectTab(tab)
+                end
             end
         else
-            local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
-            if contentFrame and contentFrame:IsShown() and selectedTabID ~= 4 then
-                HideDungeonTeleportsFrame()
-            end
-            if pendingHideAfterCombat and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+            local selectedTabID = usesNativePVEPanelTabState and PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+            local didHideAfterCombat = false
+
+            if not usesNativePVEPanelTabState and pendingHideAfterCombat and contentFrame and contentFrame:IsShown() then
                 if HideDungeonTeleportsFrame() then
-                    if PVEFrame_TabOnClick and PVEFrameTab3 then
-                        PVEFrame_TabOnClick(PVEFrameTab3)
-                    elseif PVEFrame_ShowFrame then
-                        PVEFrame_ShowFrame("ChallengesFrame")
+                    didHideAfterCombat = true
+                    if PVEFrame and PVEFrame:IsShown() then
+                        SwitchToFallbackTab()
                     end
                 end
             end
-            if PanelTemplates_EnableTab then
+
+            SetClassicDungeonTeleportsCombatSuspended(false)
+
+            if usesNativePVEPanelTabState and contentFrame and contentFrame:IsShown() and selectedTabID ~= 4 then
+                HideDungeonTeleportsFrame()
+            end
+            if not didHideAfterCombat and not usesNativePVEPanelTabState and contentFrame and contentFrame:IsShown() then
+                if GroupFinderFrame and GroupFinderFrame:IsShown() then
+                    HideDungeonTeleportsFrame()
+                elseif PVPUIFrame and PVPUIFrame:IsShown() then
+                    HideDungeonTeleportsFrame()
+                elseif PVPQueueFrame and PVPQueueFrame:IsShown() then
+                    HideDungeonTeleportsFrame()
+                elseif ChallengesFrame and ChallengesFrame:IsShown() then
+                    HideDungeonTeleportsFrame()
+                end
+            end
+            if usesNativePVEPanelTabState and pendingHideAfterCombat and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+                if HideDungeonTeleportsFrame() then
+                    SwitchToFallbackPVEFrame()
+                end
+            end
+            if usesNativePVEPanelTabState and PanelTemplates_EnableTab then
                 PanelTemplates_EnableTab(PVEFrame, 4)
             else
                 tab:Enable()
@@ -1540,8 +1775,12 @@ local function InitDungeonTeleportsTab()
         UpdateDungeonTeleportsTabState()
     end)
 
-    PVEFrame:HookScript("OnHide", HideDungeonTeleportsFrame)
-    PVEFrame:HookScript("OnShow", UpdateDungeonTeleportsTabState)
+    PVEFrame:HookScript("OnHide", function()
+        HideDungeonTeleportsFrame()
+    end)
+    PVEFrame:HookScript("OnShow", function()
+        UpdateDungeonTeleportsTabState()
+    end)
 
     local tabStateFrame = CreateFrame("Frame")
     tabStateFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
@@ -1554,7 +1793,7 @@ local frame = CreateFrame("Frame")
 local isInitialized = false
 
 local function IsGroupFinderLoaded()
-    return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Blizzard_GroupFinder")
+    return Utils.IsAddOnLoaded("Blizzard_GroupFinder")
 end
 
 local function TryInitialize(self)
