@@ -1,6 +1,3 @@
-local addonName, _ = ...
-local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-
 local function GetSpellCooldownWrapper(spellID)
     -- Use C_Spell.GetSpellCooldown and handle protected secret numbers
     if _G.GetSpellCooldown then
@@ -793,7 +790,7 @@ local function GetDungeonTeleportsTabConfig()
     }
 end
 
-local function InitDungeonTeleportsTab()
+local function InitDungeonTeleportsTabClassic()
     local config = GetDungeonTeleportsTabConfig()
     if _G[config.tabName] then return end
     if not PVEFrame or not PVEFrameTab3 then return end
@@ -1607,10 +1604,7 @@ local function InitDungeonTeleportsTab()
             ShowUIPanel(PVEFrame)
         end
 
-        DeselectBuiltInPVETabs()
-        if PanelTemplates_SelectTab then
-            PanelTemplates_SelectTab(tab)
-        end
+        SelectDungeonTeleportsTab()
 
         HideBuiltInPVEPanels()
 
@@ -1654,12 +1648,17 @@ local function InitDungeonTeleportsTab()
         end
 
         local selectedTabID = usesNativePVEPanelTabState and PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+        local isNativeTabActive = usesNativePVEPanelTabState
+            and (
+                selectedTabID == tab:GetID()
+                or (contentFrame and contentFrame:IsShown())
+            )
         local isClassicTabActive = not usesNativePVEPanelTabState
             and contentFrame
             and contentFrame:IsShown()
             and not isClassicCombatSuspended
             and not IsClassicFallbackFrameShown()
-        local isActive = (usesNativePVEPanelTabState and selectedTabID == tab:GetID()) or isClassicTabActive
+        local isActive = isNativeTabActive or isClassicTabActive
         local isHovered = tab:IsMouseOver()
 
         if isActive or isHovered then
@@ -1739,8 +1738,8 @@ local function InitDungeonTeleportsTab()
             else
                 tab:Enable()
             end
-            if contentFrame:IsShown() and PanelTemplates_SelectTab then
-                PanelTemplates_SelectTab(tab)
+            if contentFrame:IsShown() then
+                SelectDungeonTeleportsTab()
             elseif PanelTemplates_DeselectTab then
                 PanelTemplates_DeselectTab(tab)
             end
@@ -1792,6 +1791,774 @@ local function InitDungeonTeleportsTab()
     UpdateDungeonTeleportsTabState()
 end
 
+local function InitDungeonTeleportsTabRetail()
+    if _G["PVEFrameTab4"] then return end
+    if not PVEFrame or not PVEFrameTab3 then return end
+
+    local pendingCategoryValue
+    local pendingCategoryText
+    local pendingHideAfterCombat = false
+    local selectedCategoryValue = "MID_S1"
+    local selectedCategoryText = "Midnight Season 1"
+    local availableCategories = {}
+    local dropdown
+    local InitializeDropdown
+
+    local function GetCategoryTextByValue(value, categories, useDynamicText)
+        local source = categories or availableCategories
+        for _, cat in ipairs(source) do
+            if cat.value == value then
+                if useDynamicText and cat.dynamicText then
+                    return cat.dynamicText
+                end
+                return cat.text
+            end
+        end
+        return tostring(value or "")
+    end
+
+    local function GetSeasonCategoryBaseName(cat)
+        local text = tostring(cat and cat.text or "")
+        text = text:gsub("%s+[Pp]ost%-?[Ss]eason%s+%d+.*$", "")
+        text = text:gsub("%s+[Ss]eason%s+%d+.*$", "")
+        text = text:match("^%s*(.-)%s*$")
+        if text and text ~= "" then
+            return text
+        end
+
+        local value = tostring(cat and cat.value or "")
+        local fallback = value:match("^(.-)_S%d+$")
+        if fallback and fallback ~= "" then
+            return fallback
+        end
+        return value
+    end
+
+    local function BuildSeasonCategoryState(cat)
+        if not cat or not cat.value or not IsSeasonCategory(cat.value) then
+            return true, cat and cat.text
+        end
+
+        local seasonNumber = tostring(cat.value):match("_S(%d+)$") or "?"
+        local seasonName = GetSeasonCategoryBaseName(cat)
+        local _, seasonMeta = GetCategoryEntriesAndMeta(cat.value)
+        if type(seasonMeta) ~= "table" then
+            return true, string.format("%s Season %s", seasonName, seasonNumber)
+        end
+
+        local now = GetServerTime()
+        local state = ResolveObtainableState(seasonMeta.obtainable, seasonMeta.starts, seasonMeta.ends, seasonMeta.postEnds)
+
+        if state == "starts" then
+            local startsText = "Start date unavailable"
+            if seasonMeta.starts then
+                local startTimestamp = GetSeasonStartTimestamp(seasonMeta.starts)
+                if startTimestamp then
+                    local remaining = startTimestamp - now
+                    if remaining > 0 then
+                        startsText = "Starts in " .. FormatRemainingDuration(remaining)
+                    else
+                        startsText = "Started"
+                    end
+                end
+            end
+
+            return true, string.format("%s Season %s - %s", seasonName, seasonNumber, startsText)
+        end
+
+        if state == "ends" then
+            local endTimestamp = seasonMeta.ends and GetSeasonEndTimestampForDisplay(seasonMeta.ends) or nil
+            local postEndTimestamp = seasonMeta.postEnds and GetPostSeasonEndTimestamp(seasonMeta.postEnds) or nil
+
+            if endTimestamp and endTimestamp > now then
+                return true, string.format("%s Season %s - Ends in %s", seasonName, seasonNumber, FormatRemainingDuration(endTimestamp - now))
+            end
+
+            if postEndTimestamp and postEndTimestamp > now then
+                return true, string.format("%s Post-Season %s - Ends in %s", seasonName, seasonNumber, FormatRemainingDuration(postEndTimestamp - now))
+            end
+
+            return false, nil
+        end
+
+        if state == false then
+            return false, nil
+        end
+
+        return true, string.format("%s Season %s", seasonName, seasonNumber)
+    end
+
+    local function BuildVisibleCategories()
+        local result = {}
+
+        for _, cat in ipairs(TeleportCategories) do
+            if cat.separator then
+                table.insert(result, { separator = true })
+            else
+                local isVisible, dynamicText = BuildSeasonCategoryState(cat)
+                if isVisible then
+                    table.insert(result, { text = cat.text, dynamicText = dynamicText or cat.text, value = cat.value })
+                end
+            end
+        end
+
+        local cleaned = {}
+        local previousWasSeparator = true
+        for _, cat in ipairs(result) do
+            if cat.separator then
+                if not previousWasSeparator then
+                    table.insert(cleaned, cat)
+                    previousWasSeparator = true
+                end
+            else
+                table.insert(cleaned, cat)
+                previousWasSeparator = false
+            end
+        end
+
+        if #cleaned > 0 and cleaned[#cleaned].separator then
+            table.remove(cleaned, #cleaned)
+        end
+
+        return cleaned
+    end
+
+    local function GetFirstSelectableCategory(categories)
+        for _, cat in ipairs(categories or {}) do
+            if not cat.separator and cat.value then
+                return cat.value
+            end
+        end
+        return nil
+    end
+
+    local function IsCategoryAvailable(value, categories)
+        for _, cat in ipairs(categories or {}) do
+            if not cat.separator and cat.value == value then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function RefreshCategoryOptions(preferredValue)
+        local rebuilt = BuildVisibleCategories()
+        availableCategories = rebuilt
+
+        if preferredValue and IsCategoryAvailable(preferredValue, availableCategories) then
+            selectedCategoryValue = preferredValue
+        elseif not IsCategoryAvailable(selectedCategoryValue, availableCategories) then
+            selectedCategoryValue = GetFirstSelectableCategory(availableCategories) or selectedCategoryValue
+        end
+        selectedCategoryText = GetCategoryTextByValue(selectedCategoryValue, availableCategories, true)
+
+        if dropdown then
+            if dropdown.SetList then
+                dropdown:SetList(availableCategories)
+                dropdown:SetValue(selectedCategoryValue)
+            elseif UIDropDownMenu_Initialize and InitializeDropdown then
+                UIDropDownMenu_Initialize(dropdown, InitializeDropdown)
+                UIDropDownMenu_SetText(dropdown, GetCategoryTextByValue(selectedCategoryValue, availableCategories, false))
+            end
+        end
+    end
+
+    local tab = CreateFrame("Button", "PVEFrameTab4", PVEFrame, "PanelTabButtonTemplate")
+    tab:SetID(4)
+    tab:SetText("Dungeon Teleports")
+    if PanelTemplates_TabResize then
+        PanelTemplates_TabResize(tab, 0)
+    end
+    tab:SetPoint("LEFT", PVEFrameTab3, "RIGHT", 6, 0)
+    tab:Show()
+    if PanelTemplates_DeselectTab then
+        PanelTemplates_DeselectTab(tab)
+    end
+
+    local contentFrame = CreateFrame("Frame", "DungeonTeleportsFrame", PVEFrame)
+    contentFrame:SetAllPoints(PVEFrame)
+    contentFrame:Hide()
+
+    local title = contentFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", 70, -35)
+    title:SetText(selectedCategoryText)
+
+    local inset = CreateFrame("Frame", "$parentInset", contentFrame, "InsetFrameTemplate")
+    inset:SetPoint("TOPLEFT", 4, -60)
+    inset:SetPoint("BOTTOMRIGHT", -4, 4)
+
+    local scrollFrame = CreateFrame("ScrollFrame", "$parentScrollFrame", inset)
+    scrollFrame:SetPoint("TOPLEFT", 10, -10)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -5, 10)
+
+    local scrollChild = CreateFrame("Frame")
+    scrollChild:SetSize(inset:GetWidth()-30, 500)
+    scrollFrame:SetScrollChild(scrollChild)
+    contentFrame.scrollChild = scrollChild
+    contentFrame.buttons = {}
+    contentFrame.cooldownRefreshPending = false
+
+    if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar then
+        mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild)
+    end
+
+    local function OnButtonEnter(self)
+        self.border:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+
+        if self.teleportName then
+            GameTooltip:AddLine(self.teleportName, 1, 1, 1)
+        end
+        if self.teleportLocation then
+            GameTooltip:AddLine(self.teleportLocation, 0.7, 0.7, 0.7)
+        end
+
+        if not self.isKnown then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
+            local tooltipObtainable = ResolveObtainableState(self.teleportObtainable, self.teleportStarts, self.teleportEnds, self.teleportPostEnds)
+
+            if tooltipObtainable == false then
+                GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
+            elseif tooltipObtainable == "starts" then
+                local startTimestamp = GetSeasonStartTimestamp(self.teleportStarts)
+                if startTimestamp then
+                    local remaining = startTimestamp - GetServerTime()
+                    if remaining > 0 then
+                        GameTooltip:AddLine("Season starts in " .. FormatRemainingDuration(remaining), 1, 1, 0)
+                    else
+                        GameTooltip:AddLine("Season Started", 0, 1, 0)
+                    end
+                else
+                    GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
+                end
+            elseif tooltipObtainable == "ends" then
+                local text = "Season ends in"
+                local endTimestamp = self.teleportEnds and GetSeasonEndTimestampForDisplay(self.teleportEnds) or nil
+                local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
+                local currentTime = GetServerTime()
+                local remaining = endTimestamp and (endTimestamp - currentTime) or nil
+                if remaining and remaining > 0 then
+                    text = text .. " " .. FormatRemainingDuration(remaining)
+                else
+                    local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
+                    if postRemaining and postRemaining > 0 then
+                        text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
+                    else
+                        text = "NOT CURRENTLY OBTAINABLE"
+                    end
+                end
+                GameTooltip:AddLine(text, 1, 0, 0)
+            end
+
+            if self.teleportSource then
+                GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
+            else
+                GameTooltip:AddLine("Complete Mythic Keystone on Level 10 or higher within the time limit.", 1, 1, 1, true)
+            end
+        end
+
+        GameTooltip:Show()
+    end
+
+    local function OnButtonLeave(self)
+        self.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+        GameTooltip:Hide()
+    end
+
+    local function RefreshVisibleButtonCooldowns()
+        if not contentFrame:IsShown() then
+            return
+        end
+        for _, btn in pairs(contentFrame.buttons) do
+            if btn:IsShown() then
+                RefreshButtonCooldown(btn)
+            end
+        end
+    end
+
+    local function QueueCooldownRefresh()
+        if contentFrame.cooldownRefreshPending then
+            return
+        end
+
+        contentFrame.cooldownRefreshPending = true
+        if C_Timer and C_Timer.After then
+            C_Timer.After(0.1, function()
+                contentFrame.cooldownRefreshPending = false
+                RefreshVisibleButtonCooldowns()
+            end)
+        else
+            contentFrame.cooldownRefreshPending = false
+            RefreshVisibleButtonCooldowns()
+        end
+    end
+
+    local function UpdateTeleportList(categoryValue)
+        if IsInCombat() then
+            return false
+        end
+
+        for _, btn in pairs(contentFrame.buttons) do
+            btn:Hide()
+        end
+
+        local data, seasonMeta = GetCategoryEntriesAndMeta(categoryValue)
+        if not data then return true end
+
+        local resolvedData = {}
+        for _, entry in ipairs(data) do
+            local resolvedEntry = ResolveTeleportEntry(categoryValue, entry, seasonMeta)
+            if resolvedEntry then
+                table.insert(resolvedData, resolvedEntry)
+            end
+        end
+
+        local availableWidth = scrollChild:GetWidth() or 520
+        local cols = 3
+        local marginX = 10
+        local marginY = 10
+        local startX = 10
+        local startY = -10
+
+        local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
+        local btnHeight = 95
+
+        for i, info in ipairs(resolvedData) do
+            if not contentFrame.buttons[i] then
+                local btn = CreateFrame("Button", nil, scrollChild, "SecureActionButtonTemplate")
+                btn:SetSize(btnWidth, btnHeight)
+                ConfigureTeleportButtonClicks(btn)
+
+                btn.bg = btn:CreateTexture(nil, "BACKGROUND")
+                btn.bg:SetAllPoints()
+                btn.bg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+
+                btn.border = CreateFrame("Frame", nil, btn, "BackdropTemplate")
+                btn.border:SetAllPoints()
+                btn.border:SetBackdrop({
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                })
+                btn.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+
+                btn.imageContainer = btn:CreateTexture(nil, "BACKGROUND")
+                btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
+                btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
+                btn.imageContainer:SetHeight(btnHeight * 0.6)
+                btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
+
+                btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
+                btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
+                btn.imageArea:SetSize(btnHeight * 0.6, btnHeight * 0.6)
+                btn.imageArea:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+                btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
+                btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+                btn.infoBg:SetPoint("BOTTOMRIGHT", 0, 0)
+                btn.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
+
+                btn.nameText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                btn.nameText:SetPoint("TOPLEFT", btn.infoBg, "TOPLEFT", 5, -5)
+                btn.nameText:SetPoint("TOPRIGHT", btn.infoBg, "TOPRIGHT", -5, -5)
+                btn.nameText:SetJustifyH("LEFT")
+                btn.nameText:SetJustifyV("TOP")
+                btn.nameText:SetWordWrap(false)
+                btn.nameText:SetMaxLines(1)
+
+                btn.locText = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                btn.locText:SetPoint("BOTTOMLEFT", btn.infoBg, "BOTTOMLEFT", 5, 5)
+                btn.locText:SetPoint("BOTTOMRIGHT", btn.infoBg, "BOTTOMRIGHT", -5, 5)
+                btn.locText:SetJustifyH("LEFT")
+                btn.locText:SetTextColor(0.7, 0.7, 0.7)
+                btn.locText:SetMaxLines(1)
+
+                btn:SetScript("OnEnter", OnButtonEnter)
+                btn:SetScript("OnLeave", OnButtonLeave)
+
+                contentFrame.buttons[i] = btn
+            end
+
+            local btn = contentFrame.buttons[i]
+
+            if not btn.cooldown then
+                btn.cooldown = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+                btn.cooldown:SetAllPoints(btn)
+                btn.cooldown:SetDrawEdge(false)
+                if btn.cooldown.SetDrawBling then
+                    btn.cooldown:SetDrawBling(false)
+                end
+                if btn.cooldown.EnableMouse then
+                    btn.cooldown:EnableMouse(false)
+                end
+                btn.cooldown:SetHideCountdownNumbers(false)
+
+                for _, region in ipairs({btn.cooldown:GetRegions()}) do
+                    if region:GetObjectType() == "FontString" then
+                        region:SetTextColor(1, 0.82, 0)
+                    end
+                end
+            end
+
+            btn:SetSize(btnWidth, btnHeight)
+            btn.imageContainer:SetHeight(btnHeight * 0.6)
+            btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+
+            local col = (i - 1) % cols
+            local row = math.floor((i - 1) / cols)
+
+            btn:ClearAllPoints()
+            btn:SetPoint("TOPLEFT", startX + (col * (btnWidth + marginX)), startY - (row * (btnHeight + marginY)))
+            btn:Show()
+
+            btn.nameText:SetText(info.name)
+            btn.locText:SetText(info.location or "Unknown Location")
+
+            btn.teleportName = info.name
+            btn.teleportLocation = info.location
+            btn.teleportSource = info.source
+            local effectiveObtainable = info.obtainable
+            if effectiveObtainable == nil then
+                effectiveObtainable = false
+            end
+            effectiveObtainable = ResolveObtainableState(effectiveObtainable, info.starts, info.ends, info.postEnds)
+            btn.teleportObtainable = effectiveObtainable
+            btn.teleportStarts = info.starts
+            btn.teleportEnds = info.ends
+            btn.teleportPostEnds = info.postEnds
+
+            local isKnown = false
+            local spellToUse = nil
+            local faction = UnitFactionGroup("player")
+
+            if info.spellIDHorde and info.spellIDAlly then
+                if faction == "Horde" then
+                    spellToUse = info.spellIDHorde
+                else
+                    spellToUse = info.spellIDAlly
+                end
+            else
+                spellToUse = info.spellID
+            end
+
+            isKnown = IsTeleportSpellKnown(spellToUse)
+
+            if isKnown then
+                btn:Enable()
+                btn:SetAlpha(1)
+                btn.imageArea:SetDesaturated(false)
+                btn.nameText:SetTextColor(1, 0.82, 0)
+                if not SetTeleportButtonSpellAction(btn, spellToUse) then
+                    btn:SetAlpha(0.5)
+                    btn.imageArea:SetDesaturated(true)
+                    btn.nameText:SetTextColor(0.5, 0.5, 0.5)
+                end
+            else
+                btn:Enable()
+                btn:SetAlpha(0.5)
+                btn.imageArea:SetDesaturated(true)
+                btn.nameText:SetTextColor(0.5, 0.5, 0.5)
+                ClearTeleportButtonAction(btn)
+            end
+
+            btn.currentSpellID = spellToUse
+            btn.isKnown = isKnown
+
+            if contentFrame:IsShown() then
+                RefreshButtonCooldown(btn)
+            else
+                btn.cooldown:Hide()
+            end
+
+            if info.texture and info.texture > 0 then
+                btn.imageArea:ClearAllPoints()
+                btn.imageArea:SetAllPoints(btn.imageContainer)
+                btn.imageArea:SetTexture(info.texture)
+                btn.imageArea:SetTexCoord(0.08, 0.65, 0.14, 0.58)
+            end
+        end
+
+        local totalRows = math.ceil(#resolvedData / cols)
+        local totalHeight = math.abs(startY) + (totalRows * (btnHeight + marginY))
+        scrollChild:SetHeight(totalHeight)
+        if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar and scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
+             scrollFrame.scrollbar.UpdateScrollbar()
+        end
+
+        return true
+    end
+
+    local function RequestCategoryUpdate(categoryValue, categoryText)
+        RefreshCategoryOptions(categoryValue)
+        selectedCategoryText = categoryText or GetCategoryTextByValue(selectedCategoryValue, availableCategories, true)
+
+        if IsInCombat() then
+            pendingCategoryValue = selectedCategoryValue
+            pendingCategoryText = selectedCategoryText
+            contentFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            return false
+        end
+
+        if UpdateTeleportList(selectedCategoryValue) then
+            title:SetText(selectedCategoryText)
+        end
+
+        pendingCategoryValue = nil
+        pendingCategoryText = nil
+        contentFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        return true
+    end
+
+    contentFrame:SetScript("OnEvent", function(self, event, arg1)
+        if event == "SPELL_UPDATE_COOLDOWN" then
+            QueueCooldownRefresh()
+        elseif event == "SPELLS_CHANGED" then
+            RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
+        elseif event == "CVAR_UPDATE" then
+            local cvarName = tostring(arg1 or ""):gsub("_", ""):lower()
+            if cvarName == "actionbuttonusekeydown" and not IsInCombat() then
+                for _, btn in pairs(contentFrame.buttons) do
+                    ConfigureTeleportButtonClicks(btn)
+                end
+            end
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            for _, btn in pairs(contentFrame.buttons) do
+                if btn and btn:IsShown() then
+                    ConfigureTeleportButtonClicks(btn)
+                end
+            end
+            if pendingCategoryValue then
+                RequestCategoryUpdate(pendingCategoryValue, pendingCategoryText)
+            else
+                self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+            end
+        end
+    end)
+    contentFrame:SetScript("OnShow", function(self)
+        self:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+        self:RegisterEvent("SPELLS_CHANGED")
+        self:RegisterEvent("CVAR_UPDATE")
+        RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
+        for _, btn in pairs(self.buttons) do
+            if btn:IsShown() then
+                ConfigureTeleportButtonClicks(btn)
+                RefreshButtonCooldown(btn)
+            end
+        end
+        QueueCooldownRefresh()
+    end)
+    contentFrame:SetScript("OnHide", function(self)
+        self:UnregisterEvent("SPELL_UPDATE_COOLDOWN")
+        self:UnregisterEvent("SPELLS_CHANGED")
+        self:UnregisterEvent("CVAR_UPDATE")
+        self.cooldownRefreshPending = false
+    end)
+
+    if mQoL_Styles and mQoL_Styles.CreateCustomDropdown then
+        RefreshCategoryOptions()
+        dropdown = mQoL_Styles.CreateCustomDropdown(contentFrame, 160, availableCategories, selectedCategoryValue, function(value)
+            RequestCategoryUpdate(value)
+        end)
+        dropdown:HookScript("OnMouseDown", function()
+            RefreshCategoryOptions(selectedCategoryValue)
+        end)
+        dropdown:SetPoint("TOPRIGHT", -5, -30)
+    end
+
+    local UpdateDungeonTeleportsTabTextColor
+    local isDungeonTeleportsTabForceDisabled = false
+    local isInternalTabSwitch = false
+
+    local function HideDungeonTeleportsFrame()
+        if IsInCombat() then
+            pendingHideAfterCombat = true
+            return false
+        end
+
+        pendingHideAfterCombat = false
+        if contentFrame then
+            contentFrame:Hide()
+        end
+        if PanelTemplates_DeselectTab then
+            PanelTemplates_DeselectTab(tab)
+        end
+        if UpdateDungeonTeleportsTabTextColor then
+            UpdateDungeonTeleportsTabTextColor()
+        end
+        return true
+    end
+
+    local function SwitchToMythicPlusTab()
+        if not PVEFrame or not PVEFrame:IsShown() or isInternalTabSwitch then
+            return
+        end
+
+        isInternalTabSwitch = true
+        if PVEFrame_ShowFrame then
+            PVEFrame_ShowFrame("ChallengesFrame")
+        elseif PVEFrame_TabOnClick and PVEFrameTab3 then
+            PVEFrame_TabOnClick(PVEFrameTab3)
+        end
+        isInternalTabSwitch = false
+    end
+
+    local function ShowDungeonTeleportsFrame()
+        if IsInCombat() then
+            return
+        end
+
+        if not PVEFrame:IsShown() then
+            ShowUIPanel(PVEFrame)
+        end
+
+        if PanelTemplates_DeselectTab then
+            if PVEFrameTab1 then PanelTemplates_DeselectTab(PVEFrameTab1) end
+            if PVEFrameTab2 then PanelTemplates_DeselectTab(PVEFrameTab2) end
+            if PVEFrameTab3 then PanelTemplates_DeselectTab(PVEFrameTab3) end
+        end
+        if PanelTemplates_SelectTab then
+            PanelTemplates_SelectTab(tab)
+        end
+
+        if GroupFinderFrame then GroupFinderFrame:Hide() end
+        if PVPUIFrame then PVPUIFrame:Hide() end
+        if ChallengesFrame then ChallengesFrame:Hide() end
+
+        if PVEFrame_HideLeftInset then
+            PVEFrame_HideLeftInset()
+        elseif PVEFrameLeftInset then
+            PVEFrameLeftInset:Hide()
+        end
+
+        RefreshCategoryOptions()
+        contentFrame:Show()
+        RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
+        PVEFrame:SetTitle("Dungeon Teleports")
+        if PVEFrame.SetPortraitToAsset then
+            PVEFrame:SetPortraitToAsset("Interface\\Icons\\Spell_Arcane_TeleportDalaran")
+        elseif PortraitFrame_SetPortraitToAsset then
+            PortraitFrame_SetPortraitToAsset(PVEFrame, "Interface\\Icons\\Spell_Arcane_TeleportDalaran")
+        end
+        PVEFrame:SetWidth(PVE_FRAME_BASE_WIDTH or 563)
+        if UpdateUIPanelPositions then
+            UpdateUIPanelPositions(PVEFrame)
+        end
+        if UpdateDungeonTeleportsTabTextColor then
+            UpdateDungeonTeleportsTabTextColor()
+        end
+    end
+
+    UpdateDungeonTeleportsTabTextColor = function()
+        local text = tab.Text or _G[tab:GetName() .. "Text"]
+        if not text then
+            return
+        end
+
+        if isDungeonTeleportsTabForceDisabled then
+            text:SetTextColor(0.5, 0.5, 0.5)
+            return
+        end
+
+        local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+        local isActive = selectedTabID == tab:GetID() or (contentFrame and contentFrame:IsShown())
+        local isHovered = tab:IsMouseOver()
+
+        if isActive or isHovered then
+            text:SetTextColor(1, 1, 1)
+        else
+            text:SetTextColor(1, 0.82, 0)
+        end
+    end
+
+    local function SetDungeonTeleportsTabDisabled(isDisabled)
+        isDungeonTeleportsTabForceDisabled = isDisabled and true or false
+        tab:SetEnabled(not isDisabled)
+        tab:SetAlpha(1)
+        UpdateDungeonTeleportsTabTextColor()
+    end
+
+    local function UpdateDungeonTeleportsTabState()
+        local inCombat = IsInCombat()
+        if inCombat then
+            if PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+                pendingHideAfterCombat = true
+                SwitchToMythicPlusTab()
+            end
+            if PanelTemplates_DisableTab then
+                PanelTemplates_DisableTab(PVEFrame, 4)
+            else
+                tab:Disable()
+            end
+            if not contentFrame:IsShown() and PanelTemplates_DeselectTab then
+                PanelTemplates_DeselectTab(tab)
+            end
+        else
+            local selectedTabID = PanelTemplates_GetSelectedTab and PanelTemplates_GetSelectedTab(PVEFrame) or nil
+            if contentFrame and contentFrame:IsShown() and selectedTabID ~= 4 then
+                HideDungeonTeleportsFrame()
+            end
+            if pendingHideAfterCombat and PVEFrame and PVEFrame:IsShown() and contentFrame and contentFrame:IsShown() then
+                if HideDungeonTeleportsFrame() then
+                    if PVEFrame_TabOnClick and PVEFrameTab3 then
+                        PVEFrame_TabOnClick(PVEFrameTab3)
+                    elseif PVEFrame_ShowFrame then
+                        PVEFrame_ShowFrame("ChallengesFrame")
+                    end
+                end
+            end
+            if PanelTemplates_EnableTab then
+                PanelTemplates_EnableTab(PVEFrame, 4)
+            else
+                tab:Enable()
+            end
+            if contentFrame:IsShown() and PanelTemplates_SelectTab then
+                PanelTemplates_SelectTab(tab)
+            elseif PanelTemplates_DeselectTab then
+                PanelTemplates_DeselectTab(tab)
+            end
+        end
+
+        SetDungeonTeleportsTabDisabled(inCombat)
+        UpdateDungeonTeleportsTabTextColor()
+    end
+
+    tab:HookScript("OnEnter", UpdateDungeonTeleportsTabTextColor)
+    tab:HookScript("OnLeave", UpdateDungeonTeleportsTabTextColor)
+
+    tab:SetScript("OnClick", function()
+        if IsInCombat() then
+            return
+        end
+        PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB)
+        ShowDungeonTeleportsFrame()
+    end)
+
+    RequestCategoryUpdate(selectedCategoryValue, selectedCategoryText)
+
+    hooksecurefunc("PVEFrame_TabOnClick", function(clickedTab)
+        if isInternalTabSwitch then
+            return
+        end
+        UpdateDungeonTeleportsTabState()
+    end)
+
+    hooksecurefunc("PVEFrame_ShowFrame", function(sidePanelName)
+        if isInternalTabSwitch then
+            return
+        end
+        UpdateDungeonTeleportsTabState()
+    end)
+
+    PVEFrame:HookScript("OnHide", HideDungeonTeleportsFrame)
+    PVEFrame:HookScript("OnShow", UpdateDungeonTeleportsTabState)
+
+    local tabStateFrame = CreateFrame("Frame")
+    tabStateFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    tabStateFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    tabStateFrame:SetScript("OnEvent", UpdateDungeonTeleportsTabState)
+    UpdateDungeonTeleportsTabState()
+end
+
 local frame = CreateFrame("Frame")
 local isInitialized = false
 
@@ -1819,7 +2586,11 @@ local function TryInitialize(self)
         return
     end
 
-    InitDungeonTeleportsTab()
+    if clientInfo.isClassic then
+        InitDungeonTeleportsTabClassic()
+    else
+        InitDungeonTeleportsTabRetail()
+    end
     isInitialized = true
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("ADDON_LOADED")
