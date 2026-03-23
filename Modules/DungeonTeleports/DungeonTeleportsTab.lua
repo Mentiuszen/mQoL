@@ -1,3 +1,6 @@
+local addonName, _ = ...
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
+
 local function GetSpellCooldownWrapper(spellID)
     -- Use C_Spell.GetSpellCooldown and handle protected secret numbers
     if _G.GetSpellCooldown then
