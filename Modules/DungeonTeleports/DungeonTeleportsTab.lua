@@ -155,6 +155,227 @@ local function IsTeleportSpellKnown(spellID)
     return false
 end
 
+local function GetSpellLevelLearnedWrapper(spellID)
+    if not spellID or spellID <= 0 then
+        return nil
+    end
+
+    if _G.GetSpellLevelLearned then
+        local ok, level = pcall(_G.GetSpellLevelLearned, spellID)
+        if ok and type(level) == "number" and level > 0 then
+            return level
+        end
+    end
+
+    if C_Spell and C_Spell.GetSpellLevelLearned then
+        local ok, level = pcall(C_Spell.GetSpellLevelLearned, spellID)
+        if ok and type(level) == "number" and level > 0 then
+            return level
+        end
+    end
+
+    return nil
+end
+
+local function GetPlayerMaxLevelWrapper()
+    if _G.GetMaxLevelForPlayerExpansion then
+        local ok, level = pcall(_G.GetMaxLevelForPlayerExpansion)
+        if ok and type(level) == "number" and level > 0 then
+            return level
+        end
+    end
+
+    if _G.GetMaxLevelForLatestExpansion then
+        local ok, level = pcall(_G.GetMaxLevelForLatestExpansion)
+        if ok and type(level) == "number" and level > 0 then
+            return level
+        end
+    end
+
+    if _G.GetExpansionLevel and _G.GetMaxLevelForExpansionLevel then
+        local okExpansion, expansionLevel = pcall(_G.GetExpansionLevel)
+        if okExpansion and type(expansionLevel) == "number" then
+            local okLevel, level = pcall(_G.GetMaxLevelForExpansionLevel, expansionLevel)
+            if okLevel and type(level) == "number" and level > 0 then
+                return level
+            end
+        end
+    end
+
+    if type(_G.MAX_PLAYER_LEVEL_TABLE) == "table" then
+        local expansionLevel = nil
+        if _G.GetExpansionLevel then
+            local ok, value = pcall(_G.GetExpansionLevel)
+            if ok and type(value) == "number" then
+                expansionLevel = value
+            end
+        end
+
+        if expansionLevel and type(_G.MAX_PLAYER_LEVEL_TABLE[expansionLevel]) == "number" then
+            return _G.MAX_PLAYER_LEVEL_TABLE[expansionLevel]
+        end
+    end
+
+    if type(_G.MAX_PLAYER_LEVEL) == "number" and _G.MAX_PLAYER_LEVEL > 0 then
+        return _G.MAX_PLAYER_LEVEL
+    end
+
+    return nil
+end
+
+local function IsAchievementCompletedWrapper(achievementID)
+    if not achievementID or achievementID <= 0 then
+        return false
+    end
+
+    if _G.GetAchievementInfo then
+        local ok, _, _, _, completed = pcall(_G.GetAchievementInfo, achievementID)
+        if ok and completed ~= nil then
+            return completed and true or false
+        end
+    end
+
+    if C_AchievementInfo and C_AchievementInfo.GetAchievementInfo then
+        local ok, info = pcall(C_AchievementInfo.GetAchievementInfo, achievementID)
+        if ok and info then
+            if info.completed ~= nil then
+                return info.completed and true or false
+            end
+            if info.isCompleted ~= nil then
+                return info.isCompleted and true or false
+            end
+        end
+    end
+
+    if C_AchievementInfo and C_AchievementInfo.IsAchievementCompleted then
+        local ok, completed = pcall(C_AchievementInfo.IsAchievementCompleted, achievementID)
+        if ok and completed ~= nil then
+            return completed and true or false
+        end
+    end
+
+    if C_AchievementInfo and C_AchievementInfo.IsAchievementComplete then
+        local ok, completed = pcall(C_AchievementInfo.IsAchievementComplete, achievementID)
+        if ok and completed ~= nil then
+            return completed and true or false
+        end
+    end
+
+    return false
+end
+
+local function GetTeleportAchievementIDs(entry)
+    local achievementIDs = {}
+    if type(entry) ~= "table" then
+        return achievementIDs
+    end
+
+    if type(entry.achievementID) == "number" and entry.achievementID > 0 then
+        table.insert(achievementIDs, entry.achievementID)
+    end
+
+    if type(entry.achievementIDs) == "table" then
+        for _, achievementID in ipairs(entry.achievementIDs) do
+            if type(achievementID) == "number" and achievementID > 0 then
+                table.insert(achievementIDs, achievementID)
+            end
+        end
+    end
+
+    return achievementIDs
+end
+
+local function HasRetailTeleportAchievementUnlock(entry)
+    if not clientInfo.isRetail then
+        return false
+    end
+
+    for _, achievementID in ipairs(GetTeleportAchievementIDs(entry)) do
+        if IsAchievementCompletedWrapper(achievementID) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function GetRetailRenownLevel(reputationID)
+    if not clientInfo.isRetail or not reputationID or reputationID <= 0 then
+        return nil
+    end
+
+    if C_MajorFactions and C_MajorFactions.GetCurrentRenownLevel then
+        local ok, renownLevel = pcall(C_MajorFactions.GetCurrentRenownLevel, reputationID)
+        if ok and type(renownLevel) == "number" and renownLevel >= 0 then
+            return renownLevel
+        end
+    end
+
+    if C_MajorFactions and C_MajorFactions.GetMajorFactionData then
+        local ok, data = pcall(C_MajorFactions.GetMajorFactionData, reputationID)
+        if ok and type(data) == "table" then
+            if type(data.renownLevel) == "number" then
+                return data.renownLevel
+            end
+            if type(data.level) == "number" then
+                return data.level
+            end
+        end
+    end
+
+    if C_Reputation and C_Reputation.GetFactionDataByID then
+        local ok, data = pcall(C_Reputation.GetFactionDataByID, reputationID)
+        if ok and type(data) == "table" then
+            if type(data.renownLevel) == "number" then
+                return data.renownLevel
+            end
+            if type(data.currentLevel) == "number" then
+                return data.currentLevel
+            end
+        end
+    end
+
+    return nil
+end
+
+local function HasRetailTeleportReputationUnlock(entry)
+    if not clientInfo.isRetail or type(entry) ~= "table" then
+        return false
+    end
+
+    local reputationID = entry.reputationID
+    local requiredRenown = entry.renownLevel
+    if type(reputationID) ~= "number" or reputationID <= 0 then
+        return false
+    end
+    if type(requiredRenown) ~= "number" or requiredRenown <= 0 then
+        return false
+    end
+
+    local currentRenown = GetRetailRenownLevel(reputationID)
+    return type(currentRenown) == "number" and currentRenown >= requiredRenown
+end
+
+local function HasRetailTeleportUnlock(entry)
+    return HasRetailTeleportAchievementUnlock(entry) or HasRetailTeleportReputationUnlock(entry)
+end
+
+local function GetRetailTeleportUnavailableReason(spellID)
+    local playerLevel = UnitLevel and UnitLevel("player") or nil
+    local requiredLevel = GetSpellLevelLearnedWrapper(spellID)
+
+    if playerLevel and requiredLevel and playerLevel < requiredLevel then
+        return string.format("Reach level %d on this character to use this portal.", requiredLevel)
+    end
+
+    local maxLevel = GetPlayerMaxLevelWrapper()
+    if playerLevel and maxLevel and playerLevel < maxLevel then
+        return string.format("Reach level %d on this character to use this portal.", maxLevel)
+    end
+
+    return "This portal is unlocked on your account, but this character cannot use it yet."
+end
+
 local function GetSecondsUntilWeeklyReset()
     if C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset then
         local seconds = C_DateAndTime.GetSecondsUntilWeeklyReset()
@@ -464,105 +685,106 @@ local TeleportData = {
     },
 
     ["Midnight"] = {
-        { id = 2805, name = "Windrunner Spire", texture = 7464939, spellID = 1254400, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2811, name = "Magisters' Terrace", texture = 7467176, spellID = 1254572, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2874, name = "Maisara Caverns", texture = 7478532, spellID = 1254559, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2915, name = "Nexus-Point Xenas", texture = 7570499, spellID = 1254563, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2813, name = "Murder Row", texture = 7467177, spellID = 0, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2825, name = "Den of Nalorakk", texture = 7478533, spellID = 0, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2859, name = "The Blinding Vale", texture = 7478531, spellID = 0, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2923, name = "Voidscar Arena", texture = 7479111, spellID = 0, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, location = "	Voidstorm", source = "Unknown" }, --Unconfirmed
-        --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, location = "Harandar", source = "Unknown" }, --Unconfirmed
-        --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, location = "Eversong Woods", source = "Unknown" }, --Unconfirmed
+        { id = 2805, name = "Windrunner Spire", texture = 7464939, spellID = 1254400, achievementID = 61262, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2811, name = "Magisters' Terrace", texture = 7467176, spellID = 1254572, achievementID = 61267, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2874, name = "Maisara Caverns", texture = 7478532, spellID = 1254559, achievementID = 61269, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2915, name = "Nexus-Point Xenas", texture = 7570499, spellID = 1254563, achievementID = 61268, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2813, name = "Murder Row", texture = 7467177, spellID = 0, achievementID = 0, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2825, name = "Den of Nalorakk", texture = 7478533, spellID = 0, achievementID = 0, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2859, name = "The Blinding Vale", texture = 7478531, spellID = 0, achievementID = 0, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2923, name = "Voidscar Arena", texture = 7479111, spellID = 0, achievementID = 0, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, achievementID = 0, location = "	Voidstorm", source = "Unknown" }, --Unconfirmed
+        --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, achievementID = 0, location = "Harandar", source = "Unknown" }, --Unconfirmed
+        --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, achievementID = 0, location = "Eversong Woods", source = "Unknown" }, --Unconfirmed
     },
     ["The War Within"] = {
-        { id = 2660, name = "Ara-Kara, City of Echoes", texture = 5912537, spellID = 445417, location = "Azj-Kahet", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2661, name = "Cinderbrew Meadery", texture = 5912538, spellID = 445440, location = "Isle of Dorn", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2669, name = "City of Threads", texture = 5912539, spellID = 445416, location = "Azj-Kahet", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2651, name = "Darkflame Cleft", texture = 5912540, spellID = 445441, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2649, name = "Priory of the Sacred Flame", texture = 5912542, spellID = 445444, location = "Hallowfall", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2662, name = "The Dawnbreaker", texture = 5912543, spellID = 445414, location = "Hallowfall", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2648, name = "The Rookery", texture = 5912544, spellID = 445443, location = "Isle of Dorn", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2652, name = "The Stonevault", texture = 5912545, spellID = 445269, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2773, name = "Operation: Floodgate", texture = 6422410, spellID = 1216786, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2830, name = "Eco-Dome Al'dani", texture = 7074041, spellID = 1237215, location = "K'aresh", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2769, name = "Liberation of Undermine", texture = 6422409, spellID = 1226482, location = "Undermine", source = "Reach Renown 20 with Gallagio Loyalty Rewards Club.", obtainable = true },
-        { id = 2810, name = "Manaforge Omega", texture = 7049313, spellID = 1239155, location = "K'aresh", source = "Reach Renown 15 with Manaforge Vandals.", obtainable = true },
+        { id = 2660, name = "Ara-Kara, City of Echoes", texture = 5912537, spellID = 445417, achievementID = 20586, location = "Azj-Kahet", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2661, name = "Cinderbrew Meadery", texture = 5912538, spellID = 445440, achievementID = 20583, location = "Isle of Dorn", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2669, name = "City of Threads", texture = 5912539, spellID = 445416, achievementID = 20582, location = "Azj-Kahet", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2651, name = "Darkflame Cleft", texture = 5912540, spellID = 445441, achievementID = 20584, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2649, name = "Priory of the Sacred Flame", texture = 5912542, spellID = 445444, achievementID = 20581, location = "Hallowfall", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2662, name = "The Dawnbreaker", texture = 5912543, spellID = 445414, achievementID = 20585, location = "Hallowfall", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2648, name = "The Rookery", texture = 5912544, spellID = 445443, achievementID = 20579, location = "Isle of Dorn", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2652, name = "The Stonevault", texture = 5912545, spellID = 445269, achievementID = 20580, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2773, name = "Operation: Floodgate", texture = 6422410, spellID = 1216786, achievementID = 41348, location = "Ringing Deeps", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2830, name = "Eco-Dome Al'dani", texture = 7074041, spellID = 1237215, achievementID = 42173, location = "K'aresh", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2769, name = "Liberation of Undermine", texture = 6422409, spellID = 1226482, reputationID = 2685, renownLevel = 20, location = "Undermine", source = "Reach Renown 20 with Gallagio Loyalty Rewards Club.", obtainable = true },
+        { id = 2810, name = "Manaforge Omega", texture = 7049313, spellID = 1239155, reputationID = 2736, renownLevel = 15, location = "K'aresh", source = "Reach Renown 15 with Manaforge Vandals.", obtainable = true },
     },
     ["Dragonflight"] = {
-        { id = 2526, name = "Algeth'ar Academy", texture = 4742939, spellID = 393273, location = "Thaldraszus", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2520, name = "Brackenhide Hollow", texture = 4742933, spellID = 393267, location = "Azure Span", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2527, name = "Halls of Infusion", texture = 4742936, spellID = 393283, location = "Thaldraszus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2519, name = "Neltharus", texture = 4742938, spellID = 393276, location = "Waking Shores", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2521, name = "Ruby Life Pools", texture = 4742937, spellID = 393256, location = "Waking Shores", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2515, name = "The Azure Vault", texture = 4742932, spellID = 393279, location = "Azure Span", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2516, name = "The Nokhud Offensive", texture = 4742934, spellID = 393262, location = "Ohn'ahran Plains", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2451, name = "Uldaman: Legacy of Tyr", texture = 4742940, spellID = 393222, location = "Badlands", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2522, name = "Vault of the Incarnates", texture = 4742941, spellID = 432254, location = "Thaldraszus", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
-        { id = 2569, name = "Aberrus, the Shadowed Crucible", texture = 5149417, spellID = 432257, location = "Zaralek Cavern", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
-        { id = 2549, name = "Amirdrassil, the Dream's Hope", texture = 5409262, spellID = 432258, location = "Emerald Dream", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2526, name = "Algeth'ar Academy", texture = 4742939, spellID = 393273, achievementID = 16643, location = "Thaldraszus", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2520, name = "Brackenhide Hollow", texture = 4742933, spellID = 393267, achievementID = 16642, location = "Azure Span", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2527, name = "Halls of Infusion", texture = 4742936, spellID = 393283, achievementID = 16646, location = "Thaldraszus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2519, name = "Neltharus", texture = 4742938, spellID = 393276, achievementID = 16644, location = "Waking Shores", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2521, name = "Ruby Life Pools", texture = 4742937, spellID = 393256, achievementID = 16640, location = "Waking Shores", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2515, name = "The Azure Vault", texture = 4742932, spellID = 393279, achievementID = 16645, location = "Azure Span", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2516, name = "The Nokhud Offensive", texture = 4742934, spellID = 393262, achievementID = 16641, location = "Ohn'ahran Plains", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2451, name = "Uldaman: Legacy of Tyr", texture = 4742940, spellID = 393222, achievementID = 16639, location = "Badlands", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2579, name = "Dawn of the Infinite", texture = 5222376, spellID = 424197, achievementID = 19088, location = "Thaldraszus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2522, name = "Vault of the Incarnates", texture = 4742941, spellID = 432254, achievementID = 19576, location = "Thaldraszus", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2569, name = "Aberrus, the Shadowed Crucible", texture = 5149417, spellID = 432257, achievementID = 19576, location = "Zaralek Cavern", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
+        { id = 2549, name = "Amirdrassil, the Dream's Hope", texture = 5409262, spellID = 432258, achievementID = 19576, location = "Emerald Dream", source = "Complete Achievement Mythic: Awakening the Dragonflight Raids" },
     },
     ["Shadowlands"] = {
-        { id = 2286, name = "The Necrotic Wake", texture = 3759920, spellID = 354462, location = "Bastion", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2289, name = "Plaguefall", texture = 3759921, spellID = 354463, location = "Maldraxxus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2290, name = "Mists of Tirna Scithe", texture = 3759919, spellID = 354464, location = "Ardenweald", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2287, name = "Halls of Atonement", texture = 3759918, spellID = 354465, location = "Revendreth", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2293, name = "Theater of Pain", texture = 3759924, spellID = 354467, location = "Maldraxxus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2291, name = "De Other Side", texture = 3759925, spellID = 354468, location = "Ardenweald", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2285, name = "Spires of Ascension", texture = 3759923, spellID = 354466, location = "Bastion", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2284, name = "Sanguine Depths", texture = 3759922, spellID = 354469, location = "Revendreth", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2441, name = "Tazavesh, the Veiled Market", texture = 4182024, spellID = 367416, location = "Tazavesh", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2296, name = "Castle Nathria", texture = 3759916, spellID = 373190, location = "Revendreth", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
-        { id = 2450, name = "Sanctum of Domination", texture = 4182023, spellID = 373191, location = "The Maw", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
-        { id = 2481, name = "Sepulcher of the First Ones", texture = 4425895, spellID = 373192, location = "Zereth Mortis", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2286, name = "The Necrotic Wake", texture = 3759920, spellID = 354462, achievementID = 15045, location = "Bastion", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2289, name = "Plaguefall", texture = 3759921, spellID = 354463, achievementID = 15046, location = "Maldraxxus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2290, name = "Mists of Tirna Scithe", texture = 3759919, spellID = 354464, achievementID = 15047, location = "Ardenweald", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2287, name = "Halls of Atonement", texture = 3759918, spellID = 354465, achievementID = 15048, location = "Revendreth", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2293, name = "Theater of Pain", texture = 3759924, spellID = 354467, achievementID = 15050, location = "Maldraxxus", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2291, name = "De Other Side", texture = 3759925, spellID = 354468, achievementID = 15051, location = "Ardenweald", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2285, name = "Spires of Ascension", texture = 3759923, spellID = 354466, achievementID = 15049, location = "Bastion", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2284, name = "Sanguine Depths", texture = 3759922, spellID = 354469, achievementID = 15052, location = "Revendreth", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2441, name = "Tazavesh, the Veiled Market", texture = 4182024, spellID = 367416, achievementID = 15500, location = "Tazavesh", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2296, name = "Castle Nathria", texture = 3759916, spellID = 373190, achievementID = 15687, location = "Revendreth", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2450, name = "Sanctum of Domination", texture = 4182023, spellID = 373191, achievementID = 15687, location = "The Maw", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
+        { id = 2481, name = "Sepulcher of the First Ones", texture = 4425895, spellID = 373192, achievementID = 15687, location = "Zereth Mortis", source = "Complete Achievement Mythic: Fates of the Shadowlands Raids" },
     },
     ["Battle for Azeroth"] = {
-        { id = 1763, name = "Atal'Dazar", texture = 1778890, spellID = 424187, location = "Zuldazar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1754, name = "Freehold", texture = 1778891, spellID = 410071, location = "Tiragarde Sound", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1822, name = "Siege of Boralus", texture = 2177726, spellIDHorde = 464256, spellIDAlly = 445418, location = "Tiragarde Sound", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 1594, name = "The Motherlode!!", texture = 2177728, spellIDHorde = 467555, spellIDAlly = 467553, location = "Zuldazar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 1841, name = "The Underrot", texture = 2177729, spellID = 410074, location = "Nazmir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1862, name = "Waycrest Manor", texture = 2177732, spellID = 424167, location = "Drustvar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 2097, name = "Operation: Mechagon", texture = 3025327, spellID = 373274, location = "Mechagon Island", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1763, name = "Atal'Dazar", texture = 1778890, spellID = 424187, achievementID = 19087, location = "Zuldazar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1754, name = "Freehold", texture = 1778891, spellID = 410071, achievementID = 17848, location = "Tiragarde Sound", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1822, name = "Siege of Boralus", texture = 2177726, spellIDHorde = 464256, spellIDAlly = 445418, achievementID = 20587, location = "Tiragarde Sound", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1594, name = "The Motherlode!!", texture = 2177728, spellIDHorde = 467555, spellIDAlly = 467553, achievementID = 40965, location = "Zuldazar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1841, name = "The Underrot", texture = 2177729, spellID = 410074, achievementID = 17849, location = "Nazmir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1862, name = "Waycrest Manor", texture = 2177732, spellID = 424167, achievementID = 19086, location = "Drustvar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 2097, name = "Operation: Mechagon", texture = 3025327, spellID = 373274, achievementIDs = { 15693, 40966 }, location = "Mechagon Island", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Legion"] = {
-        { id = 1501, name = "Black Rook Hold", texture = 1411847, spellID = 424153, location = "Val'sharah", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1571, name = "Court of Stars", texture = 1498152, spellID = 393766, location = "Suramar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1466, name = "Darkheart Thicket", texture = 1411849, spellID = 424163, location = "Val'sharah", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1477, name = "Halls of Valor", texture = 1498154, spellID = 393764, location = "Stormheim", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1458, name = "Neltharion's Lair", texture = 1450572, spellID = 410078, location = "Highmountain", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1651, name = "Return to Karazhan", texture = 1537281, spellID = 373262, location = "Deadwind Pass", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1753, name = "Seat of the Triumvirate", texture = 1718205, spellIDHorde= 1254550, spellIDAlly= 1254552, location="Mac'Aree / Eredar", source="Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1501, name = "Black Rook Hold", texture = 1411847, spellID = 424153, achievementID = 19084, location = "Val'sharah", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1571, name = "Court of Stars", texture = 1498152, spellID = 393766, achievementID = 16658, location = "Suramar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1466, name = "Darkheart Thicket", texture = 1411849, spellID = 424163, achievementID = 19085, location = "Val'sharah", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1477, name = "Halls of Valor", texture = 1498154, spellID = 393764, achievementID = 16659, location = "Stormheim", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1458, name = "Neltharion's Lair", texture = 1450572, spellID = 410078, achievementID = 17850, location = "Highmountain", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1651, name = "Return to Karazhan", texture = 1537281, spellID = 373262, achievementID = 15692, location = "Deadwind Pass", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1753, name = "Seat of the Triumvirate", texture = 1718205, spellIDHorde= 1254550, spellIDAlly= 1254552, achievementID = 61270, location="Mac'Aree / Eredar", source="Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Warlords of Draenor"] = {
-        { id = 1175, name = "Bloodmaul Slag Mines", texture = 1041984, spellID = 159895, location = "Frostfire Ridge", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1208, name = "Grimrail Depot", texture = 1041986, spellID = 159900, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1195, name = "Iron Docks", texture = 1060546, spellID = 159896, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1182, name = "Auchindoun", texture = 1041982, spellID = 159897, location = "Talador", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1279, name = "The Everbloom", texture = 1060545, spellID = 159901, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1176, name = "Shadowmoon Burial Grounds", texture = 1041988, spellID = 159899, location = "Shadowmoon Valley", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1358, name = "Upper Blackrock Spire", texture = 1041990, spellID = 159902, location = "Blackrock Mountain", source = "Challenge Mode: Gold (Legacy)"},
-        { id = 1209, name = "Skyreach", texture = 1041989, spellID = 159898, location = "Spires of Arak", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1175, name = "Bloodmaul Slag Mines", texture = 1041984, spellID = 159895, achievementID = 8878, location = "Frostfire Ridge", source = "Challenge Mode: Gold (Legacy)" },
+        { id = 1208, name = "Grimrail Depot", texture = 1041986, spellID = 159900, achievementIDs = { 8890, 15695 }, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1195, name = "Iron Docks", texture = 1060546, spellID = 159896, achievementIDs = { 9000, 15694 }, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1182, name = "Auchindoun", texture = 1041982, spellID = 159897, achievementID = 8882, location = "Talador", source = "Challenge Mode: Gold (Legacy)" },
+        { id = 1279, name = "The Everbloom", texture = 1060545, spellID = 159901, achievementIDs = { 9004, 19083 }, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1176, name = "Shadowmoon Burial Grounds", texture = 1041988, spellID = 159899, achievementIDs = { 8886, 16660 }, location = "Shadowmoon Valley", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1358, name = "Upper Blackrock Spire", texture = 1041990, spellID = 159902, achievementID = 8894, location = "Blackrock Mountain", source = "Challenge Mode: Gold (Legacy)"},
+        { id = 1209, name = "Skyreach", texture = 1041989, spellID = 159898, achievementIDs = { 8874, 61272 }, location = "Spires of Arak", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Mists of Pandaria"] = {
-        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, spellID = 131204, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit.", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 961, name = "Stormstout Brewery", texture = 632282, spellID = 131205, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 959, name = "Shado-Pan Monastery", texture = 632281, spellID = 131206, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 994, name = "Mogu'shan Palace", texture = 632279, spellID = 131222, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 962, name = "Gate of the Setting Sun", texture = 632277, spellID = 131225, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, spellID = 131228, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1001, name = "Scarlet Halls", texture = 643265, spellID = 131231, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1004, name = "Scarlet Monastery", texture = 608253, spellID = 131229, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1007, name = "Scholomance", texture = 608254, spellID = 131232, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, spellID = 131204, achievementIDs = { 6887, 16661 }, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit.", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 961, name = "Stormstout Brewery", texture = 632282, spellID = 131205, achievementID = 6891, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 959, name = "Shado-Pan Monastery", texture = 632281, spellID = 131206, achievementID = 6904, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 994, name = "Mogu'shan Palace", texture = 632279, spellID = 131222, achievementID = 6901, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 962, name = "Gate of the Setting Sun", texture = 632277, spellID = 131225, achievementID = 6907, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, spellID = 131228, achievementID = 6919, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1001, name = "Scarlet Halls", texture = 643265, spellID = 131231, achievementID = 6910, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1004, name = "Scarlet Monastery", texture = 608253, spellID = 131229, achievementID = 6913, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1007, name = "Scholomance", texture = 608254, spellID = 131232, achievementID = 6916, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
     },
     ["Cataclysm"] = {
-        { id = 657, name = "Vortex Pinnacle", texture = 526414, spellID = 410080, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 643, name = "Throne of the Tides", texture = 526413, spellID = 424142, location = "Vashj'ir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 670, name = "Grim Batol", texture = 526406, spellID = 445424, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 657, name = "Vortex Pinnacle", texture = 526414, spellID = 410080, achievementID = 17847, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 643, name = "Throne of the Tides", texture = 526413, spellID = 424142, achievementID = 19082, location = "Vashj'ir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 670, name = "Grim Batol", texture = 526406, spellID = 445424, achievementID = 20588, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Wrath of the Lich King"] = {
-        { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, achievementID = 61271, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     }
 }
 
@@ -2018,46 +2240,51 @@ local function InitDungeonTeleportsTabRetail()
 
         if not self.isKnown then
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
-            local tooltipObtainable = ResolveObtainableState(self.teleportObtainable, self.teleportStarts, self.teleportEnds, self.teleportPostEnds)
-
-            if tooltipObtainable == false then
-                GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
-            elseif tooltipObtainable == "starts" then
-                local startTimestamp = GetSeasonStartTimestamp(self.teleportStarts)
-                if startTimestamp then
-                    local remaining = startTimestamp - GetServerTime()
-                    if remaining > 0 then
-                        GameTooltip:AddLine("Season starts in " .. FormatRemainingDuration(remaining), 1, 1, 0)
-                    else
-                        GameTooltip:AddLine("Season Started", 0, 1, 0)
-                    end
-                else
-                    GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
-                end
-            elseif tooltipObtainable == "ends" then
-                local text = "Season ends in"
-                local endTimestamp = self.teleportEnds and GetSeasonEndTimestampForDisplay(self.teleportEnds) or nil
-                local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
-                local currentTime = GetServerTime()
-                local remaining = endTimestamp and (endTimestamp - currentTime) or nil
-                if remaining and remaining > 0 then
-                    text = text .. " " .. FormatRemainingDuration(remaining)
-                else
-                    local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
-                    if postRemaining and postRemaining > 0 then
-                        text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
-                    else
-                        text = "NOT CURRENTLY OBTAINABLE"
-                    end
-                end
-                GameTooltip:AddLine(text, 1, 0, 0)
-            end
-
-            if self.teleportSource then
-                GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
+            if self.isAccountWideUnlocked then
+                GameTooltip:AddLine("Unlocked on your account", 0.2, 1, 0.2)
+                GameTooltip:AddLine(self.teleportUnavailableReason or "This character cannot use this portal yet.", 1, 0.82, 0, true)
             else
-                GameTooltip:AddLine("Complete Mythic Keystone on Level 10 or higher within the time limit.", 1, 1, 1, true)
+                GameTooltip:AddLine("How to obtain:", 1, 0.82, 0)
+                local tooltipObtainable = ResolveObtainableState(self.teleportObtainable, self.teleportStarts, self.teleportEnds, self.teleportPostEnds)
+
+                if tooltipObtainable == false then
+                    GameTooltip:AddLine("NOT CURRENTLY OBTAINABLE", 1, 0, 0)
+                elseif tooltipObtainable == "starts" then
+                    local startTimestamp = GetSeasonStartTimestamp(self.teleportStarts)
+                    if startTimestamp then
+                        local remaining = startTimestamp - GetServerTime()
+                        if remaining > 0 then
+                            GameTooltip:AddLine("Season starts in " .. FormatRemainingDuration(remaining), 1, 1, 0)
+                        else
+                            GameTooltip:AddLine("Season Started", 0, 1, 0)
+                        end
+                    else
+                        GameTooltip:AddLine("Season start date unavailable", 1, 0.5, 0.25)
+                    end
+                elseif tooltipObtainable == "ends" then
+                    local text = "Season ends in"
+                    local endTimestamp = self.teleportEnds and GetSeasonEndTimestampForDisplay(self.teleportEnds) or nil
+                    local postEndTimestamp = self.teleportPostEnds and GetPostSeasonEndTimestamp(self.teleportPostEnds) or nil
+                    local currentTime = GetServerTime()
+                    local remaining = endTimestamp and (endTimestamp - currentTime) or nil
+                    if remaining and remaining > 0 then
+                        text = text .. " " .. FormatRemainingDuration(remaining)
+                    else
+                        local postRemaining = postEndTimestamp and (postEndTimestamp - currentTime) or nil
+                        if postRemaining and postRemaining > 0 then
+                            text = "Post-season ends in " .. FormatRemainingDuration(postRemaining)
+                        else
+                            text = "NOT CURRENTLY OBTAINABLE"
+                        end
+                    end
+                    GameTooltip:AddLine(text, 1, 0, 0)
+                end
+
+                if self.teleportSource then
+                    GameTooltip:AddLine(self.teleportSource, 1, 1, 1, true)
+                else
+                    GameTooltip:AddLine("Complete Mythic Keystone on Level 10 or higher within the time limit.", 1, 1, 1, true)
+                end
             end
         end
 
@@ -2229,8 +2456,11 @@ local function InitDungeonTeleportsTabRetail()
             btn.teleportStarts = info.starts
             btn.teleportEnds = info.ends
             btn.teleportPostEnds = info.postEnds
+            btn.isAccountWideUnlocked = false
+            btn.teleportUnavailableReason = nil
 
             local isKnown = false
+            local isAccountWideUnlocked = false
             local spellToUse = nil
             local faction = UnitFactionGroup("player")
 
@@ -2245,6 +2475,13 @@ local function InitDungeonTeleportsTabRetail()
             end
 
             isKnown = IsTeleportSpellKnown(spellToUse)
+            if not isKnown then
+                isAccountWideUnlocked = HasRetailTeleportUnlock(info)
+            end
+            btn.isAccountWideUnlocked = isAccountWideUnlocked
+            if isAccountWideUnlocked then
+                btn.teleportUnavailableReason = GetRetailTeleportUnavailableReason(spellToUse)
+            end
 
             if isKnown then
                 btn:Enable()
