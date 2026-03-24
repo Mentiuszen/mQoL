@@ -26,6 +26,7 @@ Modules/Graphics/mQoL_Graphics.lua
 Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
+Modules/DungeonTeleports/DungeonTeleportsTab.lua
 
 #Mists Fixes
 Modules/BlizzardFixes/PandariaClassic/mQol_Blizzard.lua

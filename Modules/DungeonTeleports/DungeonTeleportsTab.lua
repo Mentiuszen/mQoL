@@ -1636,6 +1636,14 @@ local function InitDungeonTeleportsTabClassic()
         if PVEFrameTab3 then PanelTemplates_DeselectTab(PVEFrameTab3) end
     end
 
+    local function SelectDungeonTeleportsTab()
+        DeselectBuiltInPVETabs()
+
+        if PanelTemplates_SelectTab then
+            PanelTemplates_SelectTab(tab)
+        end
+    end
+
     local function RestoreBuiltInPVEChrome()
         if PVEFrame_ShowLeftInset then
             PVEFrame_ShowLeftInset()
