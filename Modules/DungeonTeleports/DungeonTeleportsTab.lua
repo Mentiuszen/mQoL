@@ -155,74 +155,6 @@ local function IsTeleportSpellKnown(spellID)
     return false
 end
 
-local function GetSpellLevelLearnedWrapper(spellID)
-    if not spellID or spellID <= 0 then
-        return nil
-    end
-
-    if _G.GetSpellLevelLearned then
-        local ok, level = pcall(_G.GetSpellLevelLearned, spellID)
-        if ok and type(level) == "number" and level > 0 then
-            return level
-        end
-    end
-
-    if C_Spell and C_Spell.GetSpellLevelLearned then
-        local ok, level = pcall(C_Spell.GetSpellLevelLearned, spellID)
-        if ok and type(level) == "number" and level > 0 then
-            return level
-        end
-    end
-
-    return nil
-end
-
-local function GetPlayerMaxLevelWrapper()
-    if _G.GetMaxLevelForPlayerExpansion then
-        local ok, level = pcall(_G.GetMaxLevelForPlayerExpansion)
-        if ok and type(level) == "number" and level > 0 then
-            return level
-        end
-    end
-
-    if _G.GetMaxLevelForLatestExpansion then
-        local ok, level = pcall(_G.GetMaxLevelForLatestExpansion)
-        if ok and type(level) == "number" and level > 0 then
-            return level
-        end
-    end
-
-    if _G.GetExpansionLevel and _G.GetMaxLevelForExpansionLevel then
-        local okExpansion, expansionLevel = pcall(_G.GetExpansionLevel)
-        if okExpansion and type(expansionLevel) == "number" then
-            local okLevel, level = pcall(_G.GetMaxLevelForExpansionLevel, expansionLevel)
-            if okLevel and type(level) == "number" and level > 0 then
-                return level
-            end
-        end
-    end
-
-    if type(_G.MAX_PLAYER_LEVEL_TABLE) == "table" then
-        local expansionLevel = nil
-        if _G.GetExpansionLevel then
-            local ok, value = pcall(_G.GetExpansionLevel)
-            if ok and type(value) == "number" then
-                expansionLevel = value
-            end
-        end
-
-        if expansionLevel and type(_G.MAX_PLAYER_LEVEL_TABLE[expansionLevel]) == "number" then
-            return _G.MAX_PLAYER_LEVEL_TABLE[expansionLevel]
-        end
-    end
-
-    if type(_G.MAX_PLAYER_LEVEL) == "number" and _G.MAX_PLAYER_LEVEL > 0 then
-        return _G.MAX_PLAYER_LEVEL
-    end
-
-    return nil
-end
-
 local function IsAchievementCompletedWrapper(achievementID)
     if not achievementID or achievementID <= 0 then
         return false
@@ -360,20 +292,23 @@ local function HasRetailTeleportUnlock(entry)
     return HasRetailTeleportAchievementUnlock(entry) or HasRetailTeleportReputationUnlock(entry)
 end
 
-local function GetRetailTeleportUnavailableReason(spellID)
+local function GetRetailTeleportRequiredLevel(entry)
+    if type(entry) == "table" and type(entry.requiredLevel) == "number" and entry.requiredLevel > 0 then
+        return entry.requiredLevel
+    end
+
+    return 80
+end
+
+local function GetRetailTeleportUnavailableReason(entry)
     local playerLevel = UnitLevel and UnitLevel("player") or nil
-    local requiredLevel = GetSpellLevelLearnedWrapper(spellID)
+    local requiredLevel = GetRetailTeleportRequiredLevel(entry)
 
     if playerLevel and requiredLevel and playerLevel < requiredLevel then
-        return string.format("Reach level %d on this character to use this portal.", requiredLevel)
+        return string.format("This character must reach level %d to use this portal.", requiredLevel)
     end
 
-    local maxLevel = GetPlayerMaxLevelWrapper()
-    if playerLevel and maxLevel and playerLevel < maxLevel then
-        return string.format("Reach level %d on this character to use this portal.", maxLevel)
-    end
-
-    return "This portal is unlocked on your account, but this character cannot use it yet."
+    return "This character does not currently meet the requirements to use this portal."
 end
 
 local function GetSecondsUntilWeeklyReset()
@@ -685,14 +620,14 @@ local TeleportData = {
     },
 
     ["Midnight"] = {
-        { id = 2805, name = "Windrunner Spire", texture = 7464939, spellID = 1254400, achievementID = 61262, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2811, name = "Magisters' Terrace", texture = 7467176, spellID = 1254572, achievementID = 61267, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2874, name = "Maisara Caverns", texture = 7478532, spellID = 1254559, achievementID = 61269, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2915, name = "Nexus-Point Xenas", texture = 7570499, spellID = 1254563, achievementID = 61268, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2813, name = "Murder Row", texture = 7467177, spellID = 0, achievementID = 0, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2825, name = "Den of Nalorakk", texture = 7478533, spellID = 0, achievementID = 0, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2859, name = "The Blinding Vale", texture = 7478531, spellID = 0, achievementID = 0, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
-        { id = 2923, name = "Voidscar Arena", texture = 7479111, spellID = 0, achievementID = 0, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2805, name = "Windrunner Spire", texture = 7464939, spellID = 1254400, achievementID = 61262, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2811, name = "Magisters' Terrace", texture = 7467176, spellID = 1254572, achievementID = 61267, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2874, name = "Maisara Caverns", texture = 7478532, spellID = 1254559, achievementID = 61269, requiredLevel = 90, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2915, name = "Nexus-Point Xenas", texture = 7570499, spellID = 1254563, achievementID = 61268, requiredLevel = 90, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2813, name = "Murder Row", texture = 7467177, spellID = 0, achievementID = 0, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2825, name = "Den of Nalorakk", texture = 7478533, spellID = 0, achievementID = 0, requiredLevel = 90, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2859, name = "The Blinding Vale", texture = 7478531, spellID = 0, achievementID = 0, requiredLevel = 90, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
+        { id = 2923, name = "Voidscar Arena", texture = 7479111, spellID = 0, achievementID = 0, requiredLevel = 90, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." }, --Not Added Yet
         --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, achievementID = 0, location = "	Voidstorm", source = "Unknown" }, --Unconfirmed
         --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, achievementID = 0, location = "Harandar", source = "Unknown" }, --Unconfirmed
         --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, achievementID = 0, location = "Eversong Woods", source = "Unknown" }, --Unconfirmed
@@ -784,7 +719,7 @@ local TeleportData = {
         { id = 670, name = "Grim Batol", texture = 526406, spellID = 445424, achievementID = 20588, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Wrath of the Lich King"] = {
-        { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, achievementID = 61271, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, achievementID = 61271, requiredLevel = 90, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     }
 }
 
@@ -2480,7 +2415,7 @@ local function InitDungeonTeleportsTabRetail()
             end
             btn.isAccountWideUnlocked = isAccountWideUnlocked
             if isAccountWideUnlocked then
-                btn.teleportUnavailableReason = GetRetailTeleportUnavailableReason(spellToUse)
+                btn.teleportUnavailableReason = GetRetailTeleportUnavailableReason(info)
             end
 
             if isKnown then
