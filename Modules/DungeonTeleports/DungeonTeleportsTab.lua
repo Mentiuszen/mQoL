@@ -690,7 +690,7 @@ local TeleportData = {
         { id = 1477, name = "Halls of Valor", texture = 1498154, spellID = 393764, achievementID = 16659, location = "Stormheim", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 1458, name = "Neltharion's Lair", texture = 1450572, spellID = 410078, achievementID = 17850, location = "Highmountain", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 1651, name = "Return to Karazhan", texture = 1537281, spellID = 373262, achievementID = 15692, location = "Deadwind Pass", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1753, name = "Seat of the Triumvirate", texture = 1718205, spellIDHorde= 1254550, spellIDAlly= 1254552, achievementID = 61270, location="Mac'Aree / Eredar", source="Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1753, name = "Seat of the Triumvirate", texture = 1718205, spellID=1254551, achievementID = 61270, location="Mac'Aree / Eredar", source="Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Warlords of Draenor"] = {
         { id = 1175, name = "Bloodmaul Slag Mines", texture = 1041984, spellID = 159895, achievementID = 8878, location = "Frostfire Ridge", source = "Challenge Mode: Gold (Legacy)" },
