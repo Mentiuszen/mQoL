@@ -11,7 +11,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.0"
-mQoL_Hub.build = "212"
+mQoL_Hub.build = "213"
 mQoL_Hub.vendor = "dev"	--dev / test / release
 
 -- Styles
@@ -38,12 +38,15 @@ mQoL_Hub.searchIndex = {
 	{ label = "Window Opacity", panel = "Display", available = true },
 	{ label = "Enable LUA Errors", panel = "General QoL", available = true },
     { label = "Enable Autoloot", panel = "General QoL", available = true },
+	{ label = "Auto Loot Rate", panel = "General QoL", available = true },
 	{ label = "Enable Auto Quest Tracking", panel = "General QoL", available = true },
 	{ label = "My Name", panel = "General QoL", available = true },
     { label = "Enemy Nameplates", panel = "Nameplates", available = true },
     { label = "Friendly Nameplates", panel = "Nameplates", available = true },
 	{ label = "Max Nameplate Distance", panel = "Nameplates", available = true },
     { label = "Always Show Action Bars", panel = "Action Bars", available = not clientInfo.isRetail or clientInfo.isBCC },
+	{ label = "Auto Push Spell To Action Bar", panel = "Action Bars", available = true },
+	{ label = "Auto Self Cast", panel = "Action Bars", available = true },
 	{ label = "Action Bar 2", panel = "Action Bars", available = true },
 	{ label = "Action Bar 3", panel = "Action Bars", available = true },
 	{ label = "Action Bar 4", panel = "Action Bars", available = true },
@@ -221,13 +224,20 @@ function mQoL_Hub:HighlightOption(optionLabel)
     end)
 end
 
-function mQoL_Hub:SetupNumberInputBox(editBox, slider, minVal, maxVal, step, onApply)
+function mQoL_Hub:SetupNumberInputBox(editBox, slider, minVal, maxVal, step, onApply, formatValue)
+    local function FormatNumber(val)
+        if formatValue then
+            return formatValue(val)
+        end
+        return string.format("%.2f", val)
+    end
+
     local function ApplyFunction(self)
         local val = tonumber(self:GetText())
         if val then
             val = math.max(minVal, math.min(maxVal, val))
             val = math.floor(val / step + 0.5) * step
-            self:SetText(string.format("%.2f", val))
+            self:SetText(FormatNumber(val))
             if slider and slider.SetValue then
                 slider:SetValue(val)
             end
@@ -236,7 +246,7 @@ function mQoL_Hub:SetupNumberInputBox(editBox, slider, minVal, maxVal, step, onA
             end
         else
             if slider and slider.GetValue then
-                self:SetText(string.format("%.2f", slider:GetValue()))
+                self:SetText(FormatNumber(slider:GetValue()))
             end
         end
         self:ClearFocus()
@@ -983,6 +993,7 @@ end
 local PANEL_STRUCTURE = {
     ["Overview"] = {
         "Home",
+        "Account Overview",
         "About",
     },
     ["General Settings"] = {

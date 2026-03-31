@@ -30,8 +30,8 @@ end
 -- These define which keys should exist in each section
 local ExpectedSettingsSchema = {
     Retail = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions", 
@@ -40,15 +40,15 @@ local ExpectedSettingsSchema = {
             "showFriendlyPets", "showFriendlyGuardians", "showFriendlyTotems", 
             "showFriendlyNpcs", "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5", "showActionBars6", 
-            "showActionBars7", "showActionBars8" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5", "showActionBars6",
+            "showActionBars7", "showActionBars8"
         },
     },
     Legion = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -57,15 +57,15 @@ local ExpectedSettingsSchema = {
             "showFriendlyPets", "showFriendlyGuardians", "showFriendlyTotems",
             "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5"
         },
     },
     Classic = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors", 
-            "showHead", "showCloak" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showHead", "showCloak"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -74,15 +74,15 @@ local ExpectedSettingsSchema = {
             "showFriendlyPets", "showFriendlyGuardians", "showFriendlyTotems",
             "showFriendlyNpcs", "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5"
         },
     },
     Era = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors", 
-            "showHead", "showCloak" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showHead", "showCloak"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -91,15 +91,15 @@ local ExpectedSettingsSchema = {
             "showFriendlyPets", "showFriendlyGuardians", "showFriendlyTotems",
             "showFriendlyNpcs", "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5"
         },
     },
     BCC = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors", 
-            "showHead", "showCloak" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showHead", "showCloak"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -108,23 +108,23 @@ local ExpectedSettingsSchema = {
             "showFriendlyPets", "showFriendlyGuardians", "showFriendlyTotems",
             "showFriendlyNpcs", "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5", "showActionBars6", 
-            "showActionBars7", "showActionBars8" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5", "showActionBars6",
+            "showActionBars7", "showActionBars8"
         },
     },
     Pandaria = {
-        general = { 
-            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors", 
-            "showHead", "showCloak" 
+        general = {
+            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showHead", "showCloak"
         },
         nameplates = { 
             "showEnemyNameplates", "showFriendlyNameplates", "nameplateMaxDistance"
         },
-        actionBars = { 
-            "alwaysShowActionBars", "showActionBars2", "showActionBars3", 
-            "showActionBars4", "showActionBars5" 
+        actionBars = {
+            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "showActionBars4", "showActionBars5"
         },
     },
 }
@@ -137,6 +137,9 @@ local function GetCurrentGameValue(section, key)
             return GetCVarBool("UnitNameOwn")
         elseif key == "autoLoot" then
             return GetCVarBool("autoLootDefault")
+        elseif key == "autoLootRate" then
+            local val = GetCVar("autoLootRate")
+            return val and tonumber(val) or 100
         elseif key == "autoQuestTracking" then
             local val = GetCVarBool("autoQuestWatch")
             return val ~= nil and val or true
@@ -216,6 +219,12 @@ local function GetCurrentGameValue(section, key)
     if section == "actionBars" then
         if key == "alwaysShowActionBars" then
             return GetCVarBool("alwaysShowActionBars")
+        elseif key == "autoPushSpellToActionBar" then
+            local val = GetCVarBool("AutoPushSpellToActionBar")
+            return val ~= nil and val or true
+        elseif key == "autoSelfCast" then
+            local val = GetCVarBool("autoSelfCast")
+            return val ~= nil and val or true
         end
 
         -- Action bars 2-8
@@ -245,6 +254,7 @@ local function GetFallbackValue(key)
         -- General
         showMyName = true,
         autoLoot = true,
+        autoLootRate = 25,
         autoQuestTracking = true,
         showLuaErrors = false,
         showHead = true,
@@ -273,6 +283,8 @@ local function GetFallbackValue(key)
 
         -- Action Bars
         alwaysShowActionBars = true,
+        autoPushSpellToActionBar = false,
+        autoSelfCast = true,
         showActionBars2 = true,
         showActionBars3 = true,
         showActionBars4 = true,

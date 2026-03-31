@@ -29,54 +29,54 @@ end
 -- Default settings per client version
 local defaultSettingsMap = {
     Retail = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false },
-        nameplates = { 
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false },
+        nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, separateEnemyMinions=false, showEnemyPets=true, showEnemyGuardians=true, showEnemyTotems=true, showEnemyMinus=true,
-            showFriendlyPlayers=false, showFriendlyPlayerMinions=false, separateMinions=false, showFriendlyPets=false, showFriendlyGuardians=false, showFriendlyTotems=false, showFriendlyNpcs=false, 
+            showFriendlyPlayers=false, showFriendlyPlayerMinions=false, separateMinions=false, showFriendlyPets=false, showFriendlyGuardians=false, showFriendlyTotems=false, showFriendlyNpcs=false,
             nameplateMaxDistance=60
         },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true, showActionBars6=true, showActionBars7=false, showActionBars8=false },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true, showActionBars6=true, showActionBars7=false, showActionBars8=false },
     },
     Legion = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false },
-        nameplates = { 
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false },
+        nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, separateEnemyMinions=false, showEnemyPets=true, showEnemyGuardians=true, showEnemyTotems=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false, separateMinions=false, showFriendlyPets=false, showFriendlyGuardians=false, showFriendlyTotems=false,
             nameplateMaxDistance=60
         },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
     Classic = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
-        nameplates = { 
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
+        nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false,
             nameplateMaxDistance=41
         },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
     Era = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
-        nameplates = { 
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
+        nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false,
             nameplateMaxDistance=20
         },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
     BCC = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
-        nameplates = { 
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
+        nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false,
             nameplateMaxDistance=41
         },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true, showActionBars6=true, showActionBars7=false, showActionBars8=false },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true, showActionBars6=true, showActionBars7=false, showActionBars8=false },
     },
     Pandaria = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
+        general = { showMyName=true, autoLoot=true, autoLootRate=100, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
         nameplates = { showEnemyNameplates=true, showFriendlyNameplates=false, nameplateMaxDistance=41 },
-        actionBars = { alwaysShowActionBars=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
+        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
 }
 
@@ -85,6 +85,7 @@ function GetCurrentGameSettings()
     local generalSettings = {
         showMyName = GetCVarBool("UnitNameOwn"),
         autoLoot = GetCVarBool("autoLootDefault"),
+        autoLootRate = tonumber(GetCVar("autoLootRate")) or 100,
         autoQuestTracking = GetCVarBool("autoQuestWatch") or true,
         showLuaErrors = GetCVarBool("scriptErrors"),
         showHead = GetCVarBool("showHelm"),
@@ -159,6 +160,8 @@ function GetCurrentGameSettings()
     end
 
     actionBarsSettings.alwaysShowActionBars = GetCVarBool("alwaysShowActionBars")
+    actionBarsSettings.autoPushSpellToActionBar = GetCVarBool("AutoPushSpellToActionBar")
+    actionBarsSettings.autoSelfCast = GetCVarBool("autoSelfCast")
 
     return {
         general = generalSettings,
@@ -174,9 +177,12 @@ local function NormalizeName(key)
         showCloak = "Show Cloak",
         showMyName = "Show My Name",
         autoLoot = "Auto Loot",
+        autoLootRate = "Auto Loot Rate",
         autoQuestTracking = "Auto Quest Tracking",
         showLuaErrors = "Show Lua Errors",
         alwaysShowActionBars = "Always Show Action Bars",
+        autoPushSpellToActionBar = "Auto Push Spell To Action Bar",
+        autoSelfCast = "Auto Self Cast",
         showActionBars2 = "Show Action Bar 2",
         showActionBars3 = "Show Action Bar 3",
         showActionBars4 = "Show Action Bar 4",
@@ -208,6 +214,7 @@ local categoryOrder = {
     ["DISPLAY"] = {
         "showMyName",
         "autoLoot",
+        "autoLootRate",
         "autoQuestTracking",
         "showLuaErrors",
         "showHead",
@@ -215,6 +222,8 @@ local categoryOrder = {
     },
     ["ACTION BARS"] = {
         "alwaysShowActionBars",
+        "autoPushSpellToActionBar",
+        "autoSelfCast",
         "showActionBars2",
         "showActionBars3",
         "showActionBars4",

@@ -25,6 +25,13 @@ end
 -- Define available modules and their compatibility
 mQoL_Modules.AvailableModules = {
     {
+        key = "AccountOverview",
+        label = "Account Overview",
+        description = "Account-wide overview with tracked characters, professions, played time, and gold history.",
+        versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
+        defaultEnabled = true,
+    },
+    {
         key = "GeneralQoL",
         label = "General QoL",
         description = "General quality of life improvements (Auto Loot, Quest Tracking, etc).",

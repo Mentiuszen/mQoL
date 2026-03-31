@@ -3,7 +3,7 @@
 ## Notes: mQoL for Retail
 ## Author: Mentiuszen
 ## Version: 1.2.0
-## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB
+## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB, mQoL_AccountOverview_DB
 Libs\Libs_Modern\libs.xml
 
 #Core Func
@@ -20,6 +20,7 @@ Hub/mQoL_Intro.lua
 Core/mQoL_Modules.lua
 
 #Modules
+Modules/AccountOverview/mQoL_AccountOverview.lua
 Modules/MainQoL/mQoL_Main.lua
 Modules/Mailbox/mQoL_Mailbox.lua
 Modules/Graphics/mQoL_Graphics.lua

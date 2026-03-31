@@ -77,6 +77,10 @@ function mQoL_Main:ApplyGeneralSettings(g)
         applyCVar("autoLootDefault", value)
     end
 
+    local function apply_autoLootRate(value)
+        applyCVar("autoLootRate", value)
+    end
+
     local function apply_autoQuestTracking(value)
         applyCVar("autoQuestWatch", value)
     end
@@ -100,6 +104,7 @@ function mQoL_Main:ApplyGeneralSettings(g)
     -- Apply all at once
     apply_showLuaErrors(g.showLuaErrors)
     apply_autoLoot(g.autoLoot)
+    apply_autoLootRate(g.autoLootRate)
     apply_autoQuestTracking(g.autoQuestTracking)
     apply_showMyName(g.showMyName)
     apply_showHead(g.showHead)
@@ -110,6 +115,7 @@ function mQoL_Main:ApplyGeneralSettings(g)
     self.ApplySetting.General = {
         showLuaErrors = apply_showLuaErrors,
         autoLoot = apply_autoLoot,
+        autoLootRate = apply_autoLootRate,
         autoQuestTracking = apply_autoQuestTracking,
         showMyName = apply_showMyName,
         showHead = apply_showHead,
@@ -455,6 +461,14 @@ function mQoL_Main:ApplyActionBarVisibilitySettings(ab)
     if not ab then return end
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("ActionBarsQoL") then return end
 
+    local function apply_autoPushSpellToActionBar(value)
+        applyCVar("AutoPushSpellToActionBar", value)
+    end
+
+    local function apply_autoSelfCast(value)
+        applyCVar("autoSelfCast", value)
+    end
+
     local function apply_alwaysShowActionBars(value)
         if clientInfo.isRetail or clientInfo.isBCC then return end
         if mQoL_Database:IsDisabled(value) then return end
@@ -488,10 +502,20 @@ function mQoL_Main:ApplyActionBarVisibilitySettings(ab)
         end
     end
 
+    apply_autoPushSpellToActionBar(ab.autoPushSpellToActionBar)
+    apply_autoSelfCast(ab.autoSelfCast)
     apply_alwaysShowActionBars(ab.alwaysShowActionBars)
 
     self.ApplySetting = self.ApplySetting or {}
     self.ApplySetting.ActionBars = self.ApplySetting.ActionBars or {}
+    self.ApplySetting.ActionBars.autoPushSpellToActionBar = function(value)
+        ab.autoPushSpellToActionBar = value
+        apply_autoPushSpellToActionBar(value)
+    end
+    self.ApplySetting.ActionBars.autoSelfCast = function(value)
+        ab.autoSelfCast = value
+        apply_autoSelfCast(value)
+    end
     self.ApplySetting.ActionBars.alwaysShowActionBars = function(value)
         ab.alwaysShowActionBars = value
         apply_alwaysShowActionBars(value)
@@ -827,8 +851,8 @@ function mQoL_Main:CreateGeneralPanel(parent)
     local AddGap = mQoL_Templates.AddGap
 
     -- Shortcut to AddOptionRow
-    local function AddOptionRow(panel, label, type, opts)
-        return mQoL_Hub:AddOptionRow(panel, label, type, opts)
+    local function AddOptionRow(panel, label, type, opts, extra, applyFunc)
+        return mQoL_Hub:AddOptionRow(panel, label, type, opts, extra, applyFunc)
     end
 
     -- Checkboxes
@@ -854,6 +878,46 @@ function mQoL_Main:CreateGeneralPanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
+    local autoLootRateMin, autoLootRateMax, autoLootRateStep = 1, 100, 1
+    local autoLootRateEditBox = CreateCustomInputBox(contentContainer)
+    autoLootRateEditBox:SetSize(60, 24)
+    autoLootRateEditBox.bg = autoLootRateEditBox:CreateTexture(nil, "BACKGROUND")
+    autoLootRateEditBox.bg:SetAllPoints()
+    autoLootRateEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    autoLootRateEditBox.border = mQoL_Templates.CreateFrameBorder(autoLootRateEditBox, 1, {0.25, 0.25, 0.25, 1})
+
+    local autoLootRate = tonumber(s.autoLootRate) or 100
+    autoLootRate = math.max(autoLootRateMin, math.min(autoLootRateMax, autoLootRate))
+    local autoLootRateApplyFunc
+
+    local _, autoLootRateSlider = AddOptionRow(contentContainer, "Auto Loot Rate", "slider", {
+        min = autoLootRateMin,
+        max = autoLootRateMax,
+        step = autoLootRateStep,
+        value = autoLootRate,
+        onValueChanged = function(_, value)
+            autoLootRateEditBox:SetText(tostring(math.floor((value or autoLootRateMin) + 0.5)))
+        end,
+        applyLabel = "Apply Rate",
+        applyWidth = 120
+    }, {autoLootRateEditBox}, function()
+        autoLootRateApplyFunc()
+    end)
+
+    autoLootRateEditBox:SetText(tostring(autoLootRate))
+    autoLootRateEditBox.slider = autoLootRateSlider
+
+    autoLootRateApplyFunc = mQoL_Hub:SetupNumberInputBox(autoLootRateEditBox, autoLootRateSlider, autoLootRateMin, autoLootRateMax, autoLootRateStep, function(val)
+        s.autoLootRate = val
+        if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.General and mQoL_Main.ApplySetting.General.autoLootRate then
+            mQoL_Main.ApplySetting.General.autoLootRate(val)
+        else
+            mQoL_Main:ApplyGeneralSettings(s)
+        end
+    end, function(val)
+        return tostring(math.floor((val or autoLootRateMin) + 0.5))
+    end)
+
     AddOptionRow(contentContainer, "Enable Auto Quest Tracking", "checkbox", {
         value = s.autoQuestTracking,
         onValueChanged = function(_, value)
@@ -861,8 +925,6 @@ function mQoL_Main:CreateGeneralPanel(parent)
             mQoL_Main:ApplyGeneralSettings(s)
             end
     })
-    AddGap(contentContainer, "Standard")
-
     AddGap(contentContainer, "BottomSeparator")
 
     -- Dropdown Items for My Name
@@ -1592,6 +1654,33 @@ function mQoL_Main:CreateActionBarsPanel(parent)
         })
         AddGap(contentContainer, "Standard")
     end
+
+    AddOptionRow("Auto Push Spell To Action Bar", "checkbox", {
+        value = s.autoPushSpellToActionBar,
+        onValueChanged = function(_, value)
+            s.autoPushSpellToActionBar = value
+            if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.ActionBars and mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar then
+                mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar(value)
+            else
+                mQoL_Main:ApplyActionBarVisibilitySettings(s)
+            end
+        end
+    })
+    AddGap(contentContainer, "Standard")
+
+    AddOptionRow("Auto Self Cast", "checkbox", {
+        value = s.autoSelfCast,
+        onValueChanged = function(_, value)
+            s.autoSelfCast = value
+            if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.ActionBars and mQoL_Main.ApplySetting.ActionBars.autoSelfCast then
+                mQoL_Main.ApplySetting.ActionBars.autoSelfCast(value)
+            else
+                mQoL_Main:ApplyActionBarVisibilitySettings(s)
+            end
+        end
+    })
+    AddGap(contentContainer, "Standard")
+    AddGap(contentContainer, "BottomSeparator")
 
     -- Action Bars Dropdowns
     local function AddActionBarDropdown(label, key)
