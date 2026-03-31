@@ -1266,6 +1266,7 @@ end
 local function CreateTabButton(parent, text, width)
     local button = CreateCustomButton and CreateCustomButton(parent, text, width or 140, 28) or CreateFrame("Button", nil, parent)
     button:SetSize(width or 140, 28)
+    button.isHovered = false
 
     if not button.bg then
         button.bg = button:CreateTexture(nil, "BACKGROUND")
@@ -1281,16 +1282,30 @@ local function CreateTabButton(parent, text, width)
         button.text:SetText(text)
     end
 
-    function button:SetActive(isActive)
-        self.isActive = isActive
-        if isActive then
-            self.bg:SetColorTexture(0.18, 0.18, 0.18, 1)
+    local function UpdateVisualState(self)
+        if self.isActive then
+            self.bg:SetColorTexture(self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, 1)
             self.text:SetTextColor(1, 0.82, 0)
         else
-            self.bg:SetColorTexture(0.12, 0.12, 0.12, 1)
-            self.text:SetTextColor(0.82, 0.82, 0.82)
+            self.bg:SetColorTexture(self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, 1)
+            self.text:SetTextColor(self.isHovered and 1 or 0.82, self.isHovered and 1 or 0.82, self.isHovered and 1 or 0.82)
         end
     end
+
+    function button:SetActive(isActive)
+        self.isActive = isActive
+        UpdateVisualState(self)
+    end
+
+    button:SetScript("OnEnter", function(self)
+        self.isHovered = true
+        UpdateVisualState(self)
+    end)
+
+    button:SetScript("OnLeave", function(self)
+        self.isHovered = false
+        UpdateVisualState(self)
+    end)
 
     button:SetActive(false)
     return button
@@ -1786,6 +1801,20 @@ function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
     local series = {}
     local carryValue = self:GetLastStoredRangeValueBefore(rangeKey, oldestBucketKey)
     if carryValue == nil then
+        for index, key in ipairs(bucketKeys) do
+            if index >= #bucketKeys then
+                break
+            end
+
+            local firstWindowValue = self:GetStoredRangeValue(rangeKey, key)
+            if firstWindowValue ~= nil then
+                carryValue = firstWindowValue
+                break
+            end
+        end
+    end
+
+    if carryValue == nil then
         carryValue = currentTotal
     end
 
@@ -2138,6 +2167,20 @@ function mQoL_AccountOverview:RefreshGoldChartView()
     view.contentHeight = 450
 end
 
+function mQoL_AccountOverview:ResetGoldRangeForHubOpen()
+    if not self.db then
+        self:InitializeDB()
+    end
+
+    if self.db and self.db.settings then
+        self.db.settings.selectedGoldRange = "overall"
+    end
+
+    if self.optionsScrollFrame and self.optionsScrollFrame:IsShown() then
+        self:RefreshGoldChartView()
+    end
+end
+
 function mQoL_AccountOverview:SetActiveTab(tabName)
     if not self.views or not self.views[tabName] then
         return
@@ -2173,10 +2216,6 @@ end
 function mQoL_AccountOverview:RefreshOverviewPanel()
     if not self.optionsScrollFrame then
         return
-    end
-
-    if self.db and self.db.settings then
-        self.db.settings.selectedGoldRange = "overall"
     end
 
     self:RefreshCharactersView()

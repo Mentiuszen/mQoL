@@ -11,7 +11,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.0"
-mQoL_Hub.build = "213"
+mQoL_Hub.build = "215"
 mQoL_Hub.vendor = "dev"	--dev / test / release
 
 -- Styles
@@ -1727,6 +1727,12 @@ function mQoL_Hub:CreateMainPanel()
 			mQoL_Styles.HideAllDropdownLists()
 		end
 	end)
+    f:HookScript("OnShow", function()
+        local accountOverview = _G["mQoL_AccountOverview"]
+        if accountOverview and accountOverview.ResetGoldRangeForHubOpen then
+            accountOverview:ResetGoldRangeForHubOpen()
+        end
+    end)
 
     -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
