@@ -39,9 +39,10 @@ mQoL_AccountOverview.defaults = {
         selectedGoldRange = "overall",
     },
     characters = {},
-    goldHistory = {},
+    goldSession = {},
     overallArchive = {
         weekly = {},
+        points = {},
         currentWeekKey = nil,
     },
     chartBuckets = {
@@ -61,7 +62,7 @@ mQoL_AccountOverview.defaults = {
         lastSeen = 0,
     },
     meta = {
-        schemaVersion = 6,
+        schemaVersion = 8,
     },
 }
 
@@ -367,7 +368,13 @@ local function GetAccountDB()
     local accountDB = mQoL_AccountOverview_DB.Account
     accountDB.settings = accountDB.settings or TableCopy(mQoL_AccountOverview.defaults.settings)
     accountDB.characters = accountDB.characters or {}
-    accountDB.goldHistory = accountDB.goldHistory or {}
+    if type(accountDB.goldSession) ~= "table" then
+        if type(accountDB.goldHistory) == "table" then
+            accountDB.goldSession = accountDB.goldHistory
+        else
+            accountDB.goldSession = {}
+        end
+    end
     accountDB.overallArchive = accountDB.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
     accountDB.chartBuckets = accountDB.chartBuckets or TableCopy(mQoL_AccountOverview.defaults.chartBuckets)
     accountDB.chartMeta = accountDB.chartMeta or TableCopy(mQoL_AccountOverview.defaults.chartMeta)
@@ -386,11 +393,15 @@ local function GetAccountDB()
     if type(accountDB.overallArchive.weekly) ~= "table" then
         accountDB.overallArchive.weekly = {}
     end
+    if type(accountDB.overallArchive.points) ~= "table" then
+        accountDB.overallArchive.points = {}
+    end
     if type(accountDB.overallArchive.currentWeekKey) ~= "string" then
         accountDB.overallArchive.currentWeekKey = nil
     end
 
-    accountDB.meta.schemaVersion = 6
+    accountDB.goldHistory = nil
+    accountDB.meta.schemaVersion = 8
 
     if accountDB.settings.selectedTab ~= "Characters" and accountDB.settings.selectedTab ~= "Gold Chart" then
         accountDB.settings.selectedTab = "Characters"
@@ -571,16 +582,16 @@ end
 
 local function GetRangePruneLimit(rangeKey)
     if rangeKey == "daily" then
-        return 72
+        return 12
     end
     if rangeKey == "weekly" then
-        return 35
+        return 7
     end
     if rangeKey == "monthly" then
-        return 26
+        return 12
     end
     if rangeKey == "yearly" then
-        return 24
+        return 12
     end
     return 0
 end
@@ -606,7 +617,7 @@ local function GetRangeBucketLabel(rangeKey, bucketKey, index, windowSize)
     return date("%d %b", bucketKey)
 end
 
-local function NormalizeGoldHistory(history)
+local function NormalizeGoldSession(history)
     local cleaned = {}
 
     for _, entry in ipairs(history or {}) do
@@ -655,6 +666,36 @@ local function DownsampleHistory(history, maxPoints)
     return sampled
 end
 
+local function NormalizeTimeSeriesEntries(entries)
+    local normalized = {}
+
+    for _, entry in ipairs(entries or {}) do
+        local timestamp = math.floor(tonumber(entry and entry.ts) or 0)
+        if timestamp > 0 then
+            normalized[#normalized + 1] = {
+                ts = timestamp,
+                total = math.floor(tonumber(entry.total) or 0),
+            }
+        end
+    end
+
+    table.sort(normalized, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    local deduped = {}
+    for _, entry in ipairs(normalized) do
+        local lastEntry = deduped[#deduped]
+        if lastEntry and lastEntry.ts == entry.ts then
+            lastEntry.total = entry.total
+        else
+            deduped[#deduped + 1] = entry
+        end
+    end
+
+    return deduped
+end
+
 local function AddOverallCheckpoint(checkpointsByTimestamp, timestamp, total, priority)
     timestamp = math.floor(tonumber(timestamp) or 0)
     if timestamp <= 0 then
@@ -692,7 +733,7 @@ local function GetEarliestObservedGoldTimestamp(accountDB)
         end
     end
 
-    for _, entry in ipairs(accountDB.goldHistory or {}) do
+    for _, entry in ipairs(accountDB.goldSession or accountDB.goldHistory or {}) do
         Track(entry and entry.ts)
     end
 
@@ -734,7 +775,7 @@ end
 
 function mQoL_AccountOverview:InitializeDB()
     self.db = GetAccountDB()
-    self.db.goldHistory = NormalizeGoldHistory(self.db.goldHistory)
+    self.db.goldSession = NormalizeGoldSession(self.db.goldSession)
     self.currentCharacterKey = select(1, GetCurrentCharacterIdentity())
     self.session = self.session or {}
     self.session.loginAt = GetNow()
@@ -742,7 +783,7 @@ function mQoL_AccountOverview:InitializeDB()
     self.session.moneyCharacterKey = self.currentCharacterKey
     self.session.hasReliableMoney = false
     self.session.lastReliableMoney = nil
-    self:PruneGoldHistory(GetNow())
+    self:PruneGoldSession(GetNow())
 end
 
 function mQoL_AccountOverview:GetWarbandBankMoney()
@@ -908,12 +949,12 @@ function mQoL_AccountOverview:GetGoldSnapshotData()
     return BuildGoldSnapshotData(warboundGold, characterGold)
 end
 
-function mQoL_AccountOverview:AppendOverallSnapshot(goldData, timestamp, forceSnapshot)
+function mQoL_AccountOverview:AppendGoldSessionSnapshot(goldData, timestamp, forceSnapshot)
     if not self.db then
         return
     end
 
-    local history = self.db.goldHistory
+    local history = self.db.goldSession
     local lastEntry = history[#history]
     goldData = NormalizeGoldSnapshotData(goldData)
     local total = goldData.OverallGold
@@ -926,7 +967,7 @@ function mQoL_AccountOverview:AppendOverallSnapshot(goldData, timestamp, forceSn
             CharacterGold = goldData.CharacterGold,
             OverallGold = goldData.OverallGold,
         }
-        self:PruneGoldHistory()
+        self:PruneGoldSession()
         return
     end
 
@@ -952,7 +993,7 @@ function mQoL_AccountOverview:AppendOverallSnapshot(goldData, timestamp, forceSn
         lastEntry.OverallGold = goldData.OverallGold
     end
 
-    self:PruneGoldHistory()
+    self:PruneGoldSession()
 end
 
 function mQoL_AccountOverview:PruneRangeStore(rangeKey)
@@ -1001,22 +1042,16 @@ function mQoL_AccountOverview:FinalizeRangeBuckets(rangeKey, goldData, observedA
         return false
     end
 
-    local changed = false
-    local guard = 0
-    while previousBucketKey < currentBucketKey and guard < 64 do
-        store[tostring(previousBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
-        changed = true
-        previousBucketKey = AdvanceRangeBucketKey(rangeKey, previousBucketKey)
-        guard = guard + 1
-    end
-
+    local completedBucketKey = RetreatRangeBucketKey(rangeKey, currentBucketKey)
     meta.currentKey = currentBucketKey
 
-    if changed then
+    if completedBucketKey and completedBucketKey >= previousBucketKey then
+        store[tostring(completedBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
         self:PruneRangeStore(rangeKey)
+        return true
     end
 
-    return changed
+    return false
 end
 
 function mQoL_AccountOverview:ProcessChartBuckets(goldData, observedAt)
@@ -1032,7 +1067,7 @@ function mQoL_AccountOverview:ProcessChartBuckets(goldData, observedAt)
     end
 
     if anyChanged then
-        self:AppendOverallSnapshot(goldData, observedAt, true)
+        self:AppendGoldSessionSnapshot(goldData, observedAt, true)
     end
 end
 
@@ -1046,6 +1081,9 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
 
     local archive = self.db.overallArchive
     archive.weekly = archive.weekly or {}
+    archive.points = self:NormalizeOverallArchivePoints(archive.points or {})
+
+    self:EnsureOverallArchivePoints(goldData.OverallGold, observedAt)
 
     local currentWeekStart = GetStartOfWeek(observedAt)
     local currentWeekKey = GetLongTermArchiveKey(currentWeekStart)
@@ -1066,27 +1104,28 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
         return false
     end
 
-    while previousWeekStart < currentWeekStart do
-        archive.weekly[GetLongTermArchiveKey(previousWeekStart)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
-        previousWeekStart = ShiftDays(previousWeekStart, 7)
+    if previousWeekStart < currentWeekStart then
+        local observedKey = date("%d.%m.%Y", observedAt)
+        archive.weekly[observedKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        self:StoreOverallArchivePoint(observedAt, goldData.OverallGold)
     end
 
     archive.currentWeekKey = currentWeekKey
     return true
 end
 
-function mQoL_AccountOverview:PruneGoldHistory(referenceTime)
+function mQoL_AccountOverview:PruneGoldSession(referenceTime)
     if not self.db then
         return
     end
 
-    local history = NormalizeGoldHistory(self.db.goldHistory)
+    local history = NormalizeGoldSession(self.db.goldSession)
     local now = math.floor(tonumber(referenceTime) or GetNow())
-    local currentDayStart = GetStartOfDay(now)
+    local currentBucketStart = GetDailyBucketKey(now)
     local filtered = {}
 
     for _, entry in ipairs(history) do
-        if (tonumber(entry.ts) or 0) >= currentDayStart then
+        if (tonumber(entry.ts) or 0) >= currentBucketStart then
             filtered[#filtered + 1] = entry
         end
     end
@@ -1094,7 +1133,7 @@ function mQoL_AccountOverview:PruneGoldHistory(referenceTime)
     history = filtered
 
     if #history <= HISTORY_MAX_POINTS then
-        self.db.goldHistory = history
+        self.db.goldSession = history
         return
     end
 
@@ -1124,17 +1163,17 @@ function mQoL_AccountOverview:PruneGoldHistory(referenceTime)
         compacted[#compacted + 1] = entry
     end
 
-    self.db.goldHistory = compacted
+    self.db.goldSession = compacted
 end
 
-function mQoL_AccountOverview:RecordGoldSnapshot(forceSnapshot, goldData)
+function mQoL_AccountOverview:RecordGoldSessionSnapshot(forceSnapshot, goldData)
     if not self.db then
         return
     end
 
     goldData = goldData or self:GetGoldSnapshotData()
     local now = GetNow()
-    self:AppendOverallSnapshot(goldData, now, forceSnapshot)
+    self:AppendGoldSessionSnapshot(goldData, now, forceSnapshot)
 end
 
 function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
@@ -1240,7 +1279,7 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
     local goldData = self:GetGoldSnapshotData()
     self:ProcessChartBuckets(goldData, now)
     self:ProcessOverallArchive(goldData, now)
-    self:RecordGoldSnapshot(opts.forceGoldSnapshot, goldData)
+    self:RecordGoldSessionSnapshot(opts.forceGoldSnapshot, goldData)
     self:RefreshPanelIfVisible()
 end
 
@@ -1623,8 +1662,8 @@ function mQoL_AccountOverview:GetLastStoredRangeValueBefore(rangeKey, bucketKey)
     return latestValue
 end
 
-function mQoL_AccountOverview:GetVirtualGoldHistory()
-    local history = NormalizeGoldHistory(self.db and self.db.goldHistory or {})
+function mQoL_AccountOverview:GetVirtualGoldSession()
+    local history = NormalizeGoldSession(self.db and self.db.goldSession or {})
     local now = GetNow()
     local totalGold = self:GetAccountTotalGold()
 
@@ -1690,6 +1729,86 @@ function mQoL_AccountOverview:GetOverallArchiveEntries(currentTotal, now)
     end
 
     return entries
+end
+
+function mQoL_AccountOverview:NormalizeOverallArchivePoints(points)
+    local normalized = NormalizeTimeSeriesEntries(points)
+    local result = {}
+
+    for _, entry in ipairs(normalized) do
+        result[#result + 1] = {
+            ts = entry.ts,
+            total = entry.total,
+        }
+    end
+
+    return result
+end
+
+function mQoL_AccountOverview:GetStoredOverallArchiveEntries()
+    if not self.db or not self.db.overallArchive then
+        return {}
+    end
+
+    local archive = self.db.overallArchive
+    archive.points = self:NormalizeOverallArchivePoints(archive.points or {})
+
+    local entries = {}
+    for _, entry in ipairs(archive.points) do
+        entries[#entries + 1] = {
+            ts = entry.ts,
+            total = entry.total,
+        }
+    end
+
+    return entries
+end
+
+function mQoL_AccountOverview:StoreOverallArchivePoint(timestamp, total)
+    if not self.db then
+        return
+    end
+
+    self.db.overallArchive = self.db.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+    local archive = self.db.overallArchive
+    local points = self:GetStoredOverallArchiveEntries()
+
+    points[#points + 1] = {
+        ts = math.floor(tonumber(timestamp) or 0),
+        total = math.floor(tonumber(total) or 0),
+    }
+
+    archive.points = self:NormalizeOverallArchivePoints(points)
+end
+
+function mQoL_AccountOverview:EnsureOverallArchivePoints(currentTotal, now)
+    if not self.db then
+        return {}
+    end
+
+    self.db.overallArchive = self.db.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+    local archive = self.db.overallArchive
+    archive.weekly = archive.weekly or {}
+    archive.points = self:NormalizeOverallArchivePoints(archive.points or {})
+
+    if #archive.points > 0 then
+        return self:GetStoredOverallArchiveEntries()
+    end
+
+    local bootstrapEntries = self:BuildOverallCheckpointEntries(currentTotal, now)
+    local historicalEntries = {}
+
+    for _, entry in ipairs(bootstrapEntries or {}) do
+        if math.floor(tonumber(entry.ts) or 0) < now then
+            historicalEntries[#historicalEntries + 1] = {
+                ts = entry.ts,
+                total = entry.total,
+            }
+        end
+    end
+
+    archive.points = self:NormalizeOverallArchivePoints(historicalEntries)
+    return self:GetStoredOverallArchiveEntries()
 end
 
 function mQoL_AccountOverview:GetRangeBucketEntries(rangeKey, minimumTimestamp)
@@ -1800,7 +1919,7 @@ end
 
 function mQoL_AccountOverview:BuildOverallCheckpointEntries(currentTotal, now)
     local checkpointsByTimestamp = {}
-    local history = NormalizeGoldHistory(self.db and self.db.goldHistory or {})
+    local history = NormalizeGoldSession(self.db and self.db.goldSession or {})
     local earliestObservedTimestamp = GetEarliestObservedGoldTimestamp(self.db)
     local hasOverallArchiveData = self.db
         and self.db.overallArchive
@@ -2080,8 +2199,8 @@ end
 function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
     local now = GetNow()
     local currentTotal = self:GetAccountTotalGold()
-    self:PruneGoldHistory(now)
-    local history = NormalizeGoldHistory(self.db and self.db.goldHistory or {})
+    self:PruneGoldSession(now)
+    local history = NormalizeGoldSession(self.db and self.db.goldSession or {})
 
     if #history == 0 then
         history = {
@@ -2090,6 +2209,11 @@ function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
     end
 
     if rangeKey == "overall" then
+        local storedOverallEntries = self:EnsureOverallArchivePoints(currentTotal, now)
+        if #storedOverallEntries > 0 then
+            return self:BuildCompressedOverallSeries(storedOverallEntries, currentTotal, now)
+        end
+
         local overallEntries = self:BuildOverallCheckpointEntries(currentTotal, now)
         if #overallEntries == 0 then
             overallEntries = self:BuildDerivedOverallEntries(history, currentTotal, now)
