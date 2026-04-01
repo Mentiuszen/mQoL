@@ -189,15 +189,43 @@ local function FormatMoneyCompact(copper)
     return string.format("%s%dc", sign, copperRemainder)
 end
 
-local function FormatAxisMoney(copper)
+local function TrimTrailingZeroes(text)
+    text = tostring(text or "")
+    text = text:gsub("(%..-)0+$", "%1")
+    text = text:gsub("%.$", "")
+    return text
+end
+
+local function GetAxisDecimals(stepValue)
+    stepValue = math.abs(tonumber(stepValue) or 0)
+    if stepValue >= 1 then
+        return 0
+    end
+    if stepValue >= 0.1 then
+        return 1
+    end
+    if stepValue >= 0.01 then
+        return 2
+    end
+    return 3
+end
+
+local function FormatAxisMoney(copper, stepCopper)
     local gold = (tonumber(copper) or 0) / 10000
-    if gold >= 1000000 then
-        return string.format("%.1fm", gold / 1000000)
+    local absGold = math.abs(gold)
+    local stepGold = math.abs((tonumber(stepCopper) or 0) / 10000)
+
+    if absGold >= 1000000 then
+        local decimals = GetAxisDecimals(stepGold / 1000000)
+        return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000000)) .. "m"
     end
-    if gold >= 1000 then
-        return string.format("%.1fk", gold / 1000)
+    if absGold >= 1000 then
+        local decimals = GetAxisDecimals(stepGold / 1000)
+        return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000)) .. "k"
     end
-    return string.format("%.0fg", gold)
+
+    local decimals = GetAxisDecimals(stepGold)
+    return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold)) .. "g"
 end
 
 local function FormatDuration(seconds)
@@ -625,6 +653,67 @@ local function DownsampleHistory(history, maxPoints)
 
     sampled[#sampled + 1] = history[lastIndex]
     return sampled
+end
+
+local function AddOverallCheckpoint(checkpointsByTimestamp, timestamp, total, priority)
+    timestamp = math.floor(tonumber(timestamp) or 0)
+    if timestamp <= 0 then
+        return
+    end
+
+    total = math.floor(tonumber(total) or 0)
+    priority = tonumber(priority) or 0
+
+    local existing = checkpointsByTimestamp[timestamp]
+    if not existing or priority >= (existing.priority or 0) then
+        checkpointsByTimestamp[timestamp] = {
+            ts = timestamp,
+            total = total,
+            priority = priority,
+        }
+    end
+end
+
+local function GetEarliestObservedGoldTimestamp(accountDB)
+    if type(accountDB) ~= "table" then
+        return nil
+    end
+
+    local earliest
+
+    local function Track(timestamp)
+        timestamp = math.floor(tonumber(timestamp) or 0)
+        if timestamp <= 0 then
+            return
+        end
+
+        if not earliest or timestamp < earliest then
+            earliest = timestamp
+        end
+    end
+
+    for _, entry in ipairs(accountDB.goldHistory or {}) do
+        Track(entry and entry.ts)
+    end
+
+    for _, character in pairs(accountDB.characters or {}) do
+        Track(character and character.lastMoneySync)
+        Track(character and character.lastSeen)
+    end
+
+    Track(accountDB.accountBank and accountDB.accountBank.lastSeen)
+    return earliest
+end
+
+local function FormatOverallCheckpointLabel(timestamp, firstTimestamp, lastTimestamp)
+    local spanDays = math.max(0, (tonumber(lastTimestamp) or 0) - (tonumber(firstTimestamp) or 0)) / SECONDS_PER_DAY
+    if spanDays >= 365 then
+        return date("%b %Y", timestamp)
+    end
+    if spanDays >= 1 then
+        return date("%d %b", timestamp)
+    end
+    return date("%H:%M", timestamp)
 end
 
 local function ComputeRotationAngle(dx, dy)
@@ -1603,6 +1692,165 @@ function mQoL_AccountOverview:GetOverallArchiveEntries(currentTotal, now)
     return entries
 end
 
+function mQoL_AccountOverview:GetRangeBucketEntries(rangeKey, minimumTimestamp)
+    if not self.db or not self.db.chartBuckets then
+        return {}
+    end
+
+    local store = self.db.chartBuckets[rangeKey]
+    if type(store) ~= "table" then
+        return {}
+    end
+
+    local entries = {}
+    for rawKey, rawValue in pairs(store) do
+        local sourceTimestamp = math.floor(tonumber(rawKey) or 0)
+        if sourceTimestamp > 0 then
+            local timestamp = sourceTimestamp
+            if minimumTimestamp and timestamp < minimumTimestamp then
+                timestamp = minimumTimestamp
+            end
+            local goldData = NormalizeGoldSnapshotData(rawValue)
+            entries[#entries + 1] = {
+                ts = timestamp,
+                sourceTs = sourceTimestamp,
+                total = goldData.OverallGold,
+            }
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        if a.ts ~= b.ts then
+            return a.ts < b.ts
+        end
+        return (a.sourceTs or a.ts) < (b.sourceTs or b.ts)
+    end)
+
+    return entries
+end
+
+function mQoL_AccountOverview:BuildCharacterBootstrapOverallEntries()
+    if not self.db or type(self.db.characters) ~= "table" then
+        return {}
+    end
+
+    local snapshots = {}
+
+    for key, character in pairs(self.db.characters) do
+        local timestamp = math.floor(tonumber((character and character.lastMoneySync) or (character and character.lastSeen)) or 0)
+        if timestamp > 0 then
+            snapshots[#snapshots + 1] = {
+                ts = timestamp,
+                kind = "character",
+                key = key,
+                amount = math.floor(tonumber(character.money) or 0),
+            }
+        end
+    end
+
+    local accountBank = self.db.accountBank
+    local bankTimestamp = math.floor(tonumber(accountBank and accountBank.lastSeen) or 0)
+    if bankTimestamp > 0 then
+        snapshots[#snapshots + 1] = {
+            ts = bankTimestamp,
+            kind = "bank",
+            amount = math.floor(tonumber(accountBank.money) or 0),
+        }
+    end
+
+    table.sort(snapshots, function(a, b)
+        if a.ts ~= b.ts then
+            return a.ts < b.ts
+        end
+        if a.kind ~= b.kind then
+            return a.kind < b.kind
+        end
+        return (a.key or "") < (b.key or "")
+    end)
+
+    local entries = {}
+    local knownCharacters = {}
+    local runningCharactersTotal = 0
+    local runningBankTotal = 0
+    local index = 1
+
+    while index <= #snapshots do
+        local timestamp = snapshots[index].ts
+
+        while index <= #snapshots and snapshots[index].ts == timestamp do
+            local snapshot = snapshots[index]
+            if snapshot.kind == "bank" then
+                runningBankTotal = snapshot.amount
+            else
+                local previousAmount = knownCharacters[snapshot.key] or 0
+                knownCharacters[snapshot.key] = snapshot.amount
+                runningCharactersTotal = runningCharactersTotal - previousAmount + snapshot.amount
+            end
+            index = index + 1
+        end
+
+        entries[#entries + 1] = {
+            ts = timestamp,
+            total = runningCharactersTotal + runningBankTotal,
+        }
+    end
+
+    return entries
+end
+
+function mQoL_AccountOverview:BuildOverallCheckpointEntries(currentTotal, now)
+    local checkpointsByTimestamp = {}
+    local history = NormalizeGoldHistory(self.db and self.db.goldHistory or {})
+    local earliestObservedTimestamp = GetEarliestObservedGoldTimestamp(self.db)
+    local hasOverallArchiveData = self.db
+        and self.db.overallArchive
+        and type(self.db.overallArchive.weekly) == "table"
+        and next(self.db.overallArchive.weekly) ~= nil
+    local archivedEntries = hasOverallArchiveData and self:GetOverallArchiveEntries(currentTotal, now) or {}
+    local yearlyEntries = self:GetRangeBucketEntries("yearly", earliestObservedTimestamp)
+    local monthlyEntries = self:GetRangeBucketEntries("monthly", earliestObservedTimestamp)
+    local weeklyEntries = self:GetRangeBucketEntries("weekly", earliestObservedTimestamp)
+    local dailyEntries = self:GetRangeBucketEntries("daily", earliestObservedTimestamp)
+    local historyEntries = self:BuildThrottledOverallDisplaySeries(history, now)
+    local hasFullSnapshots = #archivedEntries > 0
+        or #yearlyEntries > 0
+        or #monthlyEntries > 0
+        or #weeklyEntries > 0
+        or #dailyEntries > 0
+        or #historyEntries > 0
+
+    local function AppendEntries(entries, priority)
+        for _, entry in ipairs(entries or {}) do
+            AddOverallCheckpoint(checkpointsByTimestamp, entry.ts, entry.total, priority)
+        end
+    end
+
+    if not hasFullSnapshots then
+        AppendEntries(self:BuildCharacterBootstrapOverallEntries(), 10)
+    end
+    AppendEntries(archivedEntries, 20)
+    AppendEntries(yearlyEntries, 30)
+    AppendEntries(monthlyEntries, 40)
+    AppendEntries(weeklyEntries, 50)
+    AppendEntries(dailyEntries, 60)
+    AppendEntries(historyEntries, 70)
+    AddOverallCheckpoint(checkpointsByTimestamp, now, currentTotal, 100)
+
+    local entries = {}
+    for _, checkpoint in pairs(checkpointsByTimestamp) do
+        entries[#entries + 1] = {
+            ts = checkpoint.ts,
+            total = checkpoint.total,
+        }
+    end
+
+    table.sort(entries, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    return entries
+end
+
 function mQoL_AccountOverview:BuildDerivedOverallEntries(history, currentTotal, now)
     local currentWeekStart = GetStartOfWeek(now)
     local buckets = {}
@@ -1646,58 +1894,139 @@ function mQoL_AccountOverview:BuildDerivedOverallEntries(history, currentTotal, 
 end
 
 function mQoL_AccountOverview:BuildCompressedOverallSeries(entries, currentTotal, now)
+    local normalized = {}
+
+    for _, entry in ipairs(entries or {}) do
+        local timestamp = math.floor(tonumber(entry.ts) or 0)
+        if timestamp > 0 then
+            normalized[#normalized + 1] = {
+                ts = timestamp,
+                total = math.floor(tonumber(entry.total) or 0),
+            }
+        end
+    end
+
+    table.sort(normalized, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    local deduped = {}
+    for _, entry in ipairs(normalized) do
+        local lastEntry = deduped[#deduped]
+        if lastEntry and lastEntry.ts == entry.ts then
+            lastEntry.total = entry.total
+        else
+            deduped[#deduped + 1] = entry
+        end
+    end
+
+    entries = deduped
+
     if #entries == 0 then
         return {
             { ts = now, total = currentTotal }
         }, now
     end
 
+    local lastEntry = entries[#entries]
+    if lastEntry.ts < now then
+        entries[#entries + 1] = {
+            ts = now,
+            total = currentTotal,
+        }
+    else
+        lastEntry.ts = now
+        lastEntry.total = currentTotal
+    end
+
     if #entries == 1 then
-        return {
+        local singleSeries = {
             { ts = entries[1].ts - (7 * SECONDS_PER_DAY), total = entries[1].total },
             { ts = now, total = currentTotal },
-        }, entries[1].ts
+        }
+        local firstTimestamp = singleSeries[1].ts
+        local lastTimestamp = singleSeries[#singleSeries].ts
+        for _, entry in ipairs(singleSeries) do
+            entry.evenSpacing = true
+            entry.label = FormatOverallCheckpointLabel(entry.ts, firstTimestamp, lastTimestamp)
+        end
+        return singleSeries, entries[1].ts
     end
 
     if #entries <= OVERALL_ARCHIVE_MAX_POINTS then
         local directSeries = {}
-        for index, entry in ipairs(entries) do
+        for _, entry in ipairs(entries) do
             directSeries[#directSeries + 1] = {
-                ts = index == #entries and now or entry.ts,
-                total = index == #entries and currentTotal or entry.total,
+                ts = entry.ts,
+                total = entry.total,
+                label = "",
+                evenSpacing = true,
             }
+        end
+        local firstTimestamp = directSeries[1] and directSeries[1].ts or now
+        local lastTimestamp = directSeries[#directSeries] and directSeries[#directSeries].ts or now
+        for _, entry in ipairs(directSeries) do
+            entry.label = FormatOverallCheckpointLabel(entry.ts, firstTimestamp, lastTimestamp)
         end
         return directSeries, entries[1].ts
     end
 
     local series = {}
-    local remainingEntries = #entries
-    local remainingSlots = OVERALL_ARCHIVE_MAX_POINTS
-    local startIndex = 1
+    local selectedIndices = { 1 }
+    local firstTimestamp = entries[1].ts
+    local lastTimestamp = entries[#entries].ts
+    local totalRange = math.max(1, lastTimestamp - firstTimestamp)
+    local lastChosenIndex = 1
 
-    while startIndex <= #entries and remainingSlots > 0 do
-        local groupSize = math.ceil(remainingEntries / remainingSlots)
-        local endIndex = math.min(#entries, startIndex + groupSize - 1)
-        local sum = 0
-        local count = 0
+    for slot = 1, OVERALL_ARCHIVE_MAX_POINTS - 2 do
+        local targetTimestamp = firstTimestamp + math.floor((totalRange * slot) / (OVERALL_ARCHIVE_MAX_POINTS - 1))
+        local remainingSlots = (OVERALL_ARCHIVE_MAX_POINTS - 1) - slot
+        local searchStart = lastChosenIndex + 1
+        local searchEnd = math.max(searchStart, #entries - remainingSlots)
+        local bestIndex = searchStart
+        local bestDistance = math.huge
 
-        for index = startIndex, endIndex do
-            sum = sum + math.floor(tonumber(entries[index].total) or 0)
-            count = count + 1
+        for index = searchStart, searchEnd do
+            local distance = math.abs(entries[index].ts - targetTimestamp)
+            if distance < bestDistance then
+                bestDistance = distance
+                bestIndex = index
+            end
         end
 
-        series[#series + 1] = {
-            ts = entries[startIndex].ts,
-            total = math.floor((sum / math.max(1, count)) + 0.5),
-        }
+        if bestIndex > lastChosenIndex then
+            selectedIndices[#selectedIndices + 1] = bestIndex
+            lastChosenIndex = bestIndex
+        end
+    end
 
-        remainingEntries = #entries - endIndex
-        remainingSlots = remainingSlots - 1
-        startIndex = endIndex + 1
+    if selectedIndices[#selectedIndices] ~= #entries then
+        selectedIndices[#selectedIndices + 1] = #entries
+    end
+
+    for _, index in ipairs(selectedIndices) do
+        local entry = entries[index]
+        local lastSeriesEntry = series[#series]
+        if not lastSeriesEntry or lastSeriesEntry.ts ~= entry.ts then
+            series[#series + 1] = {
+                ts = entry.ts,
+                total = entry.total,
+                label = "",
+                evenSpacing = true,
+            }
+        else
+            lastSeriesEntry.total = entry.total
+        end
     end
 
     series[#series].ts = now
     series[#series].total = currentTotal
+
+    local displayFirstTimestamp = series[1] and series[1].ts or now
+    local displayLastTimestamp = series[#series] and series[#series].ts or now
+    for _, entry in ipairs(series) do
+        entry.label = FormatOverallCheckpointLabel(entry.ts, displayFirstTimestamp, displayLastTimestamp)
+    end
 
     return series, entries[1].ts
 end
@@ -1761,26 +2090,19 @@ function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
     end
 
     if rangeKey == "overall" then
-        local earliestHistoryTimestamp = history[1] and history[1].ts or now
-        if (now - earliestHistoryTimestamp) > (365 * SECONDS_PER_DAY) then
-            local archivedEntries = self:GetOverallArchiveEntries(currentTotal, now)
-            if #archivedEntries < 2 then
-                archivedEntries = self:BuildDerivedOverallEntries(history, currentTotal, now)
-            end
-
-            if #archivedEntries > 0 then
-                return self:BuildCompressedOverallSeries(archivedEntries, currentTotal, now)
-            end
+        local overallEntries = self:BuildOverallCheckpointEntries(currentTotal, now)
+        if #overallEntries == 0 then
+            overallEntries = self:BuildDerivedOverallEntries(history, currentTotal, now)
         end
 
-        local overallSeries = self:BuildThrottledOverallDisplaySeries(history, now)
-        if #overallSeries == 1 then
-            overallSeries = {
-                { ts = overallSeries[1].ts - SECONDS_PER_HOUR, total = overallSeries[1].total },
-                { ts = overallSeries[1].ts, total = overallSeries[1].total },
-            }
+        if #overallEntries > 0 then
+            return self:BuildCompressedOverallSeries(overallEntries, currentTotal, now)
         end
-        return overallSeries, overallSeries[1].ts, overallSeries[#overallSeries].ts
+
+        return {
+            { ts = now - SECONDS_PER_HOUR, total = currentTotal },
+            { ts = now, total = currentTotal },
+        }, now - SECONDS_PER_HOUR, now
     end
 
     local windowSize = GetRangeWindowSize(rangeKey)
@@ -1985,6 +2307,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     end
 
     local valueRange = math.max(1, maxValue - minValue)
+    local axisStep = valueRange / 4
 
     for index = 0, 4 do
         local y = chart.plotBottom + (plotHeight * (index / 4))
@@ -1998,7 +2321,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
         yLabel:ClearAllPoints()
         yLabel:SetPoint("RIGHT", chart, "BOTTOMLEFT", chart.plotLeft - 8, y)
         yLabel:SetJustifyH("RIGHT")
-        yLabel:SetText(FormatAxisMoney(minValue + (valueRange * (index / 4))))
+        yLabel:SetText(FormatAxisMoney(minValue + (valueRange * (index / 4)), axisStep))
         yLabel:SetTextColor(0.78, 0.78, 0.78)
     end
 
@@ -2024,7 +2347,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
         return date("%d %b", timestamp)
     end
 
-    local useBucketSpacing = activeRange ~= "overall" and samples[1] and samples[1].label
+    local useBucketSpacing = samples[1] and (samples[1].evenSpacing or (activeRange ~= "overall" and samples[1].label))
     local sampleCount = #samples
 
     local function GetChartX(index, sample)
@@ -2205,8 +2528,9 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
 
     local activeView = self.views[tabName]
     local activeHeight = activeView.contentHeight or activeView:GetHeight() or 1
+    local bottomPadding = 10
     self.viewsHost:SetHeight(activeHeight)
-    self.contentContainer.currentY = self.viewsAnchorY - activeHeight - 20
+    self.contentContainer.currentY = self.viewsAnchorY - activeHeight - bottomPadding
 
     if self.panel and self.panel.UpdateScrollChildHeight then
         self.panel.UpdateScrollChildHeight()
