@@ -29,6 +29,7 @@ Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
 Modules/DungeonTeleports/DungeonTeleportsTab.lua
+Modules/MythicPlusListing/mQoL_MythicPlusListing.lua
 
 #First Setup
 Core/mQoL_FirstSetup.lua

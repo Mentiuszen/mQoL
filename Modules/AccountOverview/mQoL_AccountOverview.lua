@@ -609,7 +609,7 @@ local function GetRangeBucketLabel(rangeKey, bucketKey, index, windowSize)
         return date("%A", bucketKey)
     end
     if rangeKey == "monthly" then
-        return "Week" .. tostring(index or windowSize or 0)
+        return date("%d.%m", bucketKey)
     end
     if rangeKey == "yearly" then
         return date("%b", bucketKey)
@@ -1105,9 +1105,10 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
     end
 
     if previousWeekStart < currentWeekStart then
-        local observedKey = date("%d.%m.%Y", observedAt)
+        local checkpointTime = currentWeekStart
+        local observedKey = GetLongTermArchiveKey(checkpointTime)
         archive.weekly[observedKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
-        self:StoreOverallArchivePoint(observedAt, goldData.OverallGold)
+        self:StoreOverallArchivePoint(checkpointTime, goldData.OverallGold)
     end
 
     archive.currentWeekKey = currentWeekKey
@@ -1733,14 +1734,27 @@ end
 
 function mQoL_AccountOverview:NormalizeOverallArchivePoints(points)
     local normalized = NormalizeTimeSeriesEntries(points)
+    local weeklyBuckets = {}
     local result = {}
 
     for _, entry in ipairs(normalized) do
+        local weekStart = GetStartOfWeek(entry.ts)
+        weeklyBuckets[weekStart] = {
+            ts = weekStart,
+            total = entry.total,
+        }
+    end
+
+    for _, entry in pairs(weeklyBuckets) do
         result[#result + 1] = {
             ts = entry.ts,
             total = entry.total,
         }
     end
+
+    table.sort(result, function(a, b)
+        return a.ts < b.ts
+    end)
 
     return result
 end
@@ -1764,6 +1778,115 @@ function mQoL_AccountOverview:GetStoredOverallArchiveEntries()
     return entries
 end
 
+function mQoL_AccountOverview:GetStoredRangeEntries(rangeKey, rangeStart, rangeEnd)
+    if not self.db or not self.db.chartBuckets then
+        return {}
+    end
+
+    local store = self.db.chartBuckets[rangeKey]
+    if type(store) ~= "table" then
+        return {}
+    end
+
+    local entries = {}
+    rangeStart = math.floor(tonumber(rangeStart) or 0)
+    rangeEnd = math.floor(tonumber(rangeEnd) or 0)
+
+    for rawKey, rawValue in pairs(store) do
+        local timestamp = math.floor(tonumber(rawKey) or 0)
+        if timestamp > 0 and timestamp >= rangeStart and (rangeEnd <= 0 or timestamp < rangeEnd) then
+            local goldData = NormalizeGoldSnapshotData(rawValue)
+            entries[#entries + 1] = {
+                ts = timestamp,
+                total = goldData.OverallGold,
+            }
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    return entries
+end
+
+function mQoL_AccountOverview:BuildBucketSeriesFromEntries(rangeKey, bucketKeys, sourceEntries, currentTotal, now)
+    local entries = NormalizeTimeSeriesEntries(sourceEntries)
+    local series = {}
+    local carryValue
+    local sourceIndex = 1
+    local oldestBucketKey = bucketKeys[1]
+    local windowSize = #bucketKeys
+
+    while sourceIndex <= #entries and entries[sourceIndex].ts < oldestBucketKey do
+        carryValue = entries[sourceIndex].total
+        sourceIndex = sourceIndex + 1
+    end
+
+    if carryValue == nil then
+        local firstWindowEntry = entries[sourceIndex]
+        if firstWindowEntry and firstWindowEntry.ts < now then
+            carryValue = firstWindowEntry.total
+        end
+    end
+
+    if carryValue == nil then
+        carryValue = currentTotal
+    end
+
+    for index, key in ipairs(bucketKeys) do
+        local value
+        if index == windowSize then
+            value = currentTotal
+        else
+            while sourceIndex <= #entries and entries[sourceIndex].ts <= key do
+                carryValue = entries[sourceIndex].total
+                sourceIndex = sourceIndex + 1
+            end
+            value = carryValue
+        end
+
+        series[#series + 1] = {
+            ts = index == windowSize and now or key,
+            total = value,
+            label = GetRangeBucketLabel(rangeKey, key, index, windowSize),
+            bucketKey = key,
+        }
+    end
+
+    return series, oldestBucketKey, now
+end
+
+function mQoL_AccountOverview:BuildOverallArchiveBootstrapEntries(currentTotal, now)
+    local bootstrapEntries = NormalizeTimeSeriesEntries(self:BuildOverallCheckpointEntries(currentTotal, now))
+    local currentWeekStart = GetStartOfWeek(now)
+    local weeklyBuckets = {}
+
+    for _, entry in ipairs(bootstrapEntries) do
+        local weekStart = GetStartOfWeek(entry.ts)
+        if weekStart < currentWeekStart then
+            weeklyBuckets[weekStart] = {
+                ts = weekStart,
+                total = entry.total,
+            }
+        end
+    end
+
+    local result = {}
+    for _, entry in pairs(weeklyBuckets) do
+        result[#result + 1] = {
+            ts = entry.ts,
+            total = entry.total,
+        }
+    end
+
+    table.sort(result, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    return result
+end
+
 function mQoL_AccountOverview:StoreOverallArchivePoint(timestamp, total)
     if not self.db then
         return
@@ -1774,7 +1897,7 @@ function mQoL_AccountOverview:StoreOverallArchivePoint(timestamp, total)
     local points = self:GetStoredOverallArchiveEntries()
 
     points[#points + 1] = {
-        ts = math.floor(tonumber(timestamp) or 0),
+        ts = GetStartOfWeek(math.floor(tonumber(timestamp) or 0)),
         total = math.floor(tonumber(total) or 0),
     }
 
@@ -1795,19 +1918,7 @@ function mQoL_AccountOverview:EnsureOverallArchivePoints(currentTotal, now)
         return self:GetStoredOverallArchiveEntries()
     end
 
-    local bootstrapEntries = self:BuildOverallCheckpointEntries(currentTotal, now)
-    local historicalEntries = {}
-
-    for _, entry in ipairs(bootstrapEntries or {}) do
-        if math.floor(tonumber(entry.ts) or 0) < now then
-            historicalEntries[#historicalEntries + 1] = {
-                ts = entry.ts,
-                total = entry.total,
-            }
-        end
-    end
-
-    archive.points = self:NormalizeOverallArchivePoints(historicalEntries)
+    archive.points = self:NormalizeOverallArchivePoints(self:BuildOverallArchiveBootstrapEntries(currentTotal, now))
     return self:GetStoredOverallArchiveEntries()
 end
 
@@ -1953,6 +2064,40 @@ function mQoL_AccountOverview:BuildOverallCheckpointEntries(currentTotal, now)
     AppendEntries(weeklyEntries, 50)
     AppendEntries(dailyEntries, 60)
     AppendEntries(historyEntries, 70)
+    AddOverallCheckpoint(checkpointsByTimestamp, now, currentTotal, 100)
+
+    local entries = {}
+    for _, checkpoint in pairs(checkpointsByTimestamp) do
+        entries[#entries + 1] = {
+            ts = checkpoint.ts,
+            total = checkpoint.total,
+        }
+    end
+
+    table.sort(entries, function(a, b)
+        return a.ts < b.ts
+    end)
+
+    return entries
+end
+
+function mQoL_AccountOverview:BuildOverallDisplayEntries(currentTotal, now)
+    local checkpointsByTimestamp = {}
+    local archiveEntries = self:EnsureOverallArchivePoints(currentTotal, now)
+    local shouldSupplementArchive = #archiveEntries < (OVERALL_ARCHIVE_MAX_POINTS - 1)
+
+    local function AppendEntries(entries, priority)
+        for _, entry in ipairs(entries or {}) do
+            AddOverallCheckpoint(checkpointsByTimestamp, entry.ts, entry.total, priority)
+        end
+    end
+
+    AppendEntries(archiveEntries, 80)
+
+    if shouldSupplementArchive then
+        AppendEntries(self:BuildOverallCheckpointEntries(currentTotal, now), 40)
+    end
+
     AddOverallCheckpoint(checkpointsByTimestamp, now, currentTotal, 100)
 
     local entries = {}
@@ -2209,12 +2354,7 @@ function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
     end
 
     if rangeKey == "overall" then
-        local storedOverallEntries = self:EnsureOverallArchivePoints(currentTotal, now)
-        if #storedOverallEntries > 0 then
-            return self:BuildCompressedOverallSeries(storedOverallEntries, currentTotal, now)
-        end
-
-        local overallEntries = self:BuildOverallCheckpointEntries(currentTotal, now)
+        local overallEntries = self:BuildOverallDisplayEntries(currentTotal, now)
         if #overallEntries == 0 then
             overallEntries = self:BuildDerivedOverallEntries(history, currentTotal, now)
         end
@@ -2244,47 +2384,45 @@ function mQoL_AccountOverview:BuildGoldChartSeries(rangeKey)
         bucketKey = AdvanceRangeBucketKey(rangeKey, bucketKey)
     end
 
-    local series = {}
-    local carryValue = self:GetLastStoredRangeValueBefore(rangeKey, oldestBucketKey)
-    if carryValue == nil then
-        for index, key in ipairs(bucketKeys) do
-            if index >= #bucketKeys then
+    if rangeKey == "monthly" then
+        local storedMonthlyEntries = self:GetStoredRangeEntries(rangeKey, oldestBucketKey, currentBucketKey)
+        local allStoredEntriesMatchCurrent = #storedMonthlyEntries > 0
+        local archiveEntries = {}
+
+        for _, entry in ipairs(storedMonthlyEntries) do
+            if entry.total ~= currentTotal then
+                allStoredEntriesMatchCurrent = false
                 break
             end
+        end
 
-            local firstWindowValue = self:GetStoredRangeValue(rangeKey, key)
-            if firstWindowValue ~= nil then
-                carryValue = firstWindowValue
-                break
+        local hasArchiveVariation = false
+        for _, entry in ipairs(self:EnsureOverallArchivePoints(currentTotal, now)) do
+            if entry.ts >= oldestBucketKey and entry.ts < now then
+                archiveEntries[#archiveEntries + 1] = {
+                    ts = entry.ts,
+                    total = entry.total,
+                }
+                if entry.total ~= currentTotal then
+                    hasArchiveVariation = true
+                end
+            end
+        end
+
+        if #storedMonthlyEntries < 2 or (allStoredEntriesMatchCurrent and hasArchiveVariation) then
+            if #archiveEntries > 0 then
+                return self:BuildBucketSeriesFromEntries(rangeKey, bucketKeys, archiveEntries, currentTotal, now)
             end
         end
     end
 
-    if carryValue == nil then
-        carryValue = currentTotal
-    end
-
-    for index, key in ipairs(bucketKeys) do
-        local value
-        if index == #bucketKeys then
-            value = currentTotal
-        else
-            local storedValue = self:GetStoredRangeValue(rangeKey, key)
-            if storedValue ~= nil then
-                carryValue = storedValue
-            end
-            value = carryValue
-        end
-
-        series[#series + 1] = {
-            ts = index == #bucketKeys and now or key,
-            total = value,
-            label = GetRangeBucketLabel(rangeKey, key, index, windowSize),
-            bucketKey = key,
-        }
-    end
-
-    return series, oldestBucketKey, now
+    return self:BuildBucketSeriesFromEntries(
+        rangeKey,
+        bucketKeys,
+        self:GetStoredRangeEntries(rangeKey),
+        currentTotal,
+        now
+    )
 end
 
 function mQoL_AccountOverview:SetGoldRange(rangeKey)

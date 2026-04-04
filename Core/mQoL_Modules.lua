@@ -88,6 +88,14 @@ mQoL_Modules.AvailableModules = {
         description = "Automatic transfer of raid profiles between characters.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
         defaultEnabled = true,
+    },
+    {
+        key = "MythicPlusListing",
+        label = "Mythic+ Listing Helper",
+        description = "Adds a Retail-only helper to the Premade Groups Mythic+ listing panel that shows party keystones.",
+        versions = {"isRetail"},
+        hardlock = {"isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
+        defaultEnabled = true,
     }
 }
 
