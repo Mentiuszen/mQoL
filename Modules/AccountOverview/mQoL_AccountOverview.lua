@@ -9,6 +9,8 @@ end
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local CreateCustomButton = mQoL_Styles and mQoL_Styles.CreateCustomButton
 local CreateFrameBorder = mQoL_Templates and mQoL_Templates.CreateFrameBorder
+local DeepCopy = mQoL_Utils.DeepCopy
+local GetClassColor = mQoL_Utils.GetClassColorRGB
 
 local SECONDS_PER_MINUTE = 60
 local SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
@@ -68,19 +70,6 @@ mQoL_AccountOverview.defaults = {
 
 mQoL_AccountOverview_DB = mQoL_AccountOverview_DB or {}
 
-local function TableCopy(src)
-    if type(src) ~= "table" then
-        return src
-    end
-
-    local dest = {}
-    for key, value in pairs(src) do
-        dest[key] = TableCopy(value)
-    end
-
-    return dest
-end
-
 local function GetNow()
     return time()
 end
@@ -136,14 +125,6 @@ local function GetCurrentCharacterIdentity()
     local realm = GetRealmName() or "UnknownRealm"
     local realmKey = realm:gsub("%s", "")
     return realmKey .. "-" .. name, name, realm
-end
-
-local function GetClassColor(classFile)
-    local color = RAID_CLASS_COLORS and classFile and RAID_CLASS_COLORS[classFile]
-    if color then
-        return color.r or 1, color.g or 1, color.b or 1
-    end
-    return 1, 1, 1
 end
 
 local function FormatLargeNumber(value)
@@ -362,11 +343,11 @@ local function GetAccountDB()
     mQoL_AccountOverview_DB = mQoL_AccountOverview_DB or {}
 
     if type(mQoL_AccountOverview_DB.Account) ~= "table" then
-        mQoL_AccountOverview_DB.Account = TableCopy(mQoL_AccountOverview.defaults)
+        mQoL_AccountOverview_DB.Account = DeepCopy(mQoL_AccountOverview.defaults)
     end
 
     local accountDB = mQoL_AccountOverview_DB.Account
-    accountDB.settings = accountDB.settings or TableCopy(mQoL_AccountOverview.defaults.settings)
+    accountDB.settings = accountDB.settings or DeepCopy(mQoL_AccountOverview.defaults.settings)
     accountDB.characters = accountDB.characters or {}
     if type(accountDB.goldSession) ~= "table" then
         if type(accountDB.goldHistory) == "table" then
@@ -375,11 +356,11 @@ local function GetAccountDB()
             accountDB.goldSession = {}
         end
     end
-    accountDB.overallArchive = accountDB.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
-    accountDB.chartBuckets = accountDB.chartBuckets or TableCopy(mQoL_AccountOverview.defaults.chartBuckets)
-    accountDB.chartMeta = accountDB.chartMeta or TableCopy(mQoL_AccountOverview.defaults.chartMeta)
-    accountDB.accountBank = accountDB.accountBank or TableCopy(mQoL_AccountOverview.defaults.accountBank)
-    accountDB.meta = accountDB.meta or TableCopy(mQoL_AccountOverview.defaults.meta)
+    accountDB.overallArchive = accountDB.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
+    accountDB.chartBuckets = accountDB.chartBuckets or DeepCopy(mQoL_AccountOverview.defaults.chartBuckets)
+    accountDB.chartMeta = accountDB.chartMeta or DeepCopy(mQoL_AccountOverview.defaults.chartMeta)
+    accountDB.accountBank = accountDB.accountBank or DeepCopy(mQoL_AccountOverview.defaults.accountBank)
+    accountDB.meta = accountDB.meta or DeepCopy(mQoL_AccountOverview.defaults.meta)
 
     local schemaVersion = tonumber(accountDB.meta.schemaVersion) or 0
     if schemaVersion < 3 then
@@ -387,7 +368,7 @@ local function GetAccountDB()
     end
 
     if schemaVersion < 5 then
-        accountDB.overallArchive = TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+        accountDB.overallArchive = DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     end
 
     if type(accountDB.overallArchive.weekly) ~= "table" then
@@ -1024,8 +1005,8 @@ function mQoL_AccountOverview:FinalizeRangeBuckets(rangeKey, goldData, observedA
         return false
     end
 
-    self.db.chartBuckets = self.db.chartBuckets or TableCopy(mQoL_AccountOverview.defaults.chartBuckets)
-    self.db.chartMeta = self.db.chartMeta or TableCopy(mQoL_AccountOverview.defaults.chartMeta)
+    self.db.chartBuckets = self.db.chartBuckets or DeepCopy(mQoL_AccountOverview.defaults.chartBuckets)
+    self.db.chartMeta = self.db.chartMeta or DeepCopy(mQoL_AccountOverview.defaults.chartMeta)
     goldData = NormalizeGoldSnapshotData(goldData)
 
     local store = self.db.chartBuckets[rangeKey]
@@ -1076,7 +1057,7 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
         return false
     end
 
-    self.db.overallArchive = self.db.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+    self.db.overallArchive = self.db.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     goldData = NormalizeGoldSnapshotData(goldData)
 
     local archive = self.db.overallArchive
@@ -1294,7 +1275,7 @@ function mQoL_AccountOverview:GetKnownCharacters()
 
     for key, data in pairs(self.db.characters) do
         if type(data) == "table" then
-            local row = TableCopy(data)
+            local row = DeepCopy(data)
             row.key = key
             row.isCurrent = key == currentKey
             characters[#characters + 1] = row
@@ -1892,7 +1873,7 @@ function mQoL_AccountOverview:StoreOverallArchivePoint(timestamp, total)
         return
     end
 
-    self.db.overallArchive = self.db.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+    self.db.overallArchive = self.db.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     local archive = self.db.overallArchive
     local points = self:GetStoredOverallArchiveEntries()
 
@@ -1909,7 +1890,7 @@ function mQoL_AccountOverview:EnsureOverallArchivePoints(currentTotal, now)
         return {}
     end
 
-    self.db.overallArchive = self.db.overallArchive or TableCopy(mQoL_AccountOverview.defaults.overallArchive)
+    self.db.overallArchive = self.db.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     local archive = self.db.overallArchive
     archive.weekly = archive.weekly or {}
     archive.points = self:NormalizeOverallArchivePoints(archive.points or {})

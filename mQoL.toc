@@ -9,6 +9,7 @@ Libs\Libs_Legacy\libs.xml
 #Core Func
 Core/mQoL_Database.lua
 Core/mQoL_VersionDetection.lua
+Core/mQoL_Utils.lua
 Core/mQoL_vreg.lua
 Core/mQoL_DatabaseSafety.lua
 

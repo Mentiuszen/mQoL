@@ -6,6 +6,8 @@ if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 if not (clientInfo.isRetail or clientInfo.isBCC) then return end
+local DeepCopy = mQoL_Utils.DeepCopy
+local GetClassColor = mQoL_Utils.GetClassColor
 
 local SITUATIONAL_MODE_KEY = "Use Situational Instead"
 
@@ -26,18 +28,10 @@ mQoL_EditMode.defaults = {
 
 mQoL_EditMode_DB = mQoL_EditMode_DB or {}
 
-local function TableCopy(src)
-    local dest = {}
-    for k, v in pairs(src) do
-        if type(v) == "table" then dest[k] = TableCopy(v) else dest[k] = v end
-    end
-    return dest
-end
-
 local function EnsureDefaults(settings, defaults)
     for key, defaultValue in pairs(defaults) do
         if settings[key] == nil then
-            settings[key] = type(defaultValue) == "table" and TableCopy(defaultValue) or defaultValue
+            settings[key] = type(defaultValue) == "table" and DeepCopy(defaultValue) or defaultValue
         end
     end
     for key in pairs(settings) do
@@ -51,7 +45,7 @@ local function GetAccountEditModeDB()
     mQoL_EditMode_DB = mQoL_EditMode_DB or {}
 
     if not mQoL_EditMode_DB["Account"] then
-        mQoL_EditMode_DB["Account"] = TableCopy(mQoL_EditMode.defaults)
+        mQoL_EditMode_DB["Account"] = DeepCopy(mQoL_EditMode.defaults)
     end
 
     local accountDB = mQoL_EditMode_DB["Account"]
@@ -100,7 +94,7 @@ function mQoL_EditMode:InitializeDB()
     if not s.advancedClassProfiles then s.advancedClassProfiles = {} end
     if not s.advancedSpecProfiles then s.advancedSpecProfiles = {} end
     if not s.advancedSituational then s.advancedSituational = {} end
-    if not s.simpleSituationalProfiles then s.simpleSituationalProfiles = TableCopy(self.defaults.simpleSituationalProfiles) end
+    if not s.simpleSituationalProfiles then s.simpleSituationalProfiles = DeepCopy(self.defaults.simpleSituationalProfiles) end
 end
 
 function mQoL_EditMode:GetEditModeProfiles()
@@ -710,7 +704,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             ForEachAvailableClass(function(className, classFile)
                 if not seen[classFile] then
                     seen[classFile] = true
-                    local color = (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classFile)) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]) or {r=0.5, g=0.5, b=0.5}
+                    local color = GetClassColor(classFile, { r = 0.5, g = 0.5, b = 0.5 })
                     table.insert(items, {id=classFile, name=className, color=color, assigned=s.advancedClassProfiles[classFile]})
                 end
             end)
@@ -723,7 +717,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                 ForEachAvailableClass(function(className, classFile, classID)
                     local specCount = getNumSpecs(classID)
                     if specCount and specCount > 0 then
-                        local color = (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classFile)) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]) or {r=0.5, g=0.5, b=0.5}
+                        local color = GetClassColor(classFile, { r = 0.5, g = 0.5, b = 0.5 })
                         for j = 1, specCount do
                             local id, specName = getSpecInfo(classID, j, sex)
                             if id and specName and not seenSpecIDs[id] then

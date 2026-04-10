@@ -1,5 +1,6 @@
 local addonName = "mQoL"
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
+local DeepCopy = mQoL_Utils.DeepCopy
 
 -- Namespace (already created by VersionAdapters)
 mQoL_RaidProfiles = mQoL_RaidProfiles or {}
@@ -33,22 +34,13 @@ mQoL_RaidProfiles.defaults = {
 -- Ensure global DB exists
 mQoL_RaidProfiles_DB = mQoL_RaidProfiles_DB or {}
 
--- Deep copy helper
-local function TableCopy(src)
-    local dest = {}
-    for k, v in pairs(src) do
-        if type(v) == "table" then dest[k] = TableCopy(v) else dest[k] = v end
-    end
-    return dest
-end
-
 -- Get player's database (handles migration from old format)
 local function GetPlayerRaidProfilesDB()
     mQoL_RaidProfiles_DB = mQoL_RaidProfiles_DB or {}
 
     -- Ensure Account exists
     if not mQoL_RaidProfiles_DB["Account"] then
-        mQoL_RaidProfiles_DB["Account"] = TableCopy(mQoL_RaidProfiles.defaults)
+        mQoL_RaidProfiles_DB["Account"] = DeepCopy(mQoL_RaidProfiles.defaults)
     end
 
     local accountDB = mQoL_RaidProfiles_DB["Account"]

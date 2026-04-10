@@ -8,6 +8,7 @@ if not mQoL_Hub then
 end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
+local GetClassColor = mQoL_Utils.GetClassColor
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -798,13 +799,13 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
             ForEachAvailableClass(function(className, classFile, classID)
                 if ShouldIncludeClass(classID) and not seenClassFiles[classFile] then
                     seenClassFiles[classFile] = true
-                    local color = (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classFile)) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]) or {r=0.5, g=0.5, b=0.5}
+                    local color = GetClassColor(classFile, { r = 0.5, g = 0.5, b = 0.5 })
                     table.insert(items, {id=classFile, name=className, color=color, assigned=s.advancedClassProfiles[classFile]})
                 end
             end)
         else
             local function GetClassColorOrFallback(classFile)
-                return (C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classFile)) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]) or {r=0.5, g=0.5, b=0.5}
+                return GetClassColor(classFile, { r = 0.5, g = 0.5, b = 0.5 })
             end
 
             local function TryBuildSpecItemsFromBlizzard()

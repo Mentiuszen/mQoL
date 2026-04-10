@@ -24,6 +24,15 @@ local CreateCustomDropdown = mQoL_Styles and mQoL_Styles.CreateCustomDropdown
 local CreateFrameBorder = mQoL_Templates and mQoL_Templates.CreateFrameBorder
 local SetBackdrop = mQoL_Templates and mQoL_Templates.SetBackdrop
 local CreateCloseButton = mQoL_Templates and mQoL_Templates.CreateCloseButton
+local utils = mQoL_Utils
+local IsAddonLoadedSafe = utils.IsAddonLoadedSafe
+local NormalizeFullName = utils.NormalizeFullName
+local GetUnitFullName = utils.GetUnitFullName
+local GetShortName = utils.GetShortName
+local GetDisplayName = utils.GetDisplayName
+local ShallowCopy = utils.ShallowCopy
+local GetClassColor = utils.GetClassColor
+local GetCommDistribution = utils.GetCommDistribution
 local GENERAL_PLAYSTYLE = Enum and Enum.LFGEntryGeneralPlaystyle or {
     None = 0,
     Learning = 1,
@@ -80,91 +89,6 @@ mQoL_MythicPlusListing.defaults = {
 
 local eventFrame = CreateFrame("Frame")
 
-local function IsAddonLoadedSafe(addon)
-    if C_AddOns and C_AddOns.IsAddOnLoaded then
-        return C_AddOns.IsAddOnLoaded(addon)
-    end
-    if IsAddOnLoaded then
-        return IsAddOnLoaded(addon)
-    end
-    return false
-end
-
-local function GetCurrentRealmSlug()
-    local realm = GetRealmName() or ""
-    return realm:gsub("%s+", "")
-end
-
-local function NormalizeFullName(name)
-    if type(name) ~= "string" then
-        return nil
-    end
-
-    name = strtrim(name)
-    if name == "" then
-        return nil
-    end
-
-    local playerName, realmName = strsplit("-", name, 2)
-    if not playerName or playerName == "" then
-        return nil
-    end
-
-    realmName = realmName or GetCurrentRealmSlug()
-    realmName = realmName:gsub("%s+", "")
-
-    if realmName == "" then
-        return playerName
-    end
-
-    return playerName .. "-" .. realmName
-end
-
-local function GetUnitFullName(unit)
-    if not unit or not UnitExists(unit) then
-        return nil
-    end
-    return NormalizeFullName(GetUnitName(unit, true))
-end
-
-local function GetShortName(name)
-    if type(name) ~= "string" then
-        return nil
-    end
-
-    name = strtrim(name)
-    if name == "" then
-        return nil
-    end
-
-    return name:match("^[^-]+") or name
-end
-
-local function GetDisplayName(fullName)
-    if not fullName or fullName == "" then
-        return UNKNOWN
-    end
-
-    if Ambiguate then
-        return Ambiguate(fullName, "short")
-    end
-
-    return fullName:match("^[^-]+") or fullName
-end
-
-local function ShallowCopy(source)
-    local copy = {}
-    if type(source) ~= "table" then
-        return copy
-    end
-
-    for key, value in pairs(source) do
-        copy[key] = value
-    end
-
-    return copy
-end
-
 local function FirstPositiveNumber(...)
     for index = 1, select("#", ...) do
         local value = tonumber((select(index, ...)))
@@ -182,41 +106,6 @@ local function GetClassFileByID(classID)
 
     local _, classFile = GetClassInfo(classID)
     return classFile
-end
-
-local function GetClassColor(classFile)
-    if classFile and CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classFile] then
-        return CUSTOM_CLASS_COLORS[classFile]
-    end
-
-    if classFile and C_ClassColor and C_ClassColor.GetClassColor then
-        local color = C_ClassColor.GetClassColor(classFile)
-        if color then
-            return color
-        end
-    end
-
-    if classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile] then
-        return RAID_CLASS_COLORS[classFile]
-    end
-
-    return NORMAL_FONT_COLOR
-end
-
-local function GetCommDistribution()
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
-        return "INSTANCE_CHAT"
-    end
-
-    if IsInRaid() then
-        return "RAID"
-    end
-
-    if IsInGroup() then
-        return "PARTY"
-    end
-
-    return nil
 end
 
 local function FormatScore(score)
@@ -368,7 +257,7 @@ local function BuildResilientInfoFromTimedRuns(timedRunsByMap, keyLevel, seasona
     end
 
     return {
-        isResilient = floor >= keyLevel and keyLevel > 0,
+        isResilient = keyLevel >= 12 and floor >= keyLevel,
         floor = floor,
         resilientLevel = resilientLevel,
         completedMaps = completedMaps,
@@ -672,6 +561,22 @@ function mQoL_MythicPlusListing:GetSelectedPlaystyleEnum()
     return option and option.generalPlaystyle or GENERAL_PLAYSTYLE.Learning
 end
 
+function mQoL_MythicPlusListing:ApplyPlaystyleToEntryCreation(entryCreation)
+    if not entryCreation then
+        return
+    end
+
+    entryCreation.generalPlaystyle = self:GetSelectedPlaystyleEnum()
+
+    if entryCreation.PlayStyleDropdown and entryCreation.PlayStyleDropdown.GenerateMenu then
+        entryCreation.PlayStyleDropdown:GenerateMenu()
+    end
+
+    if LFGListEntryCreation_UpdateValidState then
+        LFGListEntryCreation_UpdateValidState(entryCreation)
+    end
+end
+
 function mQoL_MythicPlusListing:SetSelectedPlaystyleKey(playstyleKey, applyToEntryCreation)
     if not PLAYSTYLE_OPTION_BY_KEY[playstyleKey] then
         playstyleKey = DEFAULT_PLAYSTYLE_KEY
@@ -688,11 +593,8 @@ function mQoL_MythicPlusListing:SetSelectedPlaystyleKey(playstyleKey, applyToEnt
 
     if applyToEntryCreation then
         local entryCreation = LFGListFrame and LFGListFrame.EntryCreation
-        if entryCreation and entryCreation.selectedActivity and entryCreation.selectedGroup and entryCreation.selectedCategory and LFGListEntryCreation_OnPlayStyleSelectedInternal then
-            LFGListEntryCreation_OnPlayStyleSelectedInternal(entryCreation, self:GetSelectedPlaystyleEnum())
-            if entryCreation.PlayStyleDropdown and entryCreation.PlayStyleDropdown.GenerateMenu then
-                entryCreation.PlayStyleDropdown:GenerateMenu()
-            end
+        if entryCreation and entryCreation.selectedActivity and entryCreation.selectedGroup and entryCreation.selectedCategory then
+            self:ApplyPlaystyleToEntryCreation(entryCreation)
         end
     end
 end
@@ -1010,20 +912,7 @@ function mQoL_MythicPlusListing:QuickFillListing(rowData)
     end
 
     LFGListEntryCreation_Select(entryCreation, entryCreation.selectedFilters or 0, LFG_CATEGORY_DUNGEONS, activity.groupID, activity.activityID)
-
-    if LFGListEntryCreation_OnPlayStyleSelectedInternal then
-        LFGListEntryCreation_OnPlayStyleSelectedInternal(entryCreation, self:GetSelectedPlaystyleEnum())
-    else
-        entryCreation.generalPlaystyle = self:GetSelectedPlaystyleEnum()
-    end
-
-    if entryCreation.PlayStyleDropdown and entryCreation.PlayStyleDropdown.GenerateMenu then
-        entryCreation.PlayStyleDropdown:GenerateMenu()
-    end
-
-    if LFGListEntryCreation_UpdateValidState then
-        LFGListEntryCreation_UpdateValidState(entryCreation)
-    end
+    self:ApplyPlaystyleToEntryCreation(entryCreation)
 
     if self.window and self.window:IsShown() then
         self:UpdateWindow()

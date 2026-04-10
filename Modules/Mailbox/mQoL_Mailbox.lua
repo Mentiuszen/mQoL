@@ -18,6 +18,7 @@ local CreateCustomSlider = mQoL_Styles and mQoL_Styles.CreateCustomSlider
 local CreateCustomInputBox = mQoL_Styles and mQoL_Styles.CreateCustomInputBox
 local CreateCustomCheckbox = mQoL_Styles and mQoL_Styles.CreateCustomCheckbox
 local CreateFrameBorder = mQoL_Templates and mQoL_Templates.CreateFrameBorder
+local DeepCopy = mQoL_Utils.DeepCopy
 
 mQoL_Mailbox.goldBefore = nil
 local COPPER_PER_SILVER = 100
@@ -39,15 +40,6 @@ mQoL_Mailbox.profileDefaults = {
 
 -- Ensure global DB exists
 mQoL_Mailbox_DB = mQoL_Mailbox_DB or {}
-
--- Deep copy helper
-local function TableCopy(src)
-    local dest = {}
-    for k, v in pairs(src) do
-        if type(v) == "table" then dest[k] = TableCopy(v) else dest[k] = v end
-    end
-    return dest
-end
 
 -- Get server and faction for profile key
 local function GetServerAndFaction()
@@ -123,7 +115,7 @@ local function MigrateRetailFactionProfiles(accountDB)
     for realm, factionProfiles in pairs(groupedByRealm) do
         local baseProfile = accountDB.profiles[realm]
         if type(baseProfile) ~= "table" then
-            baseProfile = TableCopy(mQoL_Mailbox.profileDefaults)
+            baseProfile = DeepCopy(mQoL_Mailbox.profileDefaults)
             accountDB.profiles[realm] = baseProfile
         end
 
@@ -168,7 +160,7 @@ local function GetMailboxDB()
     -- Ensure Account exists
     if not mQoL_Mailbox_DB["Account"] then
         mQoL_Mailbox_DB["Account"] = {
-            settings = TableCopy(mQoL_Mailbox.defaults),
+            settings = DeepCopy(mQoL_Mailbox.defaults),
             profiles = {}
         }
     end
@@ -177,7 +169,7 @@ local function GetMailboxDB()
 
     -- Ensure settings structure exists
     if not accountDB.settings then
-        accountDB.settings = TableCopy(mQoL_Mailbox.defaults)
+        accountDB.settings = DeepCopy(mQoL_Mailbox.defaults)
     end
     if not accountDB.profiles then
         accountDB.profiles = {}
@@ -234,14 +226,14 @@ function mQoL_Mailbox:InitializeDB()
     local profileKey = GetProfileKeyForClient(realm, faction)
 
     if not accountDB.profiles[profileKey] then
-        accountDB.profiles[profileKey] = TableCopy(self.profileDefaults)
+        accountDB.profiles[profileKey] = DeepCopy(self.profileDefaults)
     end
 
     -- Ensure all profile defaults exist
     local profile = accountDB.profiles[profileKey]
     for key, defaultValue in pairs(self.profileDefaults) do
         if profile[key] == nil then
-            profile[key] = type(defaultValue) == "table" and TableCopy(defaultValue) or defaultValue
+            profile[key] = type(defaultValue) == "table" and DeepCopy(defaultValue) or defaultValue
         end
     end
 
