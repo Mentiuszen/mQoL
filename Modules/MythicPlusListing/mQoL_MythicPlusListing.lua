@@ -67,6 +67,7 @@ local COLUMN_RESILIENT_WIDTH = 122
 local COLUMN_BUTTON_X = 435
 local COLUMN_BUTTON_WIDTH = 82
 local COLUMN_BUTTON_HEIGHT = 20
+local PLAYSTYLE_DROPDOWN_WIDTH = 120
 local PLAYSTYLE_OPTIONS = {
     { text = "Learning", value = "learning", generalPlaystyle = GENERAL_PLAYSTYLE.Learning },
     { text = "Relaxed", value = "relaxed", generalPlaystyle = GENERAL_PLAYSTYLE.FunRelaxed },
@@ -85,6 +86,7 @@ mQoL_MythicPlusListing.defaults = {
         x = 0,
         y = 0,
     },
+    playstyle = DEFAULT_PLAYSTYLE_KEY,
 }
 
 local eventFrame = CreateFrame("Frame")
@@ -1236,7 +1238,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
 
     frame.refreshButton = refreshButton
 
-    local playstyleDropdown = CreateCustomDropdown and CreateCustomDropdown(frame.toolbar, 230, PLAYSTYLE_OPTIONS, self:GetSelectedPlaystyleKey(), function(value)
+    local playstyleDropdown = CreateCustomDropdown and CreateCustomDropdown(frame.toolbar, PLAYSTYLE_DROPDOWN_WIDTH, PLAYSTYLE_OPTIONS, self:GetSelectedPlaystyleKey(), function(value)
         self:SetSelectedPlaystyleKey(value, true)
         self:UpdateWindow()
     end)
@@ -1297,6 +1299,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
     frame.emptyText:SetText("No party members found.")
     frame.emptyText:Hide()
 
+    frame:Hide()
     self.window = frame
     return frame
 end
