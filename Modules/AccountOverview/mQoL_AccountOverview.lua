@@ -10,8 +10,16 @@ local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or
 local CreateCustomButton = mQoL_Styles and mQoL_Styles.CreateCustomButton
 local CreateFrameBorder = mQoL_Templates and mQoL_Templates.CreateFrameBorder
 local DeepCopy = mQoL_Utils.DeepCopy
+local GetNow = mQoL_Utils.GetNow
+local BuildGoldSnapshotData = mQoL_Utils.BuildGoldSnapshotData
+local NormalizeGoldSnapshotData = mQoL_Utils.NormalizeGoldSnapshotData
+local GetCurrentCharacterIdentity = mQoL_Utils.GetCurrentCharacterIdentity
+local FormatMoneyCompact = mQoL_Utils.FormatMoneyCompact
+local FormatAxisMoney = mQoL_Utils.FormatAxisMoney
+local FormatDuration = mQoL_Utils.FormatDuration
+local FormatTimestamp = mQoL_Utils.FormatTimestamp
 local GetClassColor = mQoL_Utils.GetClassColorRGB
-
+local ProfessionUtils = mQoL_ProfessionUtils
 local SECONDS_PER_MINUTE = 60
 local SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
 local SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR
@@ -26,6 +34,8 @@ local PLAYED_DATA_STALE_AFTER = 6 * SECONDS_PER_HOUR
 local BOOTSTRAP_SYNC_INTERVAL = 2
 local BOOTSTRAP_SYNC_ATTEMPTS = 15
 local OVERALL_ARCHIVE_MAX_POINTS = 12
+local DEFAULT_VAULT_PROGRESS_TEXT = "(0/3, 0/3, 0/3)"
+local VAULT_PLACEHOLDER_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 
 local GOLD_RANGE_OPTIONS = {
     overall = { label = "Overall" },
@@ -64,288 +74,24 @@ mQoL_AccountOverview.defaults = {
         lastSeen = 0,
     },
     meta = {
-        schemaVersion = 8,
+        schemaVersion = 9, -- remember to remove this in release build its only dev db menagement
     },
 }
 
 mQoL_AccountOverview_DB = mQoL_AccountOverview_DB or {}
 
-local function GetNow()
-    return time()
-end
-
 local function IsBootstrapMoneyWindow(session, now)
-    local loginAt = session and session.loginAt or 0
-    return loginAt > 0 and (now - loginAt) <= ((BOOTSTRAP_SYNC_INTERVAL * BOOTSTRAP_SYNC_ATTEMPTS) + 5)
+    return mQoL_Utils.IsBootstrapWindow(session, now, BOOTSTRAP_SYNC_INTERVAL, BOOTSTRAP_SYNC_ATTEMPTS, 5)
 end
 
-local function BuildGoldSnapshotData(warboundGold, characterGold)
-    warboundGold = math.floor(tonumber(warboundGold) or 0)
-    characterGold = math.floor(tonumber(characterGold) or 0)
-    return {
-        WarboundGold = warboundGold,
-        CharacterGold = characterGold,
-        OverallGold = warboundGold + characterGold,
-    }
-end
-
-local function NormalizeGoldSnapshotData(rawValue)
-    if type(rawValue) ~= "table" then
-        return BuildGoldSnapshotData(0, rawValue)
-    end
-
-    local warboundGold = math.floor(tonumber(rawValue.WarboundGold) or 0)
-    local characterGold = math.floor(tonumber(rawValue.CharacterGold) or 0)
-    local overallGold = tonumber(rawValue.OverallGold)
-
-    if overallGold == nil then
-        overallGold = tonumber(rawValue.total)
-    end
-
-    overallGold = math.floor(overallGold or (warboundGold + characterGold))
-
-    if characterGold == 0 and warboundGold == 0 and rawValue.total ~= nil then
-        characterGold = overallGold
-    elseif overallGold ~= (warboundGold + characterGold) then
-        if characterGold == 0 then
-            characterGold = math.max(0, overallGold - warboundGold)
-        else
-            overallGold = warboundGold + characterGold
-        end
-    end
-
-    local normalized = BuildGoldSnapshotData(warboundGold, characterGold)
-    normalized.OverallGold = overallGold
-    normalized.total = overallGold
-    return normalized
-end
-
-local function GetCurrentCharacterIdentity()
-    local name = UnitName("player") or "Unknown"
-    local realm = GetRealmName() or "UnknownRealm"
-    local realmKey = realm:gsub("%s", "")
-    return realmKey .. "-" .. name, name, realm
-end
-
-local function FormatLargeNumber(value)
-    value = math.floor(tonumber(value) or 0)
-    local sign = value < 0 and "-" or ""
-    local number = tostring(math.abs(value))
-
-    while true do
-        local updated, count = number:gsub("^(-?%d+)(%d%d%d)", "%1.%2")
-        number = updated
-        if count == 0 then
-            break
-        end
-    end
-
-    return sign .. number
-end
-
-local function FormatMoneyCompact(copper)
-    copper = math.floor(tonumber(copper) or 0)
-    local sign = copper < 0 and "-" or ""
-    copper = math.abs(copper)
-
-    local gold = math.floor(copper / 10000)
-    local silver = math.floor((copper % 10000) / 100)
-    local copperRemainder = copper % 100
-
-    if gold >= 1000000 then
-        return string.format("%s%.1fm g", sign, gold / 1000000)
-    end
-
-    if gold >= 1000 then
-        return string.format("%s%.1fk g", sign, gold / 1000)
-    end
-
-    if gold > 0 then
-        return string.format("%s%s.%02dg", sign, FormatLargeNumber(gold), silver)
-    end
-
-    if silver > 0 then
-        return string.format("%s%ds %dc", sign, silver, copperRemainder)
-    end
-
-    return string.format("%s%dc", sign, copperRemainder)
-end
-
-local function TrimTrailingZeroes(text)
-    text = tostring(text or "")
-    text = text:gsub("(%..-)0+$", "%1")
-    text = text:gsub("%.$", "")
-    return text
-end
-
-local function GetAxisDecimals(stepValue)
-    stepValue = math.abs(tonumber(stepValue) or 0)
-    if stepValue >= 1 then
-        return 0
-    end
-    if stepValue >= 0.1 then
-        return 1
-    end
-    if stepValue >= 0.01 then
-        return 2
-    end
-    return 3
-end
-
-local function FormatAxisMoney(copper, stepCopper)
-    local gold = (tonumber(copper) or 0) / 10000
-    local absGold = math.abs(gold)
-    local stepGold = math.abs((tonumber(stepCopper) or 0) / 10000)
-
-    if absGold >= 1000000 then
-        local decimals = GetAxisDecimals(stepGold / 1000000)
-        return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000000)) .. "m"
-    end
-    if absGold >= 1000 then
-        local decimals = GetAxisDecimals(stepGold / 1000)
-        return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000)) .. "k"
-    end
-
-    local decimals = GetAxisDecimals(stepGold)
-    return TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold)) .. "g"
-end
-
-local function FormatDuration(seconds)
-    seconds = math.floor(tonumber(seconds) or 0)
-    if seconds <= 0 then
-        return "Unknown"
-    end
-
-    local days = math.floor(seconds / SECONDS_PER_DAY)
-    local hours = math.floor((seconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR)
-    local minutes = math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE)
-
-    if days > 0 then
-        return string.format("%dd %dh", days, hours)
-    end
-    if hours > 0 then
-        return string.format("%dh %dm", hours, minutes)
-    end
-    return string.format("%dm", minutes)
-end
-
-local function FormatTimestamp(timestamp)
-    if not timestamp or timestamp <= 0 then
-        return "Unknown"
-    end
-    return date("%d %b %Y %H:%M", timestamp)
-end
-
-local function GetProfessionSnapshot()
-    local result = {
-        primary = {},
-        secondary = {},
-    }
-
-    if not GetProfessions or not GetProfessionInfo then
-        return result
-    end
-
-    local primaryOne, primaryTwo, archaeology, fishing, cooking, firstAid = GetProfessions()
-
-    local function Add(list, professionIndex)
-        if not professionIndex then
-            return
-        end
-
-        local name, icon, rank, maxRank = GetProfessionInfo(professionIndex)
-        if not name then
-            return
-        end
-
-        table.insert(list, {
-            name = name,
-            icon = icon,
-            rank = rank or 0,
-            maxRank = maxRank or 0,
-        })
-    end
-
-    Add(result.primary, primaryOne)
-    Add(result.primary, primaryTwo)
-    Add(result.secondary, cooking)
-    Add(result.secondary, fishing)
-    Add(result.secondary, archaeology)
-    Add(result.secondary, firstAid)
-
-    return result
-end
-
-local function GetProfessionDisplayEntries(professions)
-    if type(professions) ~= "table" then
-        return nil
-    end
-
-    local source = professions.primary
-    if type(source) ~= "table" or #source == 0 then
-        source = professions.secondary
-    end
-
-    if type(source) ~= "table" or #source == 0 then
-        return nil
-    end
-
-    local entries = {}
-    for index, entry in ipairs(source) do
-        if index > 2 then
-            break
-        end
-
-        if type(entry) == "table" then
-            entries[#entries + 1] = entry
-        end
-    end
-
-    if #entries == 0 then
-        return nil
-    end
-
-    return entries
-end
-
-local function FormatProfessionIcons(professions)
-    local entries = GetProfessionDisplayEntries(professions)
-    if not entries then
-        return "-"
-    end
-
-    local parts = {}
-    for _, entry in ipairs(entries) do
-        if entry.icon then
-            parts[#parts + 1] = string.format("|T%s:16:16:0:0|t", tostring(entry.icon))
-        end
-    end
-
-    if #parts == 0 then
-        return "-"
-    end
-
-    return table.concat(parts, " ")
-end
-
-local function HasProfessionData(professions)
-    if type(professions) ~= "table" then
-        return false
-    end
-
-    local primary = professions.primary
-    if type(primary) == "table" and #primary > 0 then
-        return true
-    end
-
-    local secondary = professions.secondary
-    if type(secondary) == "table" and #secondary > 0 then
-        return true
-    end
-
-    return false
-end
-
+local GetProfessionSnapshot = ProfessionUtils.GetSnapshot
+local MergeProfessionSnapshot = ProfessionUtils.MergeSnapshot
+local HasProfessionData = ProfessionUtils.HasData
+local GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
+local GetProfessionSummaryText = ProfessionUtils.GetSummaryText
+local GetProfessionDetailRows = ProfessionUtils.GetDetailRows
+local GetOpenableProfessionScans = ProfessionUtils.GetOpenableProfessionScans
+local OpenProfessionForScan = ProfessionUtils.OpenProfessionForScan
 local function SupportsRetailAccountBank()
     return clientInfo.isRetail
         and C_Bank
@@ -398,7 +144,7 @@ local function GetAccountDB()
     end
 
     accountDB.goldHistory = nil
-    accountDB.meta.schemaVersion = 8
+    accountDB.meta.schemaVersion = 9
 
     if accountDB.settings.selectedTab ~= "Characters" and accountDB.settings.selectedTab ~= "Gold Chart" then
         accountDB.settings.selectedTab = "Characters"
@@ -1252,8 +998,9 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
 
     if opts.refreshProfessions or character.professions == nil then
         local fetchedProfessions = GetProfessionSnapshot()
-        if HasProfessionData(fetchedProfessions) or not HasProfessionData(character.professions) then
-            character.professions = fetchedProfessions
+        local mergedProfessions = MergeProfessionSnapshot(character.professions, fetchedProfessions)
+        if HasProfessionData(mergedProfessions) or not HasProfessionData(character.professions) then
+            character.professions = mergedProfessions
         end
     end
 
@@ -1279,6 +1026,99 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
     self:ProcessOverallArchive(goldData, now)
     self:RecordGoldSessionSnapshot(opts.forceGoldSnapshot, goldData)
     self:RefreshPanelIfVisible()
+end
+
+function mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
+    if not clientInfo.isRetail or not C_TradeSkillUI then
+        return
+    end
+
+    local now = GetTime and GetTime() or GetNow()
+    if self.lastOpenTradeSkillProfessionSync and (now - self.lastOpenTradeSkillProfessionSync) < 0.5 then
+        return
+    end
+    self.lastOpenTradeSkillProfessionSync = now
+
+    local function Sync()
+        if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("AccountOverview") then
+            return
+        end
+
+        if type(C_TradeSkillUI.IsTradeSkillReady) == "function" and not C_TradeSkillUI.IsTradeSkillReady() then
+            return
+        end
+
+        mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
+            refreshProfessions = true,
+        })
+    end
+
+    Sync()
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.3, Sync)
+    end
+end
+
+function mQoL_AccountOverview:RefreshProfessionScanQueue()
+    self.professionScanQueue = GetOpenableProfessionScans and GetOpenableProfessionScans() or {}
+    self.professionScanIndex = 1
+    self:RefreshProfessionScanButton()
+end
+
+function mQoL_AccountOverview:GetNextProfessionScan()
+    if type(self.professionScanQueue) ~= "table" or #self.professionScanQueue == 0 then
+        self.professionScanQueue = GetOpenableProfessionScans and GetOpenableProfessionScans() or {}
+        self.professionScanIndex = 1
+    end
+
+    if type(self.professionScanQueue) ~= "table" or #self.professionScanQueue == 0 then
+        return nil
+    end
+
+    local index = math.max(1, math.min(tonumber(self.professionScanIndex) or 1, #self.professionScanQueue))
+    return self.professionScanQueue[index], index, #self.professionScanQueue
+end
+
+function mQoL_AccountOverview:RefreshProfessionScanButton()
+    local view = self.charactersView
+    local button = view and view.professionScanButton
+    if not button then
+        return
+    end
+
+    if not clientInfo.isRetail then
+        button:Hide()
+        return
+    end
+
+    button:Show()
+    local scan, index, total = self:GetNextProfessionScan()
+    if scan then
+        button.text:SetText(string.format("Scan Professions %d/%d", index, total))
+        button.tooltipTitle = "Scan profession tiers"
+        button.tooltipText = string.format("Opens %s so mQoL can cache older expansion skills.", scan.name or "the next profession")
+    else
+        button.text:SetText("Scan Professions")
+        button.tooltipTitle = "Scan profession tiers"
+        button.tooltipText = "No openable professions were found on this character."
+    end
+end
+
+function mQoL_AccountOverview:OpenNextProfessionForScan()
+    local scan, index, total = self:GetNextProfessionScan()
+    if not scan then
+        self:RefreshProfessionScanButton()
+        return
+    end
+
+    local opened = OpenProfessionForScan and OpenProfessionForScan(scan)
+    if opened then
+        self.professionScanIndex = index >= total and 1 or (index + 1)
+        self:QueueOpenTradeSkillProfessionSync()
+    end
+
+    self:RefreshProfessionScanButton()
 end
 
 function mQoL_AccountOverview:GetKnownCharacters()
@@ -1389,6 +1229,73 @@ local function HidePool(pool)
     end
 end
 
+local function UpdateOverviewCellButtonVisual(button)
+    if not button or not button.bg then
+        return
+    end
+
+    if button.isActive then
+        button.bg:SetColorTexture(0.20, 0.16, 0.06, 0.95)
+        if button.label then
+            button.label:SetTextColor(1, 0.88, 0.35)
+        end
+    elseif button.isHovered then
+        button.bg:SetColorTexture(0.17, 0.17, 0.17, 0.95)
+        if button.label then
+            button.label:SetTextColor(1, 1, 1)
+        end
+    else
+        button.bg:SetColorTexture(0.11, 0.11, 0.11, 0.9)
+        if button.label then
+            button.label:SetTextColor(0.9, 0.9, 0.9)
+        end
+    end
+end
+
+local function CreateOverviewCellButton(parent)
+    local button = CreateFrame("Button", nil, parent)
+    button.isHovered = false
+    button.isActive = false
+    button:RegisterForClicks("LeftButtonUp")
+
+    button.bg = button:CreateTexture(nil, "BACKGROUND")
+    button.bg:SetAllPoints()
+
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetSize(16, 16)
+    button.icon:SetPoint("LEFT", button, "LEFT", 4, 0)
+
+    button.label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+    button.label:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+    button.label:SetJustifyH("LEFT")
+    button.label:SetWordWrap(false)
+
+    button:SetScript("OnEnter", function(self)
+        self.isHovered = true
+        UpdateOverviewCellButtonVisual(self)
+        if self.handleEnter then
+            self:handleEnter()
+        end
+    end)
+
+    button:SetScript("OnLeave", function(self)
+        self.isHovered = false
+        UpdateOverviewCellButtonVisual(self)
+        if self.handleLeave then
+            self:handleLeave()
+        end
+    end)
+
+    function button:SetActive(isActive)
+        self.isActive = isActive and true or false
+        UpdateOverviewCellButtonVisual(self)
+    end
+
+    UpdateOverviewCellButtonVisual(button)
+    return button
+end
+
 local function CreateTabButton(parent, text, width)
     local button = CreateCustomButton and CreateCustomButton(parent, text, width or 140, 28) or CreateFrame("Button", nil, parent)
     button:SetSize(width or 140, 28)
@@ -1439,12 +1346,208 @@ end
 
 local CHARACTER_COLUMNS = {
     { key = "level", label = "Level", x = 12, width = 40, justify = "CENTER" },
-    { key = "name", label = "Name", x = 62, width = 245, justify = "LEFT" },
-    { key = "professions", label = "Professions", x = 317, width = 110, justify = "CENTER" },
-    { key = "vault", label = "Vault", x = 437, width = 70, justify = "CENTER" },
-    { key = "played", label = "Played", x = 517, width = 95, justify = "LEFT" },
-    { key = "gold", label = "Gold", x = 622, width = 130, justify = "RIGHT" },
+    { key = "name", label = "Name", x = 62, width = 165, justify = "LEFT" },
+    { key = "professions", label = "Professions", x = 237, width = 225, justify = "CENTER" },
+    { key = "vault", label = "Vault", x = 472, width = 115, justify = "LEFT" },
+    { key = "played", label = "Played", x = 597, width = 70, justify = "LEFT" },
+    { key = "gold", label = "Gold", x = 677, width = 80, justify = "RIGHT" },
 }
+
+local CHARACTER_COLUMN_BY_KEY = {}
+for _, column in ipairs(CHARACTER_COLUMNS) do
+    CHARACTER_COLUMN_BY_KEY[column.key] = column
+end
+
+function mQoL_AccountOverview:HideProfessionDetailFrame()
+    if not self.professionDetailFrame then
+        return
+    end
+
+    local frame = self.professionDetailFrame
+    if frame.owner and frame.owner.SetActive then
+        frame.owner:SetActive(false)
+    end
+    frame.owner = nil
+    frame:Hide()
+end
+
+function mQoL_AccountOverview:EnsureProfessionDetailFrame()
+    if self.professionDetailFrame then
+        return self.professionDetailFrame
+    end
+
+    local frame = CreateFrame("Frame", "mQoL_AccountOverview_ProfessionDetailFrame", UIParent)
+    frame:SetSize(300, 314)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(80)
+    frame:SetClampedToScreen(true)
+    frame:SetToplevel(true)
+    frame:EnableMouse(true)
+    frame:Hide()
+
+    if UISpecialFrames then
+        table.insert(UISpecialFrames, frame:GetName())
+    end
+
+    frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+    frame.bg:SetAllPoints()
+    frame.bg:SetColorTexture(0.05, 0.05, 0.05, 0.98)
+
+    if CreateFrameBorder then
+        frame.border = CreateFrameBorder(frame, 1, { 0.25, 0.25, 0.25, 1 })
+    end
+
+    frame.titleBar = CreateFrame("Frame", nil, frame)
+    frame.titleBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+    frame.titleBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+    frame.titleBar:SetHeight(32)
+    frame.titleBar:EnableMouse(true)
+
+    frame.titleBar.bg = frame.titleBar:CreateTexture(nil, "BACKGROUND")
+    frame.titleBar.bg:SetAllPoints()
+    frame.titleBar.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+
+    frame.title = frame.titleBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    frame.title:SetPoint("CENTER", frame.titleBar, "CENTER", 0, -1)
+    frame.title:SetTextColor(1, 0.82, 0)
+    frame.title:SetShadowColor(0, 0, 0, 0.8)
+    frame.title:SetShadowOffset(1, -1)
+
+    frame.closeButton = CreateFrame("Button", nil, frame.titleBar)
+    frame.closeButton:SetSize(20, 20)
+    frame.closeButton:SetPoint("RIGHT", frame.titleBar, "RIGHT", -10, 0)
+    frame.closeButton.tex = frame.closeButton:CreateTexture(nil, "ARTWORK")
+    frame.closeButton.tex:SetAllPoints()
+    frame.closeButton.tex:SetTexture("Interface\\AddOns\\mQoL\\Media\\Textures\\Cross")
+    frame.closeButton.tex:SetVertexColor(0.6, 0.6, 0.6)
+    frame.closeButton:SetScript("OnEnter", function(self)
+        self.tex:SetVertexColor(1, 0.2, 0.2)
+    end)
+    frame.closeButton:SetScript("OnLeave", function(self)
+        self.tex:SetVertexColor(0.6, 0.6, 0.6)
+    end)
+    frame.closeButton:SetScript("OnClick", function()
+        mQoL_AccountOverview:HideProfessionDetailFrame()
+    end)
+
+    frame.subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.subtitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 14, -44)
+    frame.subtitle:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -44)
+    frame.subtitle:SetJustifyH("LEFT")
+    frame.subtitle:SetTextColor(0.82, 0.82, 0.82)
+    frame.subtitle:SetText("Detailed profession tiers")
+
+    frame.separator = frame:CreateTexture(nil, "ARTWORK")
+    frame.separator:SetColorTexture(1, 1, 1, 0.15)
+    frame.separator:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -62)
+    frame.separator:SetSize(276, 1)
+
+    frame.headerLeft = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.headerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -78)
+    frame.headerLeft:SetTextColor(0.9, 0.9, 0.9)
+    frame.headerLeft:SetText("Expansion")
+
+    frame.headerRight = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.headerRight:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -78)
+    frame.headerRight:SetTextColor(0.9, 0.9, 0.9)
+    frame.headerRight:SetText("Skill")
+
+    frame.rowsLeft = {}
+    frame.rowsRight = {}
+    frame.rowBackgrounds = {}
+    frame.rowSeparators = {}
+
+    frame:SetScript("OnMouseDown", function()
+        GameTooltip:Hide()
+    end)
+
+    frame:SetScript("OnHide", function(self)
+        GameTooltip:Hide()
+        if self.owner and self.owner.SetActive then
+            self.owner:SetActive(false)
+        end
+        self.owner = nil
+        HidePool(self.rowsLeft)
+        HidePool(self.rowsRight)
+        HidePool(self.rowBackgrounds)
+        HidePool(self.rowSeparators)
+    end)
+
+    self.professionDetailFrame = frame
+    return frame
+end
+
+function mQoL_AccountOverview:ToggleProfessionDetailFrame(ownerButton, professionEntry)
+    if not ownerButton or type(professionEntry) ~= "table" then
+        return
+    end
+
+    local frame = self:EnsureProfessionDetailFrame()
+    if frame:IsShown() and frame.owner == ownerButton then
+        self:HideProfessionDetailFrame()
+        return
+    end
+
+    self:HideProfessionDetailFrame()
+
+    frame.owner = ownerButton
+    ownerButton:SetActive(true)
+
+    frame.title:SetText(professionEntry.name or "Profession")
+
+    local detailRows = GetProfessionDetailRows(professionEntry)
+    HidePool(frame.rowsLeft)
+    HidePool(frame.rowsRight)
+    HidePool(frame.rowBackgrounds)
+    HidePool(frame.rowSeparators)
+
+    local startY = -102
+    local rowHeight = 20
+    for index, rowData in ipairs(detailRows) do
+        local rowOffset = startY - ((index - 1) * rowHeight)
+        local rowBackground = AcquireTexture(frame.rowBackgrounds, index, frame, "BACKGROUND")
+        rowBackground:ClearAllPoints()
+        rowBackground:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, rowOffset + 2)
+        rowBackground:SetSize(276, rowHeight - 2)
+        rowBackground:SetColorTexture(index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
+
+        local rowSeparator = AcquireTexture(frame.rowSeparators, index, frame, "ARTWORK")
+        rowSeparator:ClearAllPoints()
+        rowSeparator:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, rowOffset + 1)
+        rowSeparator:SetSize(268, 1)
+        rowSeparator:SetColorTexture(1, 1, 1, 0.05)
+
+        local left = AcquireFontString(frame.rowsLeft, index, frame, "GameFontNormalSmall")
+        left:ClearAllPoints()
+        left:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, rowOffset - 2)
+        left:SetWidth(186)
+        left:SetJustifyH("LEFT")
+        left:SetText(rowData.label or "Unknown")
+        left:SetTextColor(rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62)
+
+        local right = AcquireFontString(frame.rowsRight, index, frame, "GameFontNormalSmall")
+        right:ClearAllPoints()
+        right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -18, rowOffset - 2)
+        right:SetWidth(78)
+        right:SetJustifyH("RIGHT")
+        right:SetText(rowData.value or "-")
+        right:SetTextColor(rowData.isActive and 1 or 0.58, rowData.isActive and 0.82 or 0.58, rowData.isActive and 0 or 0.58)
+    end
+
+    local frameHeight = math.max(164, 124 + (#detailRows * rowHeight))
+    frame:SetHeight(frameHeight)
+    frame:ClearAllPoints()
+
+    local ownerCenter = ownerButton.GetCenter and ownerButton:GetCenter()
+    local screenMid = UIParent and UIParent:GetWidth() and (UIParent:GetWidth() / 2) or nil
+    if ownerCenter and screenMid and ownerCenter > screenMid then
+        frame:SetPoint("TOPRIGHT", ownerButton, "BOTTOMRIGHT", 0, -4)
+    else
+        frame:SetPoint("TOPLEFT", ownerButton, "BOTTOMLEFT", 0, -4)
+    end
+
+    frame:Show()
+end
 
 function mQoL_AccountOverview:EnsureCharactersView()
     if self.charactersView then
@@ -1458,12 +1561,41 @@ function mQoL_AccountOverview:EnsureCharactersView()
 
     view.summaryText = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     view.summaryText:SetPoint("TOPLEFT", view, "TOPLEFT", 0, 0)
+    view.summaryText:SetWidth(610)
+    view.summaryText:SetWordWrap(false)
     view.summaryText:SetTextColor(1, 0.82, 0)
 
     view.noteText = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.noteText:SetPoint("TOPLEFT", view.summaryText, "BOTTOMLEFT", 0, -6)
+    view.noteText:SetWidth(610)
+    view.noteText:SetWordWrap(false)
     view.noteText:SetTextColor(0.85, 0.85, 0.85)
     view.noteText:SetText("Played time refreshes for the current character when this tab opens.")
+
+    view.professionScanButton = CreateTabButton(view, "Scan Professions", 150)
+    view.professionScanButton:SetSize(150, 24)
+    view.professionScanButton:SetPoint("TOPRIGHT", view, "TOPRIGHT", 0, 2)
+    view.professionScanButton:SetScript("OnEnter", function(self)
+        self.isHovered = true
+        if self.SetActive then
+            self:SetActive(self.isActive)
+        end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(self.tooltipTitle or "Scan profession tiers", 1, 0.82, 0)
+        GameTooltip:AddLine(self.tooltipText or "Open each profession once to cache older expansion skills.", 0.85, 0.85, 0.85, true)
+        GameTooltip:AddLine("Blizzard exposes detailed tiers only after the profession UI is opened.", 0.72, 0.72, 0.72, true)
+        GameTooltip:Show()
+    end)
+    view.professionScanButton:SetScript("OnLeave", function(self)
+        self.isHovered = false
+        if self.SetActive then
+            self:SetActive(self.isActive)
+        end
+        GameTooltip:Hide()
+    end)
+    view.professionScanButton:SetScript("OnClick", function()
+        mQoL_AccountOverview:OpenNextProfessionForScan()
+    end)
 
     view.header = CreateFrame("Frame", nil, view)
     view.header:SetSize(770, 26)
@@ -1524,12 +1656,120 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         row.fonts[column.key] = font
     end
 
+    local professionColumn = CHARACTER_COLUMN_BY_KEY.professions
+    row.professionsFrame = CreateFrame("Frame", nil, row)
+    row.professionsFrame:SetPoint("LEFT", row, "LEFT", professionColumn.x, 0)
+    row.professionsFrame:SetSize(professionColumn.width, 22)
+    row.professionButtons = {}
+    row.professionEmptyText = row.professionsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.professionEmptyText:SetAllPoints()
+    row.professionEmptyText:SetJustifyH("CENTER")
+    row.professionEmptyText:SetText("-")
+    row.professionEmptyText:SetTextColor(0.72, 0.72, 0.72)
+
+    local vaultColumn = CHARACTER_COLUMN_BY_KEY.vault
+    row.vaultFrame = CreateFrame("Frame", nil, row)
+    row.vaultFrame:SetPoint("LEFT", row, "LEFT", vaultColumn.x, 0)
+    row.vaultFrame:SetSize(vaultColumn.width, 22)
+
+    row.vaultButton = CreateOverviewCellButton(row.vaultFrame)
+    row.vaultButton:SetAllPoints()
+    row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
+    row.vaultButton.label:SetText(DEFAULT_VAULT_PROGRESS_TEXT)
+    row.vaultButton.label:SetTextColor(0.9, 0.9, 0.9)
+    row.vaultButton.handleEnter = function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Great Vault", 1, 0.82, 0)
+        GameTooltip:AddLine("Raid, Mythic+, World Content", 0.85, 0.85, 0.85)
+        GameTooltip:AddLine("Placeholder row for future detailed tracking.", 0.72, 0.72, 0.72, true)
+        GameTooltip:Show()
+    end
+    row.vaultButton.handleLeave = function()
+        GameTooltip:Hide()
+    end
+
     view.rows[index] = row
     return row
 end
 
+function mQoL_AccountOverview:EnsureProfessionButton(row, index)
+    row.professionButtons = row.professionButtons or {}
+    local button = row.professionButtons[index]
+    if button then
+        return button
+    end
+
+    button = CreateOverviewCellButton(row.professionsFrame)
+    button:SetSize(108, 22)
+    button.handleEnter = function(self)
+        if not self.professionEntry then
+            return
+        end
+
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(self.professionEntry.name or "Profession", 1, 0.82, 0)
+        GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry), 0.92, 0.92, 0.92)
+        GameTooltip:AddLine("Click to view detailed profession tiers.", 0.72, 0.72, 0.72)
+        GameTooltip:Show()
+    end
+    button.handleLeave = function()
+        GameTooltip:Hide()
+    end
+    button:SetScript("OnClick", function(self)
+        if self.professionEntry then
+            mQoL_AccountOverview:ToggleProfessionDetailFrame(self, self.professionEntry)
+        end
+    end)
+
+    row.professionButtons[index] = button
+    return button
+end
+
+function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
+    local entries = GetProfessionDisplayEntries(professions)
+    if not entries or #entries == 0 then
+        row.professionEmptyText:Show()
+        for _, button in ipairs(row.professionButtons or {}) do
+            button:Hide()
+            button:SetActive(false)
+        end
+        return
+    end
+
+    row.professionEmptyText:Hide()
+
+    local visibleCount = math.min(#entries, 2)
+    local gap = 6
+    local singleWidth = math.min(row.professionsFrame:GetWidth(), 122)
+    local buttonWidth = visibleCount == 1 and singleWidth or math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
+    local totalWidth = (buttonWidth * visibleCount) + (gap * math.max(0, visibleCount - 1))
+    local startOffset = math.floor((row.professionsFrame:GetWidth() - totalWidth) / 2)
+
+    for index = 1, visibleCount do
+        local professionEntry = entries[index]
+        local button = self:EnsureProfessionButton(row, index)
+        button:ClearAllPoints()
+        button:SetPoint("LEFT", row.professionsFrame, "LEFT", startOffset + ((index - 1) * (buttonWidth + gap)), 0)
+        button:SetSize(buttonWidth, 22)
+        button.professionEntry = professionEntry
+        button.icon:SetTexture(professionEntry.icon or VAULT_PLACEHOLDER_ICON)
+        button.label:SetText(GetProfessionSummaryText(professionEntry))
+        button:SetActive(self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.professionDetailFrame.owner == button)
+        button:Show()
+    end
+
+    for index = visibleCount + 1, #(row.professionButtons or {}) do
+        local button = row.professionButtons[index]
+        if button then
+            button:Hide()
+            button:SetActive(false)
+        end
+    end
+end
+
 function mQoL_AccountOverview:RefreshCharactersView()
     local view = self:EnsureCharactersView()
+    self:RefreshProfessionScanButton()
     local characters = self:GetKnownCharacters()
     local charactersGold = self:GetCharactersTotalGold()
     local warbandBankGold = self:GetWarbandBankMoney()
@@ -1549,6 +1789,8 @@ function mQoL_AccountOverview:RefreshCharactersView()
     else
         view.summaryText:SetText(string.format("Known characters: %d    Account gold: %s    Last update: %s", #characters, FormatMoneyCompact(totalGold), lastSeenText))
     end
+
+    self:HideProfessionDetailFrame()
 
     for _, row in ipairs(view.rows) do
         row:Hide()
@@ -1579,10 +1821,12 @@ function mQoL_AccountOverview:RefreshCharactersView()
         local classR, classG, classB = GetClassColor(character.classFile)
         row.fonts.name:SetTextColor(classR, classG, classB)
 
-        row.fonts.professions:SetText(FormatProfessionIcons(character.professions))
-        row.fonts.professions:SetTextColor(0.9, 0.9, 0.9)
-        row.fonts.vault:SetText("WIP")
-        row.fonts.vault:SetTextColor(0.72, 0.72, 0.72)
+        row.fonts.professions:Hide()
+        row.fonts.vault:Hide()
+        self:RefreshProfessionButtons(row, character.professions)
+        row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
+        row.vaultButton.label:SetText(DEFAULT_VAULT_PROGRESS_TEXT)
+        row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
 
         local playedText
         if character.isCurrent and self.isTimePlayedPending and not character.totalTime then
@@ -2765,6 +3009,7 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
         return
     end
 
+    self:HideProfessionDetailFrame()
     self.activeTab = tabName
     if self.db and self.db.settings then
         self.db.settings.selectedTab = tabName
@@ -2884,14 +3129,24 @@ local function RegisterAccountOverviewPanel()
 end
 
 local eventFrame = CreateFrame("Frame")
-eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("PLAYER_MONEY")
-eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
-eventFrame:RegisterEvent("SKILL_LINES_CHANGED")
-eventFrame:RegisterEvent("PLAYER_LOGOUT")
-eventFrame:RegisterEvent("TIME_PLAYED_MSG")
-eventFrame:RegisterEvent("BANKFRAME_OPENED")
+local function RegisterAccountOverviewEvent(eventName)
+    local ok = pcall(eventFrame.RegisterEvent, eventFrame, eventName)
+    return ok
+end
+
+RegisterAccountOverviewEvent("PLAYER_LOGIN")
+RegisterAccountOverviewEvent("PLAYER_ENTERING_WORLD")
+RegisterAccountOverviewEvent("PLAYER_MONEY")
+RegisterAccountOverviewEvent("PLAYER_LEVEL_UP")
+RegisterAccountOverviewEvent("SKILL_LINES_CHANGED")
+RegisterAccountOverviewEvent("CHAT_MSG_SKILL")
+RegisterAccountOverviewEvent("PLAYER_LOGOUT")
+RegisterAccountOverviewEvent("TIME_PLAYED_MSG")
+RegisterAccountOverviewEvent("BANKFRAME_OPENED")
+RegisterAccountOverviewEvent("TRADE_SKILL_SHOW")
+RegisterAccountOverviewEvent("TRADE_SKILL_LIST_UPDATE")
+RegisterAccountOverviewEvent("TRADE_SKILL_DETAILS_UPDATE")
+RegisterAccountOverviewEvent("TRADE_SKILL_DATA_SOURCE_CHANGED")
 
 eventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
@@ -2908,6 +3163,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
         })
+        mQoL_AccountOverview:RefreshProfessionScanQueue()
         mQoL_AccountOverview:StartBootstrapSync()
         RegisterAccountOverviewPanel()
 
@@ -2948,6 +3204,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
         })
+        mQoL_AccountOverview:RefreshProfessionScanQueue()
         mQoL_AccountOverview:StartBootstrapSync()
         if C_Timer and C_Timer.After then
             C_Timer.After(3, function()
@@ -2982,6 +3239,9 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshProfessions = true,
         })
+        mQoL_AccountOverview:RefreshProfessionScanQueue()
+    elseif event == "CHAT_MSG_SKILL" then
+        mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     elseif event == "TIME_PLAYED_MSG" then
         local totalTime, levelTime = ...
         mQoL_AccountOverview.isTimePlayedPending = false
@@ -2996,6 +3256,11 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshWarbandBank = true,
             forceGoldSnapshot = true,
         })
+    elseif event == "TRADE_SKILL_SHOW"
+        or event == "TRADE_SKILL_LIST_UPDATE"
+        or event == "TRADE_SKILL_DETAILS_UPDATE"
+        or event == "TRADE_SKILL_DATA_SOURCE_CHANGED" then
+        mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     elseif event == "PLAYER_LOGOUT" then
         mQoL_AccountOverview:StopBootstrapSync()
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({

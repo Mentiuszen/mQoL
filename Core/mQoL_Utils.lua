@@ -114,6 +114,172 @@ function mQoL_Utils.DeepCopy(source, seen)
     return copy
 end
 
+function mQoL_Utils.GetNow()
+    return time()
+end
+
+function mQoL_Utils.IsBootstrapWindow(session, now, interval, attempts, padding)
+    local loginAt = session and session.loginAt or 0
+    local windowSeconds = ((tonumber(interval) or 0) * (tonumber(attempts) or 0)) + (tonumber(padding) or 0)
+    return loginAt > 0 and ((tonumber(now) or mQoL_Utils.GetNow()) - loginAt) <= windowSeconds
+end
+
+function mQoL_Utils.BuildGoldSnapshotData(warboundGold, characterGold)
+    warboundGold = math.floor(tonumber(warboundGold) or 0)
+    characterGold = math.floor(tonumber(characterGold) or 0)
+    return {
+        WarboundGold = warboundGold,
+        CharacterGold = characterGold,
+        OverallGold = warboundGold + characterGold,
+    }
+end
+
+function mQoL_Utils.NormalizeGoldSnapshotData(rawValue)
+    if type(rawValue) ~= "table" then
+        return mQoL_Utils.BuildGoldSnapshotData(0, rawValue)
+    end
+
+    local warboundGold = math.floor(tonumber(rawValue.WarboundGold) or 0)
+    local characterGold = math.floor(tonumber(rawValue.CharacterGold) or 0)
+    local overallGold = tonumber(rawValue.OverallGold)
+
+    if overallGold == nil then
+        overallGold = tonumber(rawValue.total)
+    end
+
+    overallGold = math.floor(overallGold or (warboundGold + characterGold))
+
+    if characterGold == 0 and warboundGold == 0 and rawValue.total ~= nil then
+        characterGold = overallGold
+    elseif overallGold ~= (warboundGold + characterGold) then
+        if characterGold == 0 then
+            characterGold = math.max(0, overallGold - warboundGold)
+        else
+            overallGold = warboundGold + characterGold
+        end
+    end
+
+    local normalized = mQoL_Utils.BuildGoldSnapshotData(warboundGold, characterGold)
+    normalized.OverallGold = overallGold
+    normalized.total = overallGold
+    return normalized
+end
+
+function mQoL_Utils.GetCurrentCharacterIdentity()
+    local name = UnitName("player") or "Unknown"
+    local realm = GetRealmName() or "UnknownRealm"
+    return mQoL_Utils.GetRealmSlug(realm) .. "-" .. name, name, realm
+end
+
+function mQoL_Utils.FormatLargeNumber(value)
+    value = math.floor(tonumber(value) or 0)
+    local sign = value < 0 and "-" or ""
+    local number = tostring(math.abs(value))
+
+    while true do
+        local updated, count = number:gsub("^(-?%d+)(%d%d%d)", "%1.%2")
+        number = updated
+        if count == 0 then
+            break
+        end
+    end
+
+    return sign .. number
+end
+
+function mQoL_Utils.FormatMoneyCompact(copper)
+    copper = math.floor(tonumber(copper) or 0)
+    local sign = copper < 0 and "-" or ""
+    copper = math.abs(copper)
+
+    local gold = math.floor(copper / 10000)
+    local silver = math.floor((copper % 10000) / 100)
+    local copperRemainder = copper % 100
+
+    if gold >= 1000000 then
+        return string.format("%s%.1fm g", sign, gold / 1000000)
+    end
+
+    if gold >= 1000 then
+        return string.format("%s%.1fk g", sign, gold / 1000)
+    end
+
+    if gold > 0 then
+        return string.format("%s%s.%02dg", sign, mQoL_Utils.FormatLargeNumber(gold), silver)
+    end
+
+    if silver > 0 then
+        return string.format("%s%ds %dc", sign, silver, copperRemainder)
+    end
+
+    return string.format("%s%dc", sign, copperRemainder)
+end
+
+function mQoL_Utils.TrimTrailingZeroes(text)
+    text = tostring(text or "")
+    text = text:gsub("(%..-)0+$", "%1")
+    text = text:gsub("%.$", "")
+    return text
+end
+
+function mQoL_Utils.GetAxisDecimals(stepValue)
+    stepValue = math.abs(tonumber(stepValue) or 0)
+    if stepValue >= 1 then
+        return 0
+    end
+    if stepValue >= 0.1 then
+        return 1
+    end
+    if stepValue >= 0.01 then
+        return 2
+    end
+    return 3
+end
+
+function mQoL_Utils.FormatAxisMoney(copper, stepCopper)
+    local gold = (tonumber(copper) or 0) / 10000
+    local absGold = math.abs(gold)
+    local stepGold = math.abs((tonumber(stepCopper) or 0) / 10000)
+
+    if absGold >= 1000000 then
+        local decimals = mQoL_Utils.GetAxisDecimals(stepGold / 1000000)
+        return mQoL_Utils.TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000000)) .. "m"
+    end
+    if absGold >= 1000 then
+        local decimals = mQoL_Utils.GetAxisDecimals(stepGold / 1000)
+        return mQoL_Utils.TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold / 1000)) .. "k"
+    end
+
+    local decimals = mQoL_Utils.GetAxisDecimals(stepGold)
+    return mQoL_Utils.TrimTrailingZeroes(string.format("%." .. decimals .. "f", gold)) .. "g"
+end
+
+function mQoL_Utils.FormatDuration(seconds)
+    seconds = math.floor(tonumber(seconds) or 0)
+    if seconds <= 0 then
+        return "Unknown"
+    end
+
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+
+    if days > 0 then
+        return string.format("%dd %dh", days, hours)
+    end
+    if hours > 0 then
+        return string.format("%dh %dm", hours, minutes)
+    end
+    return string.format("%dm", minutes)
+end
+
+function mQoL_Utils.FormatTimestamp(timestamp)
+    if not timestamp or timestamp <= 0 then
+        return "Unknown"
+    end
+    return date("%d %b %Y %H:%M", timestamp)
+end
+
 function mQoL_Utils.GetClassColor(classFile, fallbackColor)
     if classFile and CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[classFile] then
         return CUSTOM_CLASS_COLORS[classFile]

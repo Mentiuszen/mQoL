@@ -1200,7 +1200,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
 
     frame.titleText = frame.titleBar:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     frame.titleText:SetPoint("LEFT", 10, 0)
-    frame.titleText:SetText("Party Keystones")
+    frame.titleText:SetText("mQoL Party Keystones")
 
     frame.closeButton = CreateCloseButton and CreateCloseButton(frame.titleBar, 18, function()
         frame:Hide()
