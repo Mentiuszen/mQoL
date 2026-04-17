@@ -370,65 +370,6 @@ function ProfessionUtils.GetSnapshot()
     return result
 end
 
-function ProfessionUtils.GetOpenableProfessionScans()
-    local scans = {}
-    if not clientInfo.isRetail or not GetProfessions or not GetProfessionInfo then
-        return scans
-    end
-
-    local seen = {}
-    local primaryOne, primaryTwo, archaeology, fishing, cooking, firstAid = GetProfessions()
-
-    local function Add(professionIndex)
-        if not professionIndex then
-            return
-        end
-
-        local name, icon, _, _, _, _, skillLine = GetProfessionInfo(professionIndex)
-        if not name or not skillLine or seen[skillLine] then
-            return
-        end
-
-        seen[skillLine] = true
-        scans[#scans + 1] = {
-            name = name,
-            icon = icon,
-            skillLineID = skillLine,
-        }
-    end
-
-    Add(primaryOne)
-    Add(primaryTwo)
-    Add(cooking)
-    Add(fishing)
-    Add(archaeology)
-    Add(firstAid)
-
-    return scans
-end
-
-function ProfessionUtils.OpenProfessionForScan(scan)
-    if not clientInfo.isRetail or type(scan) ~= "table" then
-        return false
-    end
-
-    if C_TradeSkillUI and type(C_TradeSkillUI.OpenTradeSkill) == "function" and scan.skillLineID then
-        local ok = pcall(C_TradeSkillUI.OpenTradeSkill, scan.skillLineID)
-        if ok then
-            return true
-        end
-    end
-
-    if scan.name and type(CastSpellByName) == "function" then
-        local ok = pcall(CastSpellByName, scan.name)
-        if ok then
-            return true
-        end
-    end
-
-    return false
-end
-
 local function ExtractTierNumber(rawTier, keys)
     if type(rawTier) ~= "table" then
         return nil

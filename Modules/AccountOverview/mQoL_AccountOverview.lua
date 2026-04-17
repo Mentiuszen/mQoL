@@ -90,8 +90,6 @@ local HasProfessionData = ProfessionUtils.HasData
 local GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
 local GetProfessionSummaryText = ProfessionUtils.GetSummaryText
 local GetProfessionDetailRows = ProfessionUtils.GetDetailRows
-local GetOpenableProfessionScans = ProfessionUtils.GetOpenableProfessionScans
-local OpenProfessionForScan = ProfessionUtils.OpenProfessionForScan
 local function SupportsRetailAccountBank()
     return clientInfo.isRetail
         and C_Bank
@@ -1060,67 +1058,6 @@ function mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     end
 end
 
-function mQoL_AccountOverview:RefreshProfessionScanQueue()
-    self.professionScanQueue = GetOpenableProfessionScans and GetOpenableProfessionScans() or {}
-    self.professionScanIndex = 1
-    self:RefreshProfessionScanButton()
-end
-
-function mQoL_AccountOverview:GetNextProfessionScan()
-    if type(self.professionScanQueue) ~= "table" or #self.professionScanQueue == 0 then
-        self.professionScanQueue = GetOpenableProfessionScans and GetOpenableProfessionScans() or {}
-        self.professionScanIndex = 1
-    end
-
-    if type(self.professionScanQueue) ~= "table" or #self.professionScanQueue == 0 then
-        return nil
-    end
-
-    local index = math.max(1, math.min(tonumber(self.professionScanIndex) or 1, #self.professionScanQueue))
-    return self.professionScanQueue[index], index, #self.professionScanQueue
-end
-
-function mQoL_AccountOverview:RefreshProfessionScanButton()
-    local view = self.charactersView
-    local button = view and view.professionScanButton
-    if not button then
-        return
-    end
-
-    if not clientInfo.isRetail then
-        button:Hide()
-        return
-    end
-
-    button:Show()
-    local scan, index, total = self:GetNextProfessionScan()
-    if scan then
-        button.text:SetText(string.format("Scan Professions %d/%d", index, total))
-        button.tooltipTitle = "Scan profession tiers"
-        button.tooltipText = string.format("Opens %s so mQoL can cache older expansion skills.", scan.name or "the next profession")
-    else
-        button.text:SetText("Scan Professions")
-        button.tooltipTitle = "Scan profession tiers"
-        button.tooltipText = "No openable professions were found on this character."
-    end
-end
-
-function mQoL_AccountOverview:OpenNextProfessionForScan()
-    local scan, index, total = self:GetNextProfessionScan()
-    if not scan then
-        self:RefreshProfessionScanButton()
-        return
-    end
-
-    local opened = OpenProfessionForScan and OpenProfessionForScan(scan)
-    if opened then
-        self.professionScanIndex = index >= total and 1 or (index + 1)
-        self:QueueOpenTradeSkillProfessionSync()
-    end
-
-    self:RefreshProfessionScanButton()
-end
-
 function mQoL_AccountOverview:GetKnownCharacters()
     if not self.db then
         return {}
@@ -1572,31 +1509,6 @@ function mQoL_AccountOverview:EnsureCharactersView()
     view.noteText:SetTextColor(0.85, 0.85, 0.85)
     view.noteText:SetText("Played time refreshes for the current character when this tab opens.")
 
-    view.professionScanButton = CreateTabButton(view, "Scan Professions", 150)
-    view.professionScanButton:SetSize(150, 24)
-    view.professionScanButton:SetPoint("TOPRIGHT", view, "TOPRIGHT", 0, 2)
-    view.professionScanButton:SetScript("OnEnter", function(self)
-        self.isHovered = true
-        if self.SetActive then
-            self:SetActive(self.isActive)
-        end
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine(self.tooltipTitle or "Scan profession tiers", 1, 0.82, 0)
-        GameTooltip:AddLine(self.tooltipText or "Open each profession once to cache older expansion skills.", 0.85, 0.85, 0.85, true)
-        GameTooltip:AddLine("Blizzard exposes detailed tiers only after the profession UI is opened.", 0.72, 0.72, 0.72, true)
-        GameTooltip:Show()
-    end)
-    view.professionScanButton:SetScript("OnLeave", function(self)
-        self.isHovered = false
-        if self.SetActive then
-            self:SetActive(self.isActive)
-        end
-        GameTooltip:Hide()
-    end)
-    view.professionScanButton:SetScript("OnClick", function()
-        mQoL_AccountOverview:OpenNextProfessionForScan()
-    end)
-
     view.header = CreateFrame("Frame", nil, view)
     view.header:SetSize(770, 26)
     view.header:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -44)
@@ -1769,7 +1681,6 @@ end
 
 function mQoL_AccountOverview:RefreshCharactersView()
     local view = self:EnsureCharactersView()
-    self:RefreshProfessionScanButton()
     local characters = self:GetKnownCharacters()
     local charactersGold = self:GetCharactersTotalGold()
     local warbandBankGold = self:GetWarbandBankMoney()
@@ -3163,7 +3074,6 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
         })
-        mQoL_AccountOverview:RefreshProfessionScanQueue()
         mQoL_AccountOverview:StartBootstrapSync()
         RegisterAccountOverviewPanel()
 
@@ -3204,7 +3114,6 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
         })
-        mQoL_AccountOverview:RefreshProfessionScanQueue()
         mQoL_AccountOverview:StartBootstrapSync()
         if C_Timer and C_Timer.After then
             C_Timer.After(3, function()
@@ -3239,7 +3148,6 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshProfessions = true,
         })
-        mQoL_AccountOverview:RefreshProfessionScanQueue()
     elseif event == "CHAT_MSG_SKILL" then
         mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     elseif event == "TIME_PLAYED_MSG" then
