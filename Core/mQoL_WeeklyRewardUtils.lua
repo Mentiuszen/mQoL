@@ -35,9 +35,9 @@ local LEGION_WEEKLY_RESET_HOUR = 8
 local LEGION_WEEKLY_RESET_MINUTE = 0
 
 local GROUP_ORDER = {
-    { key = "raid", label = "Raid", total = 3, enumFields = { "Raid" }, fallbackType = 3 },
-    { key = "mythicPlus", label = "Mythic+", total = 3, enumFields = { "Activities", "MythicPlus" }, fallbackType = 1 },
-    { key = "world", label = "World", total = 3, enumFields = { "World" }, fallbackType = 6 },
+    { key = "raid", label = "Raid", total = 3, enumFields = { "Raid" }, fallbackType = 3, defaultThresholds = { 2, 4, 6 } },
+    { key = "mythicPlus", label = "Mythic+", total = 3, enumFields = { "Activities", "MythicPlus" }, fallbackType = 1, defaultThresholds = { 1, 4, 8 } },
+    { key = "world", label = "World", total = 3, enumFields = { "World" }, fallbackType = 6, defaultThresholds = { 2, 4, 8 } },
 }
 
 WeeklyRewardUtils.DefaultIcon = DEFAULT_ICON
@@ -68,27 +68,81 @@ local function ClampNumber(value)
     return math.floor(numeric)
 end
 
-local function BuildRetailGroups()
+local function NormalizeOptionalText(value)
+    if type(value) ~= "string" or value == "" then
+        return nil
+    end
+
+    return value
+end
+
+local function SafeFormatText(template, ...)
+    if type(template) ~= "string" or template == "" then
+        return nil
+    end
+
+    local ok, text = pcall(string.format, template, ...)
+    if ok and type(text) == "string" and text ~= "" then
+        return text
+    end
+
+    return template
+end
+
+local function CreateRetailSlot(index, threshold)
     return {
-        raid = { completed = 0, total = 3, itemLevels = {} },
-        mythicPlus = { completed = 0, total = 3, itemLevels = {} },
-        world = { completed = 0, total = 3, itemLevels = {} },
+        index = ClampNumber(index),
+        progress = 0,
+        threshold = ClampNumber(threshold),
+        unlocked = false,
+        itemLevel = 0,
+        activityID = 0,
+        level = 0,
+        activityTierID = 0,
+        raidString = nil,
+        progressText = nil,
     }
+end
+
+local function BuildRetailSlots(groupInfo)
+    local slots = {}
+
+    for index = 1, ClampNumber(groupInfo and groupInfo.total) do
+        local thresholds = groupInfo and groupInfo.defaultThresholds or nil
+        slots[index] = CreateRetailSlot(index, thresholds and thresholds[index])
+    end
+
+    return slots
+end
+
+local function BuildRetailGroups()
+    local groups = {}
+
+    for _, groupInfo in ipairs(GROUP_ORDER) do
+        groups[groupInfo.key] = {
+            completed = 0,
+            total = groupInfo.total,
+            itemLevels = {},
+            slots = BuildRetailSlots(groupInfo),
+        }
+    end
+
+    return groups
 end
 
 local function BuildLegionGroups()
     return {
-        raid = { completed = 0, total = 0, itemLevels = {} },
-        mythicPlus = { completed = 0, total = 1, itemLevels = {} },
-        world = { completed = 0, total = 0, itemLevels = {} },
+        raid = { completed = 0, total = 0, itemLevels = {}, slots = {} },
+        mythicPlus = { completed = 0, total = 1, itemLevels = {}, slots = {} },
+        world = { completed = 0, total = 0, itemLevels = {}, slots = {} },
     }
 end
 
 local function BuildUnsupportedGroups()
     return {
-        raid = { completed = 0, total = 0, itemLevels = {} },
-        mythicPlus = { completed = 0, total = 0, itemLevels = {} },
-        world = { completed = 0, total = 0, itemLevels = {} },
+        raid = { completed = 0, total = 0, itemLevels = {}, slots = {} },
+        mythicPlus = { completed = 0, total = 0, itemLevels = {}, slots = {} },
+        world = { completed = 0, total = 0, itemLevels = {}, slots = {} },
     }
 end
 
@@ -208,6 +262,77 @@ local function NormalizeItemLevelList(values)
     return result
 end
 
+local function CountUnlockedRetailSlots(values, maxSlots)
+    local unlockedCount = 0
+
+    for index = 1, ClampNumber(maxSlots) do
+        local slot = type(values) == "table" and values[index] or nil
+        if type(slot) == "table" and slot.unlocked then
+            unlockedCount = unlockedCount + 1
+        end
+    end
+
+    return unlockedCount
+end
+
+local function BuildItemLevelsFromRetailSlots(values, maxSlots)
+    local itemLevels = {}
+
+    for index = 1, ClampNumber(maxSlots) do
+        local slot = type(values) == "table" and values[index] or nil
+        if type(slot) == "table" and slot.unlocked then
+            itemLevels[#itemLevels + 1] = ClampNumber(slot.itemLevel)
+        end
+    end
+
+    return itemLevels
+end
+
+local function NormalizeRetailSlots(values, groupInfo, fallbackCompleted, fallbackItemLevels)
+    local normalized = BuildRetailSlots(groupInfo)
+    local completed = ClampNumber(fallbackCompleted)
+    local itemLevels = NormalizeItemLevelList(fallbackItemLevels)
+    local unlockedIndex = 0
+
+    for index = 1, ClampNumber(groupInfo and groupInfo.total) do
+        local slot = normalized[index]
+        local rawSlot = type(values) == "table" and values[index] or nil
+
+        slot.index = index
+        slot.threshold = ClampNumber(rawSlot and rawSlot.threshold)
+        if slot.threshold <= 0 then
+            local fallbackThresholds = groupInfo and groupInfo.defaultThresholds or nil
+            slot.threshold = ClampNumber(fallbackThresholds and fallbackThresholds[index])
+        end
+
+        slot.progress = ClampNumber(rawSlot and rawSlot.progress)
+        slot.unlocked = type(rawSlot) == "table" and rawSlot.unlocked and true or false
+        slot.activityID = ClampNumber(rawSlot and rawSlot.activityID)
+        slot.level = ClampNumber(rawSlot and rawSlot.level)
+        slot.activityTierID = ClampNumber(rawSlot and rawSlot.activityTierID)
+        slot.raidString = NormalizeOptionalText(rawSlot and rawSlot.raidString)
+        slot.progressText = NormalizeOptionalText(rawSlot and rawSlot.progressText)
+
+        if type(rawSlot) ~= "table" and index <= completed then
+            slot.unlocked = true
+        end
+
+        if slot.unlocked and slot.progress <= 0 then
+            slot.progress = slot.threshold > 0 and slot.threshold or 1
+        end
+
+        slot.itemLevel = ClampNumber(rawSlot and rawSlot.itemLevel)
+        if slot.unlocked then
+            unlockedIndex = unlockedIndex + 1
+            if slot.itemLevel <= 0 then
+                slot.itemLevel = ClampNumber(itemLevels[unlockedIndex])
+            end
+        end
+    end
+
+    return normalized
+end
+
 local GetLegionDungeonName
 local GetLegionWeeklyChestItemLevel
 
@@ -232,9 +357,37 @@ local function NormalizeSnapshotForKind(rawValue, kind)
         for _, groupInfo in ipairs(GROUP_ORDER) do
             local storedGroup = type(rawValue.groups) == "table" and rawValue.groups[groupInfo.key] or nil
             local targetGroup = base.groups[groupInfo.key]
-            targetGroup.completed = math.min(groupInfo.total, ClampNumber(storedGroup and storedGroup.completed))
             targetGroup.total = groupInfo.total
+            targetGroup.slots = NormalizeRetailSlots(
+                storedGroup and storedGroup.slots,
+                groupInfo,
+                storedGroup and storedGroup.completed,
+                storedGroup and storedGroup.itemLevels
+            )
+            targetGroup.completed = math.min(groupInfo.total, CountUnlockedRetailSlots(targetGroup.slots, groupInfo.total))
             targetGroup.itemLevels = NormalizeItemLevelList(storedGroup and storedGroup.itemLevels)
+
+            local slotItemLevels = BuildItemLevelsFromRetailSlots(targetGroup.slots, groupInfo.total)
+            if #targetGroup.itemLevels == 0 then
+                targetGroup.itemLevels = slotItemLevels
+            else
+                for index = 1, math.min(groupInfo.total, #slotItemLevels) do
+                    if ClampNumber(targetGroup.itemLevels[index]) <= 0 and ClampNumber(slotItemLevels[index]) > 0 then
+                        targetGroup.itemLevels[index] = ClampNumber(slotItemLevels[index])
+                    end
+                end
+            end
+
+            local unlockedIndex = 0
+            for slotIndex = 1, groupInfo.total do
+                local slot = targetGroup.slots[slotIndex]
+                if slot and slot.unlocked then
+                    unlockedIndex = unlockedIndex + 1
+                    if ClampNumber(slot.itemLevel) <= 0 then
+                        slot.itemLevel = ClampNumber(targetGroup.itemLevels[unlockedIndex])
+                    end
+                end
+            end
         end
 
         base.summaryText = string.format(
@@ -334,6 +487,49 @@ local function ResolveRetailActivityItemLevel(activity)
     return nil
 end
 
+local function ResolveRetailActivityProgressText(activity, groupInfo)
+    if type(activity) ~= "table" or type(groupInfo) ~= "table" then
+        return nil
+    end
+
+    local level = ClampNumber(activity.level)
+
+    if groupInfo.key == "raid" then
+        if DifficultyUtil and type(DifficultyUtil.GetDifficultyName) == "function" then
+            return NormalizeOptionalText(SafeCall(DifficultyUtil.GetDifficultyName, level))
+        end
+
+        return nil
+    end
+
+    if groupInfo.key == "mythicPlus" then
+        local heroicDifficultyID = DifficultyUtil and DifficultyUtil.ID and ClampNumber(DifficultyUtil.ID.DungeonHeroic) or 0
+        local difficultyID = ClampNumber(
+            SafeCall(C_WeeklyRewards and C_WeeklyRewards.GetDifficultyIDForActivityTier, activity.activityTierID)
+        )
+
+        if heroicDifficultyID > 0 and difficultyID == heroicDifficultyID then
+            return NormalizeOptionalText(WEEKLY_REWARDS_HEROIC) or "Heroic"
+        end
+
+        if level > 0 then
+            return SafeFormatText(WEEKLY_REWARDS_MYTHIC, level) or string.format("Mythic %d", level)
+        end
+
+        return nil
+    end
+
+    if groupInfo.key == "world" then
+        if level > 0 then
+            return SafeFormatText(GREAT_VAULT_WORLD_TIER, level) or string.format("Tier %d", level)
+        end
+
+        return nil
+    end
+
+    return nil
+end
+
 local function CollectRetailSnapshot(rawValue)
     local snapshot = CreateBaseSnapshot("great_vault")
     local existingSnapshot = NormalizeSnapshotForKind(rawValue, "great_vault")
@@ -343,14 +539,55 @@ local function CollectRetailSnapshot(rawValue)
         local rewardType = GetWeeklyRewardEnumValue(groupInfo)
         local activities = SafeCall(C_WeeklyRewards and C_WeeklyRewards.GetActivities, rewardType)
         local targetGroup = snapshot.groups[groupInfo.key]
+        local existingGroup = existingSnapshot.groups[groupInfo.key] or {}
 
-        for _, activity in ipairs(type(activities) == "table" and activities or {}) do
+        for slotIndex, activity in ipairs(type(activities) == "table" and activities or {}) do
+            if slotIndex > groupInfo.total then
+                break
+            end
+
+            local targetSlot = targetGroup.slots[slotIndex] or CreateRetailSlot(slotIndex, groupInfo.defaultThresholds and groupInfo.defaultThresholds[slotIndex])
+            local existingSlot = type(existingGroup.slots) == "table" and existingGroup.slots[slotIndex] or nil
             local progress = ClampNumber(activity and activity.progress)
             local threshold = ClampNumber(activity and activity.threshold)
             local isComplete = threshold > 0 and progress >= threshold
+
+            targetSlot.index = slotIndex
+            targetSlot.progress = progress
+            targetSlot.threshold = threshold > 0 and threshold or ClampNumber(targetSlot.threshold)
+            targetSlot.unlocked = isComplete
+            targetSlot.activityID = ClampNumber(activity and activity.id)
+            targetSlot.itemLevel = ClampNumber(ResolveRetailActivityItemLevel(activity))
+            targetSlot.level = ClampNumber(activity and activity.level)
+            targetSlot.activityTierID = ClampNumber(activity and activity.activityTierID)
+            targetSlot.raidString = NormalizeOptionalText(activity and activity.raidString)
+            targetSlot.progressText = isComplete and ResolveRetailActivityProgressText(activity, groupInfo) or nil
+
+            if isComplete and targetSlot.itemLevel <= 0 then
+                targetSlot.itemLevel = ClampNumber(existingSlot and existingSlot.itemLevel)
+            end
+
+            if isComplete and targetSlot.level <= 0 then
+                targetSlot.level = ClampNumber(existingSlot and existingSlot.level)
+            end
+
+            if isComplete and targetSlot.activityTierID <= 0 then
+                targetSlot.activityTierID = ClampNumber(existingSlot and existingSlot.activityTierID)
+            end
+
+            if isComplete and not targetSlot.raidString then
+                targetSlot.raidString = NormalizeOptionalText(existingSlot and existingSlot.raidString)
+            end
+
+            if isComplete and not targetSlot.progressText then
+                targetSlot.progressText = NormalizeOptionalText(existingSlot and existingSlot.progressText)
+            end
+
+            targetGroup.slots[slotIndex] = targetSlot
+
             if isComplete then
                 targetGroup.completed = math.min(groupInfo.total, targetGroup.completed + 1)
-                targetGroup.itemLevels[#targetGroup.itemLevels + 1] = ClampNumber(ResolveRetailActivityItemLevel(activity))
+                targetGroup.itemLevels[#targetGroup.itemLevels + 1] = ClampNumber(targetSlot.itemLevel)
             end
         end
     end
@@ -358,6 +595,19 @@ local function CollectRetailSnapshot(rawValue)
     for _, groupInfo in ipairs(GROUP_ORDER) do
         local targetGroup = snapshot.groups[groupInfo.key]
         local existingGroup = existingSnapshot.groups[groupInfo.key] or {}
+
+        for slotIndex = 1, groupInfo.total do
+            local targetSlot = targetGroup.slots[slotIndex]
+            local existingSlot = type(existingGroup.slots) == "table" and existingGroup.slots[slotIndex] or nil
+
+            if targetSlot and targetSlot.unlocked and ClampNumber(targetSlot.itemLevel) <= 0 and ClampNumber(existingSlot and existingSlot.itemLevel) > 0 then
+                targetSlot.itemLevel = ClampNumber(existingSlot.itemLevel)
+            end
+        end
+
+        targetGroup.completed = math.min(groupInfo.total, CountUnlockedRetailSlots(targetGroup.slots, groupInfo.total))
+        targetGroup.itemLevels = BuildItemLevelsFromRetailSlots(targetGroup.slots, groupInfo.total)
+
         for index = 1, math.min(targetGroup.completed, #targetGroup.itemLevels) do
             local currentItemLevel = ClampNumber(targetGroup.itemLevels[index])
             local existingItemLevel = ClampNumber(existingGroup.itemLevels and existingGroup.itemLevels[index])
@@ -585,4 +835,19 @@ function WeeklyRewardUtils.GetDisplayState(rawValue)
         lines = BuildTooltipLines(snapshot),
         snapshot = snapshot,
     }
+end
+
+function WeeklyRewardUtils.GetRetailGroupOrder()
+    local groups = {}
+
+    for _, groupInfo in ipairs(GROUP_ORDER) do
+        groups[#groups + 1] = {
+            key = groupInfo.key,
+            label = groupInfo.label,
+            total = groupInfo.total,
+            defaultThresholds = groupInfo.defaultThresholds,
+        }
+    end
+
+    return groups
 end

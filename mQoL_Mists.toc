@@ -11,6 +11,7 @@ Core/mQoL_Database.lua
 Core/mQoL_VersionDetection.lua
 Core/mQoL_Utils.lua
 Core/mQoL_WeeklyRewardUtils.lua
+Core/mQoL_WeeklyRewardViewer.lua
 Core/mQoL_ProfessionUtils.lua
 Core/mQoL_vreg.lua
 Core/mQoL_DatabaseSafety.lua

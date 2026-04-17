@@ -132,6 +132,31 @@ local function GetWeeklyRewardDisplayState(rawValue)
     }
 end
 
+local function NotifyWeeklyRewardViewFailure(message)
+    if type(message) ~= "string" or message == "" then
+        return
+    end
+
+    if UIErrorsFrame and type(UIErrorsFrame.AddMessage) == "function" then
+        UIErrorsFrame:AddMessage(message, 1, 0.2, 0.2)
+        return
+    end
+
+    if DEFAULT_CHAT_FRAME and type(DEFAULT_CHAT_FRAME.AddMessage) == "function" then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ff00[mQoL]|r %s", message))
+    end
+end
+
+local function OpenWeeklyRewardSnapshotView(rawValue, characterData)
+    local viewer = _G.mQoL_WeeklyRewardViewer
+    if viewer and type(viewer.OpenSnapshot) == "function" then
+        return viewer.OpenSnapshot(rawValue, characterData)
+    end
+
+    NotifyWeeklyRewardViewFailure("Weekly reward viewer module is not loaded.")
+    return false
+end
+
 local function GetDefaultWeeklyRewardSummaryText()
     local display = GetWeeklyRewardDisplayState(nil)
     local summaryText = display and display.summaryText
@@ -1666,20 +1691,13 @@ function mQoL_AccountOverview:EnsureCharactersView()
 
     view.summaryText = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     view.summaryText:SetPoint("TOPLEFT", view, "TOPLEFT", 0, 0)
-    view.summaryText:SetWidth(610)
+    view.summaryText:SetWidth(770)
     view.summaryText:SetWordWrap(false)
     view.summaryText:SetTextColor(1, 0.82, 0)
 
-    view.noteText = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    view.noteText:SetPoint("TOPLEFT", view.summaryText, "BOTTOMLEFT", 0, -6)
-    view.noteText:SetWidth(610)
-    view.noteText:SetWordWrap(false)
-    view.noteText:SetTextColor(0.85, 0.85, 0.85)
-    view.noteText:SetText("Played time refreshes for the current character when this tab opens.")
-
     view.header = CreateFrame("Frame", nil, view)
     view.header:SetSize(770, 26)
-    view.header:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -44)
+    view.header:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -22)
 
     view.header.bg = view.header:CreateTexture(nil, "BACKGROUND")
     view.header.bg:SetAllPoints()
@@ -1770,6 +1788,9 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
     row.vaultButton.handleLeave = function()
         GameTooltip:Hide()
     end
+    row.vaultButton:SetScript("OnClick", function(self)
+        OpenWeeklyRewardSnapshotView(self.weeklyRewardData, self.weeklyRewardCharacter)
+    end)
 
     view.rows[index] = row
     return row
@@ -1911,7 +1932,7 @@ function mQoL_AccountOverview:RefreshCharactersView()
 
     view.emptyState:Hide()
 
-    local startY = -74
+    local startY = -50
     local rowHeight = 30
 
     for index, character in ipairs(characters) do
@@ -1938,6 +1959,13 @@ function mQoL_AccountOverview:RefreshCharactersView()
 
         local weeklyRewardDisplay = GetWeeklyRewardDisplayState(character.weeklyReward)
         row.vaultButton.weeklyRewardData = weeklyRewardDisplay.snapshot
+        row.vaultButton.weeklyRewardCharacter = {
+            key = character.key,
+            name = character.name,
+            realm = character.realm,
+            className = character.className,
+            classFile = character.classFile,
+        }
         row.vaultButton.icon:SetTexture(weeklyRewardDisplay.icon or VAULT_PLACEHOLDER_ICON)
         row.vaultButton.label:SetText(weeklyRewardDisplay.summaryText or GetDefaultWeeklyRewardSummaryText())
         row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
