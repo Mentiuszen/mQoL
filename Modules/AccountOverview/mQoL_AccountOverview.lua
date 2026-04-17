@@ -276,9 +276,9 @@ local function GetProfessionSnapshot()
     return result
 end
 
-local function FormatProfessionList(professions)
+local function GetProfessionDisplayEntries(professions)
     if type(professions) ~= "table" then
-        return "No professions"
+        return nil
     end
 
     local source = professions.primary
@@ -287,29 +287,45 @@ local function FormatProfessionList(professions)
     end
 
     if type(source) ~= "table" or #source == 0 then
-        return "No professions"
+        return nil
     end
 
-    local parts = {}
+    local entries = {}
     for index, entry in ipairs(source) do
         if index > 2 then
             break
         end
 
-        if entry.maxRank and entry.maxRank > 0 then
-            parts[#parts + 1] = string.format("%s %d/%d", entry.name or "Unknown", entry.rank or 0, entry.maxRank)
-        elseif entry.rank and entry.rank > 0 then
-            parts[#parts + 1] = string.format("%s %d", entry.name or "Unknown", entry.rank)
-        else
-            parts[#parts + 1] = entry.name or "Unknown"
+        if type(entry) == "table" then
+            entries[#entries + 1] = entry
+        end
+    end
+
+    if #entries == 0 then
+        return nil
+    end
+
+    return entries
+end
+
+local function FormatProfessionIcons(professions)
+    local entries = GetProfessionDisplayEntries(professions)
+    if not entries then
+        return "-"
+    end
+
+    local parts = {}
+    for _, entry in ipairs(entries) do
+        if entry.icon then
+            parts[#parts + 1] = string.format("|T%s:16:16:0:0|t", tostring(entry.icon))
         end
     end
 
     if #parts == 0 then
-        return "No professions"
+        return "-"
     end
 
-    return table.concat(parts, " / ")
+    return table.concat(parts, " ")
 end
 
 local function HasProfessionData(professions)
@@ -1422,11 +1438,12 @@ local function CreateTabButton(parent, text, width)
 end
 
 local CHARACTER_COLUMNS = {
-    { key = "name", label = "Character", x = 12, width = 200, justify = "LEFT" },
-    { key = "class", label = "Class / Level", x = 220, width = 100, justify = "LEFT" },
-    { key = "professions", label = "Professions", x = 330, width = 230, justify = "LEFT" },
-    { key = "played", label = "Played", x = 570, width = 90, justify = "LEFT" },
-    { key = "gold", label = "Gold", x = 665, width = 90, justify = "RIGHT" },
+    { key = "level", label = "Level", x = 12, width = 40, justify = "CENTER" },
+    { key = "name", label = "Name", x = 62, width = 245, justify = "LEFT" },
+    { key = "professions", label = "Professions", x = 317, width = 110, justify = "CENTER" },
+    { key = "vault", label = "Vault", x = 437, width = 70, justify = "CENTER" },
+    { key = "played", label = "Played", x = 517, width = 95, justify = "LEFT" },
+    { key = "gold", label = "Gold", x = 622, width = 130, justify = "RIGHT" },
 }
 
 function mQoL_AccountOverview:EnsureCharactersView()
@@ -1556,20 +1573,16 @@ function mQoL_AccountOverview:RefreshCharactersView()
         row.bg:SetColorTexture(index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, 0.92)
 
         local displayName = string.format("%s - %s", character.name or "Unknown", character.realm or "UnknownRealm")
-        if character.isCurrent then
-            displayName = displayName .. " (Current)"
-        end
-
+        row.fonts.level:SetText(tostring(tonumber(character.level) or 0))
+        row.fonts.level:SetTextColor(0.92, 0.92, 0.92)
         row.fonts.name:SetText(displayName)
-        row.fonts.name:SetTextColor(character.isCurrent and 1 or 0.92, character.isCurrent and 0.82 or 0.92, 0.92)
-
-        local classText = string.format("%s %d", character.className or "Unknown", tonumber(character.level) or 0)
         local classR, classG, classB = GetClassColor(character.classFile)
-        row.fonts.class:SetText(classText)
-        row.fonts.class:SetTextColor(classR, classG, classB)
+        row.fonts.name:SetTextColor(classR, classG, classB)
 
-        row.fonts.professions:SetText(FormatProfessionList(character.professions))
+        row.fonts.professions:SetText(FormatProfessionIcons(character.professions))
         row.fonts.professions:SetTextColor(0.9, 0.9, 0.9)
+        row.fonts.vault:SetText("WIP")
+        row.fonts.vault:SetTextColor(0.72, 0.72, 0.72)
 
         local playedText
         if character.isCurrent and self.isTimePlayedPending and not character.totalTime then

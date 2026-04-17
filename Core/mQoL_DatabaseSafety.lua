@@ -31,7 +31,7 @@ end
 local ExpectedSettingsSchema = {
     Retail = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors"
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions", 
@@ -48,7 +48,7 @@ local ExpectedSettingsSchema = {
     },
     Legion = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors"
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -64,7 +64,7 @@ local ExpectedSettingsSchema = {
     },
     Classic = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors",
             "showHead", "showCloak"
         },
         nameplates = { 
@@ -81,7 +81,7 @@ local ExpectedSettingsSchema = {
     },
     Era = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors",
             "showHead", "showCloak"
         },
         nameplates = { 
@@ -98,7 +98,7 @@ local ExpectedSettingsSchema = {
     },
     BCC = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors",
             "showHead", "showCloak"
         },
         nameplates = { 
@@ -116,7 +116,7 @@ local ExpectedSettingsSchema = {
     },
     Pandaria = {
         general = {
-            "showMyName", "autoLoot", "autoLootRate", "autoQuestTracking", "showLuaErrors",
+            "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors",
             "showHead", "showCloak"
         },
         nameplates = { 
@@ -137,9 +137,6 @@ local function GetCurrentGameValue(section, key)
             return GetCVarBool("UnitNameOwn")
         elseif key == "autoLoot" then
             return GetCVarBool("autoLootDefault")
-        elseif key == "autoLootRate" then
-            local val = GetCVar("autoLootRate")
-            return val and tonumber(val) or 100
         elseif key == "autoQuestTracking" then
             local val = GetCVarBool("autoQuestWatch")
             return val ~= nil and val or true
@@ -254,7 +251,6 @@ local function GetFallbackValue(key)
         -- General
         showMyName = true,
         autoLoot = true,
-        autoLootRate = 25,
         autoQuestTracking = true,
         showLuaErrors = false,
         showHead = true,
@@ -401,6 +397,7 @@ function mQoL_DatabaseSafety:ScanAndMigrate()
                 table.insert(migratedKeys, string.format("%s.%s = %s", sectionName, key, tostring(finalValue)))
             end
         end
+
     end
 
     -- Mark as ready

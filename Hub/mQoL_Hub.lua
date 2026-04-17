@@ -11,7 +11,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.0"
-mQoL_Hub.build = "217"
+mQoL_Hub.build = "220"
 mQoL_Hub.vendor = "dev"	--dev / test / release
 
 -- Styles
@@ -38,7 +38,7 @@ mQoL_Hub.searchIndex = {
 	{ label = "Window Opacity", panel = "Display", available = true },
 	{ label = "Enable LUA Errors", panel = "General QoL", available = true },
     { label = "Enable Autoloot", panel = "General QoL", available = true },
-	{ label = "Auto Loot Rate", panel = "General QoL", available = true },
+	{ label = "Fast Auto Loot", panel = "General QoL", available = true },
 	{ label = "Enable Auto Quest Tracking", panel = "General QoL", available = true },
 	{ label = "My Name", panel = "General QoL", available = true },
     { label = "Enemy Nameplates", panel = "Nameplates", available = true },
@@ -619,7 +619,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- Welcome Title (Centered with Separator)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     title:SetPoint("TOP", 0, currentY)
-    title:SetText("Welcome to mQoL 1.1.0")
+    title:SetText("Welcome to mQoL 1.2.0")
     title:SetTextColor(1, 0.82, 0)
     title:SetJustifyH("CENTER")
     currentY = currentY - 30
@@ -634,7 +634,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- What's New Section
     local newsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     newsTitle:SetPoint("TOPLEFT", 20, currentY)
-    newsTitle:SetText("What's New in v1.1.0?")
+    newsTitle:SetText("What's New in v1.2.0?")
     newsTitle:SetTextColor(0.3, 0.7, 1)
     currentY = currentY - 30
 
@@ -653,11 +653,13 @@ function mQoL_Hub:CreateHomePanel(parent)
         currentY = currentY - textFS:GetStringHeight() - 10
     end
 
-    AddBulletPoint("New UI Design: A completely refreshed look with smooth animations.")
-    AddBulletPoint("Option Search: Quickly find any setting with the new search feature.")
-    AddBulletPoint("Better Options: You can now disable auto-setting for specific options.")
-    AddBulletPoint("Modules Manager: Turn on or off specific modules.")
-    AddBulletPoint("Raid Profiles: Save and load complete raid frame configurations per spec, group size, and content type.")
+    AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
+    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an interactive Gold Chart.")
+    AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
+    AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
+    AddBulletPoint("Fast Auto Loot: Much faster auto loot option with customizable delay.")
+    AddBulletPoint("Edit Mode Backups: Automatically creates and keeps up to 5 backups of your UI profiles upon login.")
+    AddBulletPoint("Miscellaneous: Better combat protection for UI elements, simplified intro, and general improvements.")
     
     currentY = currentY - 20
 

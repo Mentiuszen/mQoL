@@ -15,7 +15,6 @@ local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
 local CreateCustomButton = mQoL_Styles.CreateCustomButton
 local CreateCustomDropdown = mQoL_Styles.CreateCustomDropdown
 local CreateCustomSlider = mQoL_Styles.CreateCustomSlider
-local CreateCustomInputBox = mQoL_Styles.CreateCustomInputBox
 local CreateCustomCheckbox = mQoL_Styles.CreateCustomCheckbox
 
 --Info Box
@@ -77,8 +76,10 @@ function mQoL_Main:ApplyGeneralSettings(g)
         applyCVar("autoLootDefault", value)
     end
 
-    local function apply_autoLootRate(value)
-        applyCVar("autoLootRate", value)
+    local function apply_fastAutoLoot(value)
+        if mQoL_FastAutoloot and type(mQoL_FastAutoloot.SetEnabled) == "function" then
+            mQoL_FastAutoloot:SetEnabled(value == true)
+        end
     end
 
     local function apply_autoQuestTracking(value)
@@ -104,7 +105,7 @@ function mQoL_Main:ApplyGeneralSettings(g)
     -- Apply all at once
     apply_showLuaErrors(g.showLuaErrors)
     apply_autoLoot(g.autoLoot)
-    apply_autoLootRate(g.autoLootRate)
+    apply_fastAutoLoot(g.fastAutoLoot)
     apply_autoQuestTracking(g.autoQuestTracking)
     apply_showMyName(g.showMyName)
     apply_showHead(g.showHead)
@@ -115,7 +116,7 @@ function mQoL_Main:ApplyGeneralSettings(g)
     self.ApplySetting.General = {
         showLuaErrors = apply_showLuaErrors,
         autoLoot = apply_autoLoot,
-        autoLootRate = apply_autoLootRate,
+        fastAutoLoot = apply_fastAutoLoot,
         autoQuestTracking = apply_autoQuestTracking,
         showMyName = apply_showMyName,
         showHead = apply_showHead,
@@ -878,45 +879,18 @@ function mQoL_Main:CreateGeneralPanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
-    local autoLootRateMin, autoLootRateMax, autoLootRateStep = 1, 100, 1
-    local autoLootRateEditBox = CreateCustomInputBox(contentContainer)
-    autoLootRateEditBox:SetSize(60, 24)
-    autoLootRateEditBox.bg = autoLootRateEditBox:CreateTexture(nil, "BACKGROUND")
-    autoLootRateEditBox.bg:SetAllPoints()
-    autoLootRateEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
-    autoLootRateEditBox.border = mQoL_Templates.CreateFrameBorder(autoLootRateEditBox, 1, {0.25, 0.25, 0.25, 1})
-
-    local autoLootRate = tonumber(s.autoLootRate) or 100
-    autoLootRate = math.max(autoLootRateMin, math.min(autoLootRateMax, autoLootRate))
-    local autoLootRateApplyFunc
-
-    local _, autoLootRateSlider = AddOptionRow(contentContainer, "Auto Loot Rate", "slider", {
-        min = autoLootRateMin,
-        max = autoLootRateMax,
-        step = autoLootRateStep,
-        value = autoLootRate,
+    AddOptionRow(contentContainer, "Fast Auto Loot", "checkbox", {
+        value = s.fastAutoLoot ~= false,
         onValueChanged = function(_, value)
-            autoLootRateEditBox:SetText(tostring(math.floor((value or autoLootRateMin) + 0.5)))
-        end,
-        applyLabel = "Apply Rate",
-        applyWidth = 120
-    }, {autoLootRateEditBox}, function()
-        autoLootRateApplyFunc()
-    end)
-
-    autoLootRateEditBox:SetText(tostring(autoLootRate))
-    autoLootRateEditBox.slider = autoLootRateSlider
-
-    autoLootRateApplyFunc = mQoL_Hub:SetupNumberInputBox(autoLootRateEditBox, autoLootRateSlider, autoLootRateMin, autoLootRateMax, autoLootRateStep, function(val)
-        s.autoLootRate = val
-        if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.General and mQoL_Main.ApplySetting.General.autoLootRate then
-            mQoL_Main.ApplySetting.General.autoLootRate(val)
-        else
-            mQoL_Main:ApplyGeneralSettings(s)
+            s.fastAutoLoot = value
+            if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.General and mQoL_Main.ApplySetting.General.fastAutoLoot then
+                mQoL_Main.ApplySetting.General.fastAutoLoot(value)
+            elseif mQoL_FastAutoloot and type(mQoL_FastAutoloot.SetEnabled) == "function" then
+                mQoL_FastAutoloot:SetEnabled(value)
+            end
         end
-    end, function(val)
-        return tostring(math.floor((val or autoLootRateMin) + 0.5))
-    end)
+    })
+    AddGap(contentContainer, "Standard")
 
     AddOptionRow(contentContainer, "Enable Auto Quest Tracking", "checkbox", {
         value = s.autoQuestTracking,

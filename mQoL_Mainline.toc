@@ -23,6 +23,7 @@ Core/mQoL_Modules.lua
 #Modules
 Modules/AccountOverview/mQoL_AccountOverview.lua
 Modules/MainQoL/mQoL_Main.lua
+Modules/FastAutoloot/mQoL_FastAutoloot.lua
 Modules/Mailbox/mQoL_Mailbox.lua
 Modules/Graphics/mQoL_Graphics.lua
 Modules/EditMode/mQoL_EditMode.lua
