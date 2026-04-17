@@ -2063,10 +2063,9 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
     local hasEntries = #entries > 0
     row.professionEmptyText:Hide()
 
-    local visibleCount = hasEntries and math.min(#entries, 2) or 2
+    local visibleCount = 2
     local gap = 6
-    local singleWidth = math.min(row.professionsFrame:GetWidth(), 122)
-    local buttonWidth = visibleCount == 1 and singleWidth or math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
+    local buttonWidth = math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
     local totalWidth = (buttonWidth * visibleCount) + (gap * math.max(0, visibleCount - 1))
     local startOffset = math.floor((row.professionsFrame:GetWidth() - totalWidth) / 2)
     local matchedDetailOwner
