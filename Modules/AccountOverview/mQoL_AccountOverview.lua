@@ -20,6 +20,7 @@ local FormatDuration = mQoL_Utils.FormatDuration
 local FormatTimestamp = mQoL_Utils.FormatTimestamp
 local GetClassColor = mQoL_Utils.GetClassColorRGB
 local ProfessionUtils = mQoL_ProfessionUtils
+local WeeklyRewardUtils = mQoL_WeeklyRewardUtils
 local SECONDS_PER_MINUTE = 60
 local SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
 local SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR
@@ -35,7 +36,8 @@ local BOOTSTRAP_SYNC_INTERVAL = 2
 local BOOTSTRAP_SYNC_ATTEMPTS = 15
 local OVERALL_ARCHIVE_MAX_POINTS = 12
 local DEFAULT_VAULT_PROGRESS_TEXT = "(0/3, 0/3, 0/3)"
-local VAULT_PLACEHOLDER_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local DEFAULT_UNSUPPORTED_VAULT_TEXT = "-"
+local VAULT_PLACEHOLDER_ICON = WeeklyRewardUtils and WeeklyRewardUtils.DefaultIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
 
 local GOLD_RANGE_OPTIONS = {
     overall = { label = "Overall" },
@@ -74,7 +76,7 @@ mQoL_AccountOverview.defaults = {
         lastSeen = 0,
     },
     meta = {
-        schemaVersion = 9, -- remember to remove this in release build its only dev db menagement
+        schemaVersion = 10, -- remember to remove this in release build its only dev db menagement
     },
 }
 
@@ -91,6 +93,55 @@ local GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
 local GetProfessionSummaryText = ProfessionUtils.GetSummaryText
 local GetProfessionDetailRows = ProfessionUtils.GetDetailRows
 local NormalizeProfessionLabel = ProfessionUtils.NormalizeLabel
+
+local function NormalizeWeeklyRewardSnapshot(rawValue)
+    if WeeklyRewardUtils and type(WeeklyRewardUtils.NormalizeSnapshot) == "function" then
+        return WeeklyRewardUtils.NormalizeSnapshot(rawValue)
+    end
+
+    return rawValue
+end
+
+local function CaptureCurrentWeeklyRewardSnapshot(rawValue, context)
+    if WeeklyRewardUtils and type(WeeklyRewardUtils.CaptureCurrentSnapshot) == "function" then
+        return WeeklyRewardUtils.CaptureCurrentSnapshot(rawValue, context)
+    end
+
+    return rawValue
+end
+
+local function CaptureChallengeCompletionInfo()
+    if WeeklyRewardUtils and type(WeeklyRewardUtils.CaptureChallengeCompletionInfo) == "function" then
+        return WeeklyRewardUtils.CaptureChallengeCompletionInfo()
+    end
+
+    return nil
+end
+
+local function GetWeeklyRewardDisplayState(rawValue)
+    if WeeklyRewardUtils and type(WeeklyRewardUtils.GetDisplayState) == "function" then
+        return WeeklyRewardUtils.GetDisplayState(rawValue)
+    end
+
+    return {
+        title = "Weekly Reward",
+        summaryText = DEFAULT_VAULT_PROGRESS_TEXT,
+        icon = VAULT_PLACEHOLDER_ICON,
+        lines = {},
+        snapshot = rawValue,
+    }
+end
+
+local function GetDefaultWeeklyRewardSummaryText()
+    local display = GetWeeklyRewardDisplayState(nil)
+    local summaryText = display and display.summaryText
+    if type(summaryText) == "string" and summaryText ~= "" then
+        return summaryText
+    end
+
+    return clientInfo.isRetail and DEFAULT_VAULT_PROGRESS_TEXT or DEFAULT_UNSUPPORTED_VAULT_TEXT
+end
+
 local function SupportsRetailAccountBank()
     return clientInfo.isRetail
         and C_Bank
@@ -143,7 +194,7 @@ local function GetAccountDB()
     end
 
     accountDB.goldHistory = nil
-    accountDB.meta.schemaVersion = 9
+    accountDB.meta.schemaVersion = 10
 
     if accountDB.settings.selectedTab ~= "Characters" and accountDB.settings.selectedTab ~= "Gold Chart" then
         accountDB.settings.selectedTab = "Characters"
@@ -526,6 +577,19 @@ function mQoL_AccountOverview:InitializeDB()
     self.session.hasReliableMoney = false
     self.session.lastReliableMoney = nil
     self:PruneGoldSession(GetNow())
+    self:NormalizeAllCharacterWeeklyRewards()
+end
+
+function mQoL_AccountOverview:NormalizeAllCharacterWeeklyRewards()
+    if not self.db or type(self.db.characters) ~= "table" then
+        return
+    end
+
+    for _, character in pairs(self.db.characters) do
+        if type(character) == "table" then
+            character.weeklyReward = NormalizeWeeklyRewardSnapshot(character.weeklyReward)
+        end
+    end
 end
 
 function mQoL_AccountOverview:GetWarbandBankMoney()
@@ -1003,6 +1067,12 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
         end
     end
 
+    if opts.refreshWeeklyReward or character.weeklyReward == nil then
+        character.weeklyReward = CaptureCurrentWeeklyRewardSnapshot(character.weeklyReward, opts.weeklyRewardContext)
+    else
+        character.weeklyReward = NormalizeWeeklyRewardSnapshot(character.weeklyReward)
+    end
+
     if opts.totalTime then
         character.totalTime = math.floor(opts.totalTime)
         character.lastPlayedSync = now
@@ -1099,6 +1169,7 @@ function mQoL_AccountOverview:GetKnownCharacters()
 
     for key, data in pairs(self.db.characters) do
         if type(data) == "table" then
+            data.weeklyReward = NormalizeWeeklyRewardSnapshot(data.weeklyReward)
             local row = DeepCopy(data)
             row.key = key
             row.isCurrent = key == currentKey
@@ -1684,13 +1755,16 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
     row.vaultButton = CreateOverviewCellButton(row.vaultFrame)
     row.vaultButton:SetAllPoints()
     row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
-    row.vaultButton.label:SetText(DEFAULT_VAULT_PROGRESS_TEXT)
+    row.vaultButton.label:SetText(GetDefaultWeeklyRewardSummaryText())
     row.vaultButton.label:SetTextColor(0.9, 0.9, 0.9)
     row.vaultButton.handleEnter = function(self)
+        local display = GetWeeklyRewardDisplayState(self.weeklyRewardData)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Great Vault", 1, 0.82, 0)
-        GameTooltip:AddLine("Raid, Mythic+, World Content", 0.85, 0.85, 0.85)
-        GameTooltip:AddLine("Placeholder row for future detailed tracking.", 0.72, 0.72, 0.72, true)
+        GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
+        for _, line in ipairs(display.lines or {}) do
+            local color = line.color or { 0.85, 0.85, 0.85 }
+            GameTooltip:AddLine(line.text or "", color[1] or 0.85, color[2] or 0.85, color[3] or 0.85, true)
+        end
         GameTooltip:Show()
     end
     row.vaultButton.handleLeave = function()
@@ -1862,8 +1936,10 @@ function mQoL_AccountOverview:RefreshCharactersView()
             detailEntry = matchedDetailEntry
         end
 
-        row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
-        row.vaultButton.label:SetText(DEFAULT_VAULT_PROGRESS_TEXT)
+        local weeklyRewardDisplay = GetWeeklyRewardDisplayState(character.weeklyReward)
+        row.vaultButton.weeklyRewardData = weeklyRewardDisplay.snapshot
+        row.vaultButton.icon:SetTexture(weeklyRewardDisplay.icon or VAULT_PLACEHOLDER_ICON)
+        row.vaultButton.label:SetText(weeklyRewardDisplay.summaryText or GetDefaultWeeklyRewardSummaryText())
         row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
 
         local playedText
@@ -3200,6 +3276,9 @@ RegisterAccountOverviewEvent("TRADE_SKILL_DATA_SOURCE_CHANGED")
 RegisterAccountOverviewEvent("TRADE_SKILL_UPDATE")
 RegisterAccountOverviewEvent("CRAFT_SHOW")
 RegisterAccountOverviewEvent("CRAFT_UPDATE")
+RegisterAccountOverviewEvent("WEEKLY_REWARDS_UPDATE")
+RegisterAccountOverviewEvent("WEEKLY_REWARDS_ITEM_CHANGED")
+RegisterAccountOverviewEvent("CHALLENGE_MODE_COMPLETED")
 
 local function QueueProfessionSyncFromProfessionsUI()
     mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
@@ -3221,6 +3300,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshStatic = true,
             refreshMoney = true,
             refreshProfessions = true,
+            refreshWeeklyReward = true,
             refreshWarbandBank = true,
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
@@ -3238,6 +3318,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
                     refreshStatic = true,
                     refreshMoney = true,
                     refreshProfessions = true,
+                    refreshWeeklyReward = true,
                     refreshWarbandBank = true,
                     allowCachedWarbandBank = true,
                     forceGoldSnapshot = true,
@@ -3261,6 +3342,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshStatic = true,
             refreshMoney = true,
             refreshProfessions = true,
+            refreshWeeklyReward = true,
             refreshWarbandBank = true,
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
@@ -3276,6 +3358,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
                     refreshStatic = true,
                     refreshMoney = true,
                     refreshProfessions = true,
+                    refreshWeeklyReward = true,
                     refreshWarbandBank = true,
                     allowCachedWarbandBank = true,
                     forceGoldSnapshot = true,
@@ -3323,6 +3406,17 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         or event == "CRAFT_SHOW"
         or event == "CRAFT_UPDATE" then
         mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
+    elseif event == "WEEKLY_REWARDS_UPDATE" or event == "WEEKLY_REWARDS_ITEM_CHANGED" then
+        mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
+            refreshWeeklyReward = true,
+        })
+    elseif event == "CHALLENGE_MODE_COMPLETED" then
+        mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
+            refreshWeeklyReward = true,
+            weeklyRewardContext = {
+                challengeCompletion = CaptureChallengeCompletionInfo(),
+            },
+        })
     elseif event == "PLAYER_LOGOUT" then
         mQoL_AccountOverview:StopBootstrapSync()
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
@@ -3330,6 +3424,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshMoney = true,
             forceLogoutMoney = true,
             refreshProfessions = true,
+            refreshWeeklyReward = true,
             refreshWarbandBank = true,
             allowCachedWarbandBank = true,
             forceGoldSnapshot = true,
