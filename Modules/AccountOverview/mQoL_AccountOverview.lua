@@ -38,6 +38,25 @@ local OVERALL_ARCHIVE_MAX_POINTS = 12
 local DEFAULT_VAULT_PROGRESS_TEXT = "(0/3, 0/3, 0/3)"
 local DEFAULT_UNSUPPORTED_VAULT_TEXT = "-"
 local VAULT_PLACEHOLDER_ICON = WeeklyRewardUtils and WeeklyRewardUtils.DefaultIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
+local ACCOUNT_OVERVIEW_STYLE = {
+    headerBackground = { 0.095, 0.095, 0.105, 0.97 },
+    headerBorder = { 0.22, 0.22, 0.24, 1 },
+    headerAccent = { 0.16, 0.16, 0.18, 1 },
+    headerText = { 0.95, 0.92, 0.86 },
+    rowOdd = { 0.055, 0.055, 0.060, 0.94 },
+    rowEven = { 0.075, 0.075, 0.082, 0.96 },
+    rowSeparator = { 1, 1, 1, 0.035 },
+    rowHighlight = { 1, 1, 1, 0.018 },
+    cellBackground = { 0.125, 0.125, 0.132, 0.97 },
+    cellBorder = { 0.23, 0.23, 0.25, 1 },
+    cellHoverBackground = { 0.165, 0.165, 0.175, 0.98 },
+    cellHoverBorder = { 0.34, 0.34, 0.37, 1 },
+    cellActiveBackground = { 0.20, 0.16, 0.06, 0.98 },
+    cellActiveBorder = { 0.47, 0.36, 0.14, 1 },
+    placeholderBackground = { 0.095, 0.095, 0.105, 0.94 },
+    placeholderBorder = { 0.17, 0.17, 0.19, 1 },
+    placeholderText = { 0.70, 0.70, 0.74 },
+}
 
 local GOLD_RANGE_OPTIONS = {
     overall = { label = "Overall" },
@@ -165,6 +184,92 @@ local function GetDefaultWeeklyRewardSummaryText()
     end
 
     return clientInfo.isRetail and DEFAULT_VAULT_PROGRESS_TEXT or DEFAULT_UNSUPPORTED_VAULT_TEXT
+end
+
+local function ClampPositiveInteger(value)
+    local numeric = tonumber(value)
+    if not numeric or numeric <= 0 then
+        return 0
+    end
+
+    return math.floor(numeric)
+end
+
+local function ResolveMaxPlayerLevel()
+    if type(GetMaxLevelForPlayerExpansion) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxLevelForPlayerExpansion())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if type(GetMaxPlayerLevel) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxPlayerLevel())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if type(GetMaxLevelForLatestExpansion) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxLevelForLatestExpansion())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if ClampPositiveInteger(MAX_PLAYER_LEVEL) > 0 then
+        return ClampPositiveInteger(MAX_PLAYER_LEVEL)
+    end
+
+    if type(GetMaxLevelForExpansionLevel) == "function" then
+        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
+        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
+            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
+        end
+
+        if expansionLevel > 0 then
+            local maxLevel = ClampPositiveInteger(GetMaxLevelForExpansionLevel(expansionLevel))
+            if maxLevel > 0 then
+                return maxLevel
+            end
+        end
+    end
+
+    if type(MAX_PLAYER_LEVEL_TABLE) == "table" then
+        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
+        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
+            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
+        end
+
+        local maxLevel = ClampPositiveInteger(MAX_PLAYER_LEVEL_TABLE[expansionLevel])
+        if maxLevel > 0 then
+            return maxLevel
+        end
+
+        for _, value in pairs(MAX_PLAYER_LEVEL_TABLE) do
+            maxLevel = math.max(maxLevel, ClampPositiveInteger(value))
+        end
+
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    return 0
+end
+
+local function IsCharacterAtMaxLevel(character)
+    if not clientInfo.isRetail then
+        return true
+    end
+
+    local characterLevel = ClampPositiveInteger(type(character) == "table" and character.level or nil)
+    local maxLevel = ResolveMaxPlayerLevel()
+    if maxLevel <= 0 then
+        return false
+    end
+
+    return characterLevel >= maxLevel
 end
 
 local function SupportsRetailAccountBank()
@@ -1293,37 +1398,108 @@ local function HidePool(pool)
     end
 end
 
+local function SetTextureColor(texture, color)
+    if not texture or type(color) ~= "table" then
+        return
+    end
+
+    texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+end
+
+local function SetBorderColor(border, color)
+    if not border or type(color) ~= "table" then
+        return
+    end
+
+    if border.top then
+        border.top:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+    if border.bottom then
+        border.bottom:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+    if border.left then
+        border.left:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+    if border.right then
+        border.right:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    end
+end
+
 local function UpdateOverviewCellButtonVisual(button)
     if not button or not button.bg then
         return
     end
 
     if button.isActive then
-        button.bg:SetColorTexture(0.20, 0.16, 0.06, 0.95)
+        SetTextureColor(button.bg, ACCOUNT_OVERVIEW_STYLE.cellActiveBackground)
+        SetBorderColor(button.border, ACCOUNT_OVERVIEW_STYLE.cellActiveBorder)
         if button.label then
             button.label:SetTextColor(1, 0.88, 0.35)
         end
     elseif button.isHovered then
-        button.bg:SetColorTexture(0.17, 0.17, 0.17, 0.95)
+        SetTextureColor(button.bg, ACCOUNT_OVERVIEW_STYLE.cellHoverBackground)
+        SetBorderColor(button.border, ACCOUNT_OVERVIEW_STYLE.cellHoverBorder)
         if button.label then
             button.label:SetTextColor(1, 1, 1)
         end
+    elseif button.isPlaceholder then
+        SetTextureColor(button.bg, ACCOUNT_OVERVIEW_STYLE.placeholderBackground)
+        SetBorderColor(button.border, ACCOUNT_OVERVIEW_STYLE.placeholderBorder)
+        if button.label then
+            button.label:SetTextColor(
+                ACCOUNT_OVERVIEW_STYLE.placeholderText[1],
+                ACCOUNT_OVERVIEW_STYLE.placeholderText[2],
+                ACCOUNT_OVERVIEW_STYLE.placeholderText[3]
+            )
+        end
     else
-        button.bg:SetColorTexture(0.11, 0.11, 0.11, 0.9)
+        SetTextureColor(button.bg, ACCOUNT_OVERVIEW_STYLE.cellBackground)
+        SetBorderColor(button.border, ACCOUNT_OVERVIEW_STYLE.cellBorder)
         if button.label then
             button.label:SetTextColor(0.9, 0.9, 0.9)
         end
     end
 end
 
+local function ApplyOverviewCellButtonLayout(button, showIcon)
+    if not button or not button.label or not button.icon then
+        return
+    end
+
+    button.label:ClearAllPoints()
+    if showIcon then
+        button.icon:Show()
+        button.label:SetPoint("LEFT", button.icon, "RIGHT", 4, 0)
+        button.label:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+        button.label:SetJustifyH("LEFT")
+        return
+    end
+
+    button.icon:Hide()
+    button.label:SetPoint("LEFT", button, "LEFT", 4, 0)
+    button.label:SetPoint("RIGHT", button, "RIGHT", -4, 0)
+    button.label:SetJustifyH("CENTER")
+end
+
 local function CreateOverviewCellButton(parent)
     local button = CreateFrame("Button", nil, parent)
     button.isHovered = false
     button.isActive = false
+    button.isPlaceholder = false
     button:RegisterForClicks("LeftButtonUp")
 
     button.bg = button:CreateTexture(nil, "BACKGROUND")
     button.bg:SetAllPoints()
+
+    if CreateFrameBorder then
+        button.border = CreateFrameBorder(button, 1, ACCOUNT_OVERVIEW_STYLE.cellBorder)
+    end
+
+    button.topHighlight = button:CreateTexture(nil, "ARTWORK")
+    button.topHighlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+    button.topHighlight:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -1)
+    button.topHighlight:SetHeight(1)
+    button.topHighlight:SetColorTexture(1, 1, 1, 0.045)
 
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetSize(16, 16)
@@ -1352,7 +1528,32 @@ local function CreateOverviewCellButton(parent)
     end)
 
     function button:SetActive(isActive)
+        if not self:IsEnabled() then
+            isActive = false
+        end
+
         self.isActive = isActive and true or false
+        UpdateOverviewCellButtonVisual(self)
+    end
+
+    function button:SetContent(icon, text)
+        self:Enable()
+        self.isHovered = false
+        self.isActive = false
+        self.isPlaceholder = false
+        ApplyOverviewCellButtonLayout(self, true)
+        self.icon:SetTexture(icon or VAULT_PLACEHOLDER_ICON)
+        self.label:SetText(text or "")
+        UpdateOverviewCellButtonVisual(self)
+    end
+
+    function button:SetPlaceholder(text)
+        self:Disable()
+        self.isHovered = false
+        self.isActive = false
+        self.isPlaceholder = true
+        ApplyOverviewCellButtonLayout(self, false)
+        self.label:SetText(text or "-")
         UpdateOverviewCellButtonVisual(self)
     end
 
@@ -1410,11 +1611,11 @@ end
 
 local CHARACTER_COLUMNS = {
     { key = "level", label = "Level", x = 12, width = 40, justify = "CENTER" },
-    { key = "name", label = "Name", x = 62, width = 165, justify = "LEFT" },
+    { key = "name", label = "Name", x = 62, width = 165, justify = "LEFT", headerJustify = "LEFT" },
     { key = "professions", label = "Professions", x = 237, width = 225, justify = "CENTER" },
-    { key = "vault", label = "Vault", x = 472, width = 115, justify = "LEFT" },
-    { key = "played", label = "Played", x = 597, width = 70, justify = "LEFT" },
-    { key = "gold", label = "Gold", x = 677, width = 80, justify = "RIGHT" },
+    { key = "vault", label = "Vault", x = 467, width = 115, justify = "LEFT" },
+    { key = "played", label = "Played", x = 592, width = 80, justify = "LEFT", headerJustify = "LEFT" },
+    { key = "gold", label = "Gold", x = 682, width = 80, justify = "LEFT", headerJustify = "LEFT" },
 }
 
 local CHARACTER_COLUMN_BY_KEY = {}
@@ -1701,20 +1902,30 @@ function mQoL_AccountOverview:EnsureCharactersView()
 
     view.header.bg = view.header:CreateTexture(nil, "BACKGROUND")
     view.header.bg:SetAllPoints()
-    view.header.bg:SetColorTexture(0.1, 0.1, 0.1, 0.95)
+    SetTextureColor(view.header.bg, ACCOUNT_OVERVIEW_STYLE.headerBackground)
 
     if CreateFrameBorder then
-        view.header.border = CreateFrameBorder(view.header, 1, { 0.22, 0.22, 0.22, 1 })
+        view.header.border = CreateFrameBorder(view.header, 1, ACCOUNT_OVERVIEW_STYLE.headerBorder)
     end
+
+    view.header.accent = view.header:CreateTexture(nil, "ARTWORK")
+    view.header.accent:SetPoint("BOTTOMLEFT", view.header, "BOTTOMLEFT", 1, 1)
+    view.header.accent:SetPoint("BOTTOMRIGHT", view.header, "BOTTOMRIGHT", -1, 1)
+    view.header.accent:SetHeight(1)
+    SetTextureColor(view.header.accent, ACCOUNT_OVERVIEW_STYLE.headerAccent)
 
     view.header.labels = {}
     for _, column in ipairs(CHARACTER_COLUMNS) do
         local label = view.header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         label:SetPoint("LEFT", view.header, "LEFT", column.x, 0)
         label:SetWidth(column.width)
-        label:SetJustifyH(column.justify)
+        label:SetJustifyH(column.headerJustify or "CENTER")
         label:SetText(column.label)
-        label:SetTextColor(0.9, 0.9, 0.9)
+        label:SetTextColor(
+            ACCOUNT_OVERVIEW_STYLE.headerText[1],
+            ACCOUNT_OVERVIEW_STYLE.headerText[2],
+            ACCOUNT_OVERVIEW_STYLE.headerText[3]
+        )
         view.header.labels[column.key] = label
     end
 
@@ -1744,6 +1955,18 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
 
+    row.topHighlight = row:CreateTexture(nil, "ARTWORK")
+    row.topHighlight:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    row.topHighlight:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
+    row.topHighlight:SetHeight(1)
+    SetTextureColor(row.topHighlight, ACCOUNT_OVERVIEW_STYLE.rowHighlight)
+
+    row.separator = row:CreateTexture(nil, "ARTWORK")
+    row.separator:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+    row.separator:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+    row.separator:SetHeight(1)
+    SetTextureColor(row.separator, ACCOUNT_OVERVIEW_STYLE.rowSeparator)
+
     row.fonts = {}
     for _, column in ipairs(CHARACTER_COLUMNS) do
         local font = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1772,10 +1995,12 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
 
     row.vaultButton = CreateOverviewCellButton(row.vaultFrame)
     row.vaultButton:SetAllPoints()
-    row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
-    row.vaultButton.label:SetText(GetDefaultWeeklyRewardSummaryText())
-    row.vaultButton.label:SetTextColor(0.9, 0.9, 0.9)
+    row.vaultButton:SetContent(VAULT_PLACEHOLDER_ICON, GetDefaultWeeklyRewardSummaryText())
     row.vaultButton.handleEnter = function(self)
+        if not self:IsEnabled() or not self.weeklyRewardData then
+            return
+        end
+
         local display = GetWeeklyRewardDisplayState(self.weeklyRewardData)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
@@ -1789,6 +2014,10 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         GameTooltip:Hide()
     end
     row.vaultButton:SetScript("OnClick", function(self)
+        if not self:IsEnabled() or not self.weeklyRewardData then
+            return
+        end
+
         OpenWeeklyRewardSnapshotView(self.weeklyRewardData, self.weeklyRewardCharacter)
     end)
 
@@ -1830,22 +2059,11 @@ function mQoL_AccountOverview:EnsureProfessionButton(row, index)
 end
 
 function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
-    local entries = GetProfessionDisplayEntries(professions)
-    if not entries or #entries == 0 then
-        row.professionEmptyText:Show()
-        for _, button in ipairs(row.professionButtons or {}) do
-            button:Hide()
-            button:SetActive(false)
-            button.characterKey = nil
-            button.professionDetailKey = nil
-            button.professionEntry = nil
-        end
-        return nil, nil
-    end
-
+    local entries = GetProfessionDisplayEntries(professions) or {}
+    local hasEntries = #entries > 0
     row.professionEmptyText:Hide()
 
-    local visibleCount = math.min(#entries, 2)
+    local visibleCount = hasEntries and math.min(#entries, 2) or 2
     local gap = 6
     local singleWidth = math.min(row.professionsFrame:GetWidth(), 122)
     local buttonWidth = visibleCount == 1 and singleWidth or math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
@@ -1855,24 +2073,31 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
     local matchedDetailEntry
 
     for index = 1, visibleCount do
-        local professionEntry = entries[index]
         local button = self:EnsureProfessionButton(row, index)
-        local detailKey = GetProfessionDetailKey(row.characterKey, professionEntry)
+        local professionEntry = hasEntries and entries[index] or nil
         button:ClearAllPoints()
         button:SetPoint("LEFT", row.professionsFrame, "LEFT", startOffset + ((index - 1) * (buttonWidth + gap)), 0)
         button:SetSize(buttonWidth, 22)
-        button.characterKey = row.characterKey
-        button.professionDetailKey = detailKey
-        button.professionEntry = professionEntry
-        button.icon:SetTexture(professionEntry.icon or VAULT_PLACEHOLDER_ICON)
-        button.label:SetText(GetProfessionSummaryText(professionEntry))
-        button:SetActive(self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.openProfessionDetailKey == detailKey)
-        button:Show()
+        if professionEntry then
+            local detailKey = GetProfessionDetailKey(row.characterKey, professionEntry)
+            button.characterKey = row.characterKey
+            button.professionDetailKey = detailKey
+            button.professionEntry = professionEntry
+            button:SetContent(professionEntry.icon or VAULT_PLACEHOLDER_ICON, GetProfessionSummaryText(professionEntry))
+            button:SetActive(self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.openProfessionDetailKey == detailKey)
 
-        if self.openProfessionDetailKey and self.openProfessionDetailKey == detailKey then
-            matchedDetailOwner = button
-            matchedDetailEntry = professionEntry
+            if self.openProfessionDetailKey and self.openProfessionDetailKey == detailKey then
+                matchedDetailOwner = button
+                matchedDetailEntry = professionEntry
+            end
+        else
+            button.characterKey = nil
+            button.professionDetailKey = nil
+            button.professionEntry = nil
+            button:SetPlaceholder("-")
         end
+
+        button:Show()
     end
 
     for index = visibleCount + 1, #(row.professionButtons or {}) do
@@ -1940,7 +2165,7 @@ function mQoL_AccountOverview:RefreshCharactersView()
         row.characterKey = character.key
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", view, "TOPLEFT", 0, startY - ((index - 1) * rowHeight))
-        row.bg:SetColorTexture(index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, 0.92)
+        SetTextureColor(row.bg, index % 2 == 1 and ACCOUNT_OVERVIEW_STYLE.rowOdd or ACCOUNT_OVERVIEW_STYLE.rowEven)
 
         local displayName = string.format("%s - %s", character.name or "Unknown", character.realm or "UnknownRealm")
         row.fonts.level:SetText(tostring(tonumber(character.level) or 0))
@@ -1957,18 +2182,23 @@ function mQoL_AccountOverview:RefreshCharactersView()
             detailEntry = matchedDetailEntry
         end
 
-        local weeklyRewardDisplay = GetWeeklyRewardDisplayState(character.weeklyReward)
-        row.vaultButton.weeklyRewardData = weeklyRewardDisplay.snapshot
-        row.vaultButton.weeklyRewardCharacter = {
-            key = character.key,
-            name = character.name,
-            realm = character.realm,
-            className = character.className,
-            classFile = character.classFile,
-        }
-        row.vaultButton.icon:SetTexture(weeklyRewardDisplay.icon or VAULT_PLACEHOLDER_ICON)
-        row.vaultButton.label:SetText(weeklyRewardDisplay.summaryText or GetDefaultWeeklyRewardSummaryText())
-        row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
+        if clientInfo.isRetail and not IsCharacterAtMaxLevel(character) then
+            row.vaultButton.weeklyRewardData = nil
+            row.vaultButton.weeklyRewardCharacter = nil
+            row.vaultButton:SetPlaceholder("-")
+        else
+            local weeklyRewardDisplay = GetWeeklyRewardDisplayState(character.weeklyReward)
+            row.vaultButton.weeklyRewardData = weeklyRewardDisplay.snapshot
+            row.vaultButton.weeklyRewardCharacter = {
+                key = character.key,
+                name = character.name,
+                realm = character.realm,
+                className = character.className,
+                classFile = character.classFile,
+            }
+            row.vaultButton:SetContent(weeklyRewardDisplay.icon or VAULT_PLACEHOLDER_ICON, weeklyRewardDisplay.summaryText or GetDefaultWeeklyRewardSummaryText())
+            row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
+        end
 
         local playedText
         if character.isCurrent and self.isTimePlayedPending and not character.totalTime then

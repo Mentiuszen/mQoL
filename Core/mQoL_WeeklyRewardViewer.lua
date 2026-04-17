@@ -12,7 +12,7 @@ local SELECTION_STATE_HIDDEN = 1
 
 local FALLBACK_GROUP_ORDER = {
     { key = "raid", label = "Raid", total = 3, defaultThresholds = { 2, 4, 6 } },
-    { key = "mythicPlus", label = "Mythic+", total = 3, defaultThresholds = { 1, 4, 8 } },
+    { key = "mythicPlus", label = DUNGEONS or "Dungeons", total = 3, defaultThresholds = { 1, 4, 8 } },
     { key = "world", label = "World", total = 3, defaultThresholds = { 2, 4, 8 } },
 }
 

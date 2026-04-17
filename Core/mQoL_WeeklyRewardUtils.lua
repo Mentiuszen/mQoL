@@ -36,7 +36,7 @@ local LEGION_WEEKLY_RESET_MINUTE = 0
 
 local GROUP_ORDER = {
     { key = "raid", label = "Raid", total = 3, enumFields = { "Raid" }, fallbackType = 3, defaultThresholds = { 2, 4, 6 } },
-    { key = "mythicPlus", label = "Mythic+", total = 3, enumFields = { "Activities", "MythicPlus" }, fallbackType = 1, defaultThresholds = { 1, 4, 8 } },
+    { key = "mythicPlus", label = DUNGEONS or "Dungeons", total = 3, enumFields = { "Activities", "MythicPlus" }, fallbackType = 1, defaultThresholds = { 1, 4, 8 } },
     { key = "world", label = "World", total = 3, enumFields = { "World" }, fallbackType = 6, defaultThresholds = { 2, 4, 8 } },
 }
 
@@ -711,33 +711,47 @@ local function BuildTooltipLines(snapshot)
     local lines = {}
 
     if snapshot.kind == "great_vault" then
-        for _, groupInfo in ipairs(GROUP_ORDER) do
+        for groupIndex, groupInfo in ipairs(GROUP_ORDER) do
             local group = snapshot.groups[groupInfo.key] or {}
             lines[#lines + 1] = {
-                text = string.format("%s %d/%d", groupInfo.label, ClampNumber(group.completed), ClampNumber(group.total)),
+                text = groupInfo.label,
                 color = { 1, 0.82, 0 },
             }
 
-            local visibleItemLevels = NormalizeItemLevelList(group.itemLevels)
-            if #visibleItemLevels == 0 then
-                lines[#lines + 1] = {
-                    text = "No reward unlocked this week.",
-                    color = { 0.72, 0.72, 0.72 },
-                }
-            else
-                for _, itemLevel in ipairs(visibleItemLevels) do
-                    if itemLevel > 0 then
-                        lines[#lines + 1] = {
-                            text = string.format("%d item level", itemLevel),
-                            color = { 0.9, 0.9, 0.9 },
-                        }
-                    else
-                        lines[#lines + 1] = {
-                            text = "Pending item level data.",
-                            color = { 0.72, 0.72, 0.72 },
-                        }
-                    end
+            for slotIndex = 1, ClampNumber(groupInfo.total) do
+                local slot = type(group.slots) == "table" and group.slots[slotIndex] or nil
+                local progress = ClampNumber(slot and slot.progress)
+                local threshold = ClampNumber(slot and slot.threshold)
+                local itemLevel = ClampNumber(slot and slot.itemLevel)
+
+                if threshold <= 0 then
+                    threshold = ClampNumber(groupInfo.defaultThresholds and groupInfo.defaultThresholds[slotIndex])
                 end
+
+                if type(slot) == "table" and slot.unlocked and progress <= 0 then
+                    progress = threshold > 0 and threshold or 1
+                end
+
+                if threshold > 0 then
+                    progress = math.min(progress, threshold)
+                end
+
+                local itemLevelText = "-"
+                if type(slot) == "table" and slot.unlocked and itemLevel > 0 then
+                    itemLevelText = string.format("%d ilvl", itemLevel)
+                end
+
+                lines[#lines + 1] = {
+                    text = string.format("%d/%d - %s", progress, threshold, itemLevelText),
+                    color = { 0.9, 0.9, 0.9 },
+                }
+            end
+
+            if groupIndex < #GROUP_ORDER then
+                lines[#lines + 1] = {
+                    text = " ",
+                    color = { 0.9, 0.9, 0.9 },
+                }
             end
         end
 
