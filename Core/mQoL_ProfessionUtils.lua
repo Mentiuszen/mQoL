@@ -1,7 +1,6 @@
 mQoL_ProfessionUtils = mQoL_ProfessionUtils or {}
 
 local ProfessionUtils = mQoL_ProfessionUtils
-local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local DeepCopy = mQoL_Utils and mQoL_Utils.DeepCopy
 
 local TIER_DEFINITIONS = {
@@ -24,6 +23,13 @@ for index, definition in ipairs(TIER_DEFINITIONS) do
     definition.order = index
     TIER_INDEX[definition.key] = definition
 end
+
+local SECONDARY_PROFESSIONS = {
+    ["archaeology"] = true,
+    ["cooking"] = true,
+    ["first aid"] = true,
+    ["fishing"] = true,
+}
 
 ProfessionUtils.TierDefinitions = TIER_DEFINITIONS
 ProfessionUtils.TierIndex = TIER_INDEX
@@ -156,7 +162,7 @@ local function BuildKnownTierEntry(professionName, skillLineName, rank, maxRank,
     return BuildTierFromLabel(expansionLabel, rank, maxRank, skillLineID)
 end
 
-local function IsUsablePlayerTradeSkillOpen()
+local function IsUsableCTradeSkillOpen()
     if not C_TradeSkillUI then
         return false
     end
@@ -198,20 +204,316 @@ local function GetTradeSkillCategoryIDs()
     return result
 end
 
+local function NormalizePositiveID(value)
+    local numeric = tonumber(value)
+    if numeric and numeric > 0 then
+        return math.floor(numeric)
+    end
+
+    return nil
+end
+
+local function IsValidProfessionName(name)
+    if type(name) ~= "string" then
+        return false
+    end
+
+    local normalized = NormalizeLabel(name)
+    return normalized ~= "" and normalized ~= "unknown"
+end
+
+local function AddTradeSkillBucketAlias(cache, bucket, professionName, professionID)
+    if IsValidProfessionName(professionName) then
+        bucket.professionName = bucket.professionName or professionName
+        cache.byProfession[professionName] = bucket
+        cache.byName[NormalizeLabel(professionName)] = bucket
+    end
+
+    professionID = NormalizePositiveID(professionID)
+    if professionID then
+        bucket.professionID = bucket.professionID or professionID
+        cache.byID[professionID] = bucket
+    end
+end
+
+local function GetOrCreateTradeSkillBucket(cache, professionName, professionID)
+    local normalizedName = NormalizeLabel(professionName)
+    local normalizedID = NormalizePositiveID(professionID)
+    local bucket = (normalizedID and cache.byID[normalizedID])
+        or (normalizedName ~= "" and cache.byName[normalizedName])
+
+    if not bucket then
+        bucket = {
+            entries = {},
+            seen = {},
+        }
+    end
+
+    AddTradeSkillBucketAlias(cache, bucket, professionName, normalizedID)
+    return bucket
+end
+
+local function AddTierToTradeSkillBucket(bucket, tier, fallbackKey)
+    if type(bucket) ~= "table" or type(tier) ~= "table" then
+        return
+    end
+
+    local tierKey = tier.key or fallbackKey or tostring(tier.skillLineID or tier.rawLabel or tier.label)
+    local existing = bucket.seen[tierKey]
+
+    if existing then
+        existing.rank = math.max(existing.rank or 0, tier.rank or 0)
+        existing.maxRank = math.max(existing.maxRank or 0, tier.maxRank or 0)
+        return
+    end
+
+    bucket.seen[tierKey] = tier
+    bucket.entries[#bucket.entries + 1] = tier
+end
+
+local function GetCurrentBaseProfessionInfo()
+    if not C_TradeSkillUI or type(C_TradeSkillUI.GetBaseProfessionInfo) ~= "function" then
+        return nil
+    end
+
+    local baseOk, baseInfo = pcall(C_TradeSkillUI.GetBaseProfessionInfo)
+    if baseOk and type(baseInfo) == "table" then
+        return baseInfo
+    end
+
+    return nil
+end
+
+local function GetTradeSkillLineInfoByID(skillLineID)
+    skillLineID = NormalizePositiveID(skillLineID)
+    if not skillLineID or not C_TradeSkillUI or type(C_TradeSkillUI.GetTradeSkillLineInfoByID) ~= "function" then
+        return nil
+    end
+
+    local lineOk, skillLineDisplayName, skillLineRank, skillLineMaxRank, _, parentSkillLineID =
+        pcall(C_TradeSkillUI.GetTradeSkillLineInfoByID, skillLineID)
+    if not lineOk then
+        return nil
+    end
+
+    return {
+        skillLineDisplayName = skillLineDisplayName,
+        skillLineRank = skillLineRank,
+        skillLineMaxRank = skillLineMaxRank,
+        parentSkillLineID = parentSkillLineID,
+    }
+end
+
+local function GetOpenCTradeSkillLineInfo()
+    if not IsUsableCTradeSkillOpen() or type(C_TradeSkillUI.GetTradeSkillLine) ~= "function" then
+        return nil
+    end
+
+    local lineOk, skillLineID, skillLineName, rank, maxRank, _, parentSkillLineID, parentSkillLineName =
+        pcall(C_TradeSkillUI.GetTradeSkillLine)
+    if not lineOk or not IsValidProfessionName(skillLineName) then
+        return nil
+    end
+
+    return {
+        skillLineID = skillLineID,
+        skillLineName = skillLineName,
+        rank = rank,
+        maxRank = maxRank,
+        parentSkillLineID = parentSkillLineID,
+        parentSkillLineName = parentSkillLineName,
+    }
+end
+
+local function GetOpenGlobalTradeSkillLineInfo()
+    if type(GetTradeSkillLine) ~= "function" then
+        return nil
+    end
+
+    local lineOk, skillLineName, rank, maxRank = pcall(GetTradeSkillLine)
+    if not lineOk or not IsValidProfessionName(skillLineName) then
+        return nil
+    end
+
+    return {
+        skillLineName = skillLineName,
+        rank = rank,
+        maxRank = maxRank,
+    }
+end
+
+local function InferParentProfessionName(skillLineName)
+    if not IsValidProfessionName(skillLineName) then
+        return nil
+    end
+
+    local normalizedSkillLineName = skillLineName:lower()
+
+    local function MatchLabel(label)
+        if not IsValidProfessionName(label) then
+            return nil
+        end
+
+        local labelText = tostring(label)
+        local lowerLabel = labelText:lower()
+        local separator = normalizedSkillLineName:sub(#lowerLabel + 1, #lowerLabel + 1)
+
+        if normalizedSkillLineName:sub(1, #lowerLabel) == lowerLabel and separator:match("%s") then
+            local professionName = skillLineName:sub(#labelText + 2)
+            professionName = professionName:gsub("^%s+", ""):gsub("%s+$", "")
+            if IsValidProfessionName(professionName) then
+                return professionName
+            end
+        end
+
+        return nil
+    end
+
+    for _, definition in ipairs(TIER_DEFINITIONS) do
+        local professionName = MatchLabel(definition.label)
+        if professionName then
+            return professionName
+        end
+
+        for _, alias in ipairs(definition.aliases or {}) do
+            professionName = MatchLabel(alias)
+            if professionName then
+                return professionName
+            end
+        end
+    end
+
+    return nil
+end
+
+local function AddOpenTradeSkillLineToCache(cache, lineInfo)
+    if type(lineInfo) ~= "table" or not IsValidProfessionName(lineInfo.skillLineName) then
+        return
+    end
+
+    local professionName = (IsValidProfessionName(lineInfo.parentSkillLineName) and lineInfo.parentSkillLineName)
+        or InferParentProfessionName(lineInfo.skillLineName)
+        or lineInfo.skillLineName
+    local professionID = NormalizePositiveID(lineInfo.parentSkillLineID)
+        or NormalizePositiveID(lineInfo.skillLineID)
+
+    local bucket = GetOrCreateTradeSkillBucket(cache, professionName, professionID)
+    AddTradeSkillBucketAlias(cache, bucket, lineInfo.skillLineName, lineInfo.skillLineID)
+
+    local tier = BuildTierEntry(
+        professionName,
+        lineInfo.skillLineName,
+        lineInfo.rank,
+        lineInfo.maxRank,
+        lineInfo.skillLineID
+    )
+    AddTierToTradeSkillBucket(bucket, tier, tostring(lineInfo.skillLineID or lineInfo.skillLineName))
+end
+
+local function BuildTierEntryFromProfessionInfo(parentProfessionName, professionInfo, tradeSkillLineInfo)
+    if type(professionInfo) ~= "table" or not IsValidProfessionName(parentProfessionName) then
+        return nil
+    end
+
+    local skillLineName = tradeSkillLineInfo and tradeSkillLineInfo.skillLineDisplayName or professionInfo.professionName
+    if (not IsValidProfessionName(skillLineName) or skillLineName == parentProfessionName)
+        and IsValidProfessionName(professionInfo.expansionName)
+        and professionInfo.expansionName ~= "Unknown" then
+        skillLineName = professionInfo.expansionName .. " " .. parentProfessionName
+    end
+
+    if not IsValidProfessionName(skillLineName) or skillLineName == parentProfessionName then
+        return nil
+    end
+
+    local rank = (tradeSkillLineInfo and tradeSkillLineInfo.skillLineRank) or professionInfo.skillLevel
+    local maxRank = (tradeSkillLineInfo and tradeSkillLineInfo.skillLineMaxRank) or professionInfo.maxSkillLevel
+    if math.floor(tonumber(rank) or 0) <= 0 and math.floor(tonumber(maxRank) or 0) <= 0 then
+        return nil
+    end
+
+    return BuildKnownTierEntry(
+        parentProfessionName,
+        skillLineName,
+        rank,
+        maxRank,
+        professionInfo.professionID
+    )
+end
+
+local function GetOpenChildProfessionInfos()
+    if not C_TradeSkillUI then
+        return nil
+    end
+
+    if type(C_TradeSkillUI.GetChildProfessionInfos) == "function" then
+        local infosOk, childInfos = pcall(C_TradeSkillUI.GetChildProfessionInfos)
+        if infosOk and type(childInfos) == "table" and next(childInfos) then
+            return childInfos
+        end
+    end
+
+    if type(C_TradeSkillUI.GetChildProfessionInfo) == "function" then
+        local infoOk, childInfo = pcall(C_TradeSkillUI.GetChildProfessionInfo)
+        if infoOk and type(childInfo) == "table" then
+            return { childInfo }
+        end
+    end
+
+    return nil
+end
+
+local function AddOpenTradeSkillChildProfessionsToCache(cache)
+    if not IsUsableCTradeSkillOpen() then
+        return
+    end
+
+    local baseInfo = GetCurrentBaseProfessionInfo()
+    local childInfos = GetOpenChildProfessionInfos()
+    if type(childInfos) ~= "table" then
+        return
+    end
+
+    local fallbackProfessionName = baseInfo and baseInfo.professionName
+    local fallbackProfessionID = baseInfo and baseInfo.professionID
+
+    for _, professionInfo in ipairs(childInfos) do
+        if type(professionInfo) == "table" then
+            local tradeSkillLineInfo = GetTradeSkillLineInfoByID(professionInfo.professionID)
+            local skillLineName = tradeSkillLineInfo and tradeSkillLineInfo.skillLineDisplayName or professionInfo.professionName
+            local parentProfessionName = (IsValidProfessionName(professionInfo.parentProfessionName) and professionInfo.parentProfessionName)
+                or InferParentProfessionName(skillLineName)
+                or (IsValidProfessionName(fallbackProfessionName) and fallbackProfessionName)
+                or professionInfo.professionName
+            local parentProfessionID = NormalizePositiveID(professionInfo.parentProfessionID)
+                or (tradeSkillLineInfo and tradeSkillLineInfo.parentSkillLineID)
+                or fallbackProfessionID
+
+            if IsValidProfessionName(parentProfessionName) then
+                local bucket = GetOrCreateTradeSkillBucket(cache, parentProfessionName, parentProfessionID)
+                AddTradeSkillBucketAlias(cache, bucket, fallbackProfessionName, fallbackProfessionID)
+                AddTradeSkillBucketAlias(cache, bucket, professionInfo.professionName, professionInfo.professionID)
+
+                local tier = BuildTierEntryFromProfessionInfo(parentProfessionName, professionInfo, tradeSkillLineInfo)
+                AddTierToTradeSkillBucket(bucket, tier, tostring(professionInfo.professionID or professionInfo.professionName))
+            end
+        end
+    end
+end
+
 local function AddOpenTradeSkillCategoriesToCache(cache)
-    if not IsUsablePlayerTradeSkillOpen()
-        or type(C_TradeSkillUI.GetBaseProfessionInfo) ~= "function"
+    if not IsUsableCTradeSkillOpen()
         or type(C_TradeSkillUI.GetCategoryInfo) ~= "function" then
         return
     end
 
-    local baseOk, baseInfo = pcall(C_TradeSkillUI.GetBaseProfessionInfo)
-    if not baseOk or type(baseInfo) ~= "table" then
+    local baseInfo = GetCurrentBaseProfessionInfo()
+    if type(baseInfo) ~= "table" then
         return
     end
 
     local professionName = baseInfo.professionName
-    if not professionName or professionName == "" or professionName == "UNKNOWN" then
+    if not IsValidProfessionName(professionName) then
         return
     end
 
@@ -220,13 +522,7 @@ local function AddOpenTradeSkillCategoriesToCache(cache)
         return
     end
 
-    local bucket = {
-        entries = {},
-        seen = {},
-    }
-    cache.byProfession[professionName] = bucket
-    cache.byName[NormalizeLabel(professionName)] = bucket
-    cache.byID[baseInfo.professionID] = bucket
+    local bucket = GetOrCreateTradeSkillBucket(cache, professionName, baseInfo.professionID)
 
     for _, categoryID in ipairs(categoryIDs) do
         local categoryOk, categoryInfo = pcall(C_TradeSkillUI.GetCategoryInfo, categoryID)
@@ -239,18 +535,7 @@ local function AddOpenTradeSkillCategoriesToCache(cache)
                 local displayName = categoryInfo.name
                 if displayName and displayName ~= "" and displayName ~= professionName then
                     local tier = BuildKnownTierEntry(professionName, displayName, numericRank, numericMaxRank, categoryInfo.skillLineID)
-                    if tier then
-                        local tierKey = tier.key or tostring(categoryInfo.skillLineID or displayName)
-                        local existing = bucket.seen[tierKey]
-
-                        if existing then
-                            existing.rank = math.max(existing.rank or 0, tier.rank or 0)
-                            existing.maxRank = math.max(existing.maxRank or 0, tier.maxRank or 0)
-                        else
-                            bucket.seen[tierKey] = tier
-                            bucket.entries[#bucket.entries + 1] = tier
-                        end
-                    end
+                    AddTierToTradeSkillBucket(bucket, tier, tostring(categoryInfo.skillLineID or displayName))
                 end
             end
         end
@@ -258,7 +543,7 @@ local function AddOpenTradeSkillCategoriesToCache(cache)
 end
 
 local function BuildTradeSkillLineCache()
-    if not clientInfo.isRetail or not C_TradeSkillUI then
+    if not C_TradeSkillUI and type(GetTradeSkillLine) ~= "function" then
         return nil
     end
 
@@ -268,13 +553,77 @@ local function BuildTradeSkillLineCache()
         byProfession = {},
     }
 
+    AddOpenTradeSkillChildProfessionsToCache(cache)
     AddOpenTradeSkillCategoriesToCache(cache)
+    AddOpenTradeSkillLineToCache(cache, GetOpenCTradeSkillLineInfo())
+    AddOpenTradeSkillLineToCache(cache, GetOpenGlobalTradeSkillLineInfo())
 
     if next(cache.byProfession) then
         return cache
     end
 
     return nil
+end
+
+local function CopyTierEntry(tier)
+    if type(tier) ~= "table" then
+        return nil
+    end
+
+    local copy = {}
+    for key, value in pairs(tier) do
+        copy[key] = value
+    end
+    return copy
+end
+
+local function BuildFallbackProfessionEntryFromBucket(bucket)
+    if type(bucket) ~= "table" or not IsValidProfessionName(bucket.professionName) then
+        return nil
+    end
+
+    local tiers = {}
+    for _, tier in ipairs(bucket.entries or {}) do
+        tiers[#tiers + 1] = CopyTierEntry(tier)
+    end
+
+    table.sort(tiers, function(a, b)
+        local aOrder = tonumber(a.order) or 999
+        local bOrder = tonumber(b.order) or 999
+        if aOrder ~= bOrder then
+            return aOrder < bOrder
+        end
+        return tostring(a.label or "") < tostring(b.label or "")
+    end)
+
+    local currentTier = tiers[#tiers]
+    return {
+        name = bucket.professionName,
+        rank = currentTier and currentTier.rank or 0,
+        maxRank = currentTier and currentTier.maxRank or 0,
+        skillLine = bucket.professionID,
+        skillLineName = currentTier and currentTier.rawLabel or bucket.professionName,
+        tiers = tiers,
+    }
+end
+
+local function AddOpenTradeSkillFallbackSnapshot(result, tradeSkillLineCache)
+    if type(tradeSkillLineCache) ~= "table" then
+        return
+    end
+
+    local seenBuckets = {}
+    for _, bucket in pairs(tradeSkillLineCache.byProfession or {}) do
+        if type(bucket) == "table" and not seenBuckets[bucket] then
+            seenBuckets[bucket] = true
+            local entry = BuildFallbackProfessionEntryFromBucket(bucket)
+            if entry then
+                local normalizedName = NormalizeLabel(entry.name)
+                local target = SECONDARY_PROFESSIONS[normalizedName] and result.secondary or result.primary
+                target[#target + 1] = entry
+            end
+        end
+    end
 end
 
 local function CollectTierEntries(professionName, parentSkillLineID, currentSkillLineName, rank, maxRank, tradeSkillLineCache)
@@ -334,6 +683,7 @@ function ProfessionUtils.GetSnapshot()
     local tradeSkillLineCache = BuildTradeSkillLineCache()
 
     if not GetProfessions or not GetProfessionInfo then
+        AddOpenTradeSkillFallbackSnapshot(result, tradeSkillLineCache)
         return result
     end
 

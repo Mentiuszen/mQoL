@@ -90,6 +90,7 @@ local HasProfessionData = ProfessionUtils.HasData
 local GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
 local GetProfessionSummaryText = ProfessionUtils.GetSummaryText
 local GetProfessionDetailRows = ProfessionUtils.GetDetailRows
+local NormalizeProfessionLabel = ProfessionUtils.NormalizeLabel
 local function SupportsRetailAccountBank()
     return clientInfo.isRetail
         and C_Bank
@@ -1027,35 +1028,65 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
 end
 
 function mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
-    if not clientInfo.isRetail or not C_TradeSkillUI then
+    if not C_TradeSkillUI and type(GetTradeSkillLine) ~= "function" and not GetProfessions then
         return
     end
 
     local now = GetTime and GetTime() or GetNow()
-    if self.lastOpenTradeSkillProfessionSync and (now - self.lastOpenTradeSkillProfessionSync) < 0.5 then
+    if self.openTradeSkillProfessionSyncQueued then
         return
     end
-    self.lastOpenTradeSkillProfessionSync = now
 
-    local function Sync()
-        if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("AccountOverview") then
-            return
+    if self.lastOpenTradeSkillProfessionSync and (now - self.lastOpenTradeSkillProfessionSync) < 0.25 then
+        return
+    end
+
+    self.openTradeSkillProfessionSyncQueued = true
+
+    local attempts = 0
+
+    local function IsTradeSkillSnapshotReady()
+        if not C_TradeSkillUI then
+            return true
         end
 
         if type(C_TradeSkillUI.IsTradeSkillReady) == "function" and not C_TradeSkillUI.IsTradeSkillReady() then
+            return false
+        end
+
+        if type(C_TradeSkillUI.IsDataSourceChanging) == "function" and C_TradeSkillUI.IsDataSourceChanging() then
+            return false
+        end
+
+        return true
+    end
+
+    local function Sync()
+        attempts = attempts + 1
+
+        if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("AccountOverview") then
+            mQoL_AccountOverview.openTradeSkillProfessionSyncQueued = false
             return
         end
 
+        if not IsTradeSkillSnapshotReady() then
+            if attempts < 8 and C_Timer and C_Timer.After then
+                C_Timer.After(0.25, Sync)
+            else
+                mQoL_AccountOverview.openTradeSkillProfessionSyncQueued = false
+            end
+
+            return
+        end
+
+        mQoL_AccountOverview.lastOpenTradeSkillProfessionSync = GetTime and GetTime() or GetNow()
+        mQoL_AccountOverview.openTradeSkillProfessionSyncQueued = false
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshProfessions = true,
         })
     end
 
     Sync()
-
-    if C_Timer and C_Timer.After then
-        C_Timer.After(0.3, Sync)
-    end
 end
 
 function mQoL_AccountOverview:GetKnownCharacters()
@@ -1300,27 +1331,57 @@ function mQoL_AccountOverview:HideProfessionDetailFrame()
         return
     end
 
+    self.openProfessionDetailKey = nil
+
     local frame = self.professionDetailFrame
     if frame.owner and frame.owner.SetActive then
         frame.owner:SetActive(false)
     end
+    frame.ownerDetailKey = nil
     frame.owner = nil
     frame:Hide()
 end
 
+function mQoL_AccountOverview:GetProfessionDetailParent()
+    if self.optionsScrollFrame and self.optionsScrollFrame.GetParent then
+        local parent = self.optionsScrollFrame:GetParent()
+        if parent then
+            return parent
+        end
+    end
+
+    return self.contentContainer or self.viewsHost or self.optionsScrollFrame or UIParent
+end
+
+function mQoL_AccountOverview:UpdateProfessionDetailFrameLayer(frame)
+    if not frame then
+        return
+    end
+
+    local parent = frame:GetParent()
+    local parentLevel = (parent and parent.GetFrameLevel and parent:GetFrameLevel()) or 0
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(parentLevel + 40)
+end
+
 function mQoL_AccountOverview:EnsureProfessionDetailFrame()
     if self.professionDetailFrame then
+        local parent = self:GetProfessionDetailParent()
+        if parent and self.professionDetailFrame:GetParent() ~= parent then
+            self.professionDetailFrame:SetParent(parent)
+        end
+
+        self:UpdateProfessionDetailFrameLayer(self.professionDetailFrame)
+
         return self.professionDetailFrame
     end
 
-    local frame = CreateFrame("Frame", "mQoL_AccountOverview_ProfessionDetailFrame", UIParent)
+    local frame = CreateFrame("Frame", "mQoL_AccountOverview_ProfessionDetailFrame", self:GetProfessionDetailParent())
     frame:SetSize(300, 314)
-    frame:SetFrameStrata("DIALOG")
-    frame:SetFrameLevel(80)
-    frame:SetClampedToScreen(true)
     frame:SetToplevel(true)
     frame:EnableMouse(true)
     frame:Hide()
+    self:UpdateProfessionDetailFrameLayer(frame)
 
     if UISpecialFrames then
         table.insert(UISpecialFrames, frame:GetName())
@@ -1403,6 +1464,8 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
         if self.owner and self.owner.SetActive then
             self.owner:SetActive(false)
         end
+        mQoL_AccountOverview.openProfessionDetailKey = nil
+        self.ownerDetailKey = nil
         self.owner = nil
         HidePool(self.rowsLeft)
         HidePool(self.rowsRight)
@@ -1414,20 +1477,47 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
     return frame
 end
 
-function mQoL_AccountOverview:ToggleProfessionDetailFrame(ownerButton, professionEntry)
+local function GetProfessionDetailKey(characterKey, professionEntry)
+    local professionKey = NormalizeProfessionLabel and NormalizeProfessionLabel(professionEntry and professionEntry.name) or ""
+    if professionKey == "" then
+        return nil
+    end
+
+    return string.format("%s:%s", tostring(characterKey or ""), professionKey)
+end
+
+function mQoL_AccountOverview:PositionProfessionDetailFrame(frame)
+    local parent = self:GetProfessionDetailParent()
+    if parent and frame:GetParent() ~= parent then
+        frame:SetParent(parent)
+        self:UpdateProfessionDetailFrameLayer(frame)
+    end
+
+    frame:ClearAllPoints()
+
+    parent = frame:GetParent()
+    if not parent or parent == UIParent then
+        frame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        return
+    end
+
+    frame:SetPoint("CENTER", parent, "CENTER", 0, 0)
+end
+
+function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionEntry)
     if not ownerButton or type(professionEntry) ~= "table" then
         return
     end
 
     local frame = self:EnsureProfessionDetailFrame()
-    if frame:IsShown() and frame.owner == ownerButton then
-        self:HideProfessionDetailFrame()
-        return
+    local detailKey = ownerButton.professionDetailKey or GetProfessionDetailKey(ownerButton.characterKey, professionEntry)
+    if frame.owner and frame.owner ~= ownerButton and frame.owner.SetActive then
+        frame.owner:SetActive(false)
     end
 
-    self:HideProfessionDetailFrame()
-
     frame.owner = ownerButton
+    frame.ownerDetailKey = detailKey
+    self.openProfessionDetailKey = detailKey
     ownerButton:SetActive(true)
 
     frame.title:SetText(professionEntry.name or "Profession")
@@ -1473,17 +1563,24 @@ function mQoL_AccountOverview:ToggleProfessionDetailFrame(ownerButton, professio
 
     local frameHeight = math.max(164, 124 + (#detailRows * rowHeight))
     frame:SetHeight(frameHeight)
-    frame:ClearAllPoints()
-
-    local ownerCenter = ownerButton.GetCenter and ownerButton:GetCenter()
-    local screenMid = UIParent and UIParent:GetWidth() and (UIParent:GetWidth() / 2) or nil
-    if ownerCenter and screenMid and ownerCenter > screenMid then
-        frame:SetPoint("TOPRIGHT", ownerButton, "BOTTOMRIGHT", 0, -4)
-    else
-        frame:SetPoint("TOPLEFT", ownerButton, "BOTTOMLEFT", 0, -4)
-    end
+    self:PositionProfessionDetailFrame(frame)
 
     frame:Show()
+end
+
+function mQoL_AccountOverview:ToggleProfessionDetailFrame(ownerButton, professionEntry)
+    if not ownerButton or type(professionEntry) ~= "table" then
+        return
+    end
+
+    local frame = self:EnsureProfessionDetailFrame()
+    local detailKey = ownerButton.professionDetailKey or GetProfessionDetailKey(ownerButton.characterKey, professionEntry)
+    if frame:IsShown() and self.openProfessionDetailKey == detailKey then
+        self:HideProfessionDetailFrame()
+        return
+    end
+
+    self:ShowProfessionDetailFrame(ownerButton, professionEntry)
 end
 
 function mQoL_AccountOverview:EnsureCharactersView()
@@ -1644,8 +1741,11 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
         for _, button in ipairs(row.professionButtons or {}) do
             button:Hide()
             button:SetActive(false)
+            button.characterKey = nil
+            button.professionDetailKey = nil
+            button.professionEntry = nil
         end
-        return
+        return nil, nil
     end
 
     row.professionEmptyText:Hide()
@@ -1656,18 +1756,28 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
     local buttonWidth = visibleCount == 1 and singleWidth or math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
     local totalWidth = (buttonWidth * visibleCount) + (gap * math.max(0, visibleCount - 1))
     local startOffset = math.floor((row.professionsFrame:GetWidth() - totalWidth) / 2)
+    local matchedDetailOwner
+    local matchedDetailEntry
 
     for index = 1, visibleCount do
         local professionEntry = entries[index]
         local button = self:EnsureProfessionButton(row, index)
+        local detailKey = GetProfessionDetailKey(row.characterKey, professionEntry)
         button:ClearAllPoints()
         button:SetPoint("LEFT", row.professionsFrame, "LEFT", startOffset + ((index - 1) * (buttonWidth + gap)), 0)
         button:SetSize(buttonWidth, 22)
+        button.characterKey = row.characterKey
+        button.professionDetailKey = detailKey
         button.professionEntry = professionEntry
         button.icon:SetTexture(professionEntry.icon or VAULT_PLACEHOLDER_ICON)
         button.label:SetText(GetProfessionSummaryText(professionEntry))
-        button:SetActive(self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.professionDetailFrame.owner == button)
+        button:SetActive(self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.openProfessionDetailKey == detailKey)
         button:Show()
+
+        if self.openProfessionDetailKey and self.openProfessionDetailKey == detailKey then
+            matchedDetailOwner = button
+            matchedDetailEntry = professionEntry
+        end
     end
 
     for index = visibleCount + 1, #(row.professionButtons or {}) do
@@ -1675,8 +1785,13 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
         if button then
             button:Hide()
             button:SetActive(false)
+            button.characterKey = nil
+            button.professionDetailKey = nil
+            button.professionEntry = nil
         end
     end
+
+    return matchedDetailOwner, matchedDetailEntry
 end
 
 function mQoL_AccountOverview:RefreshCharactersView()
@@ -1701,13 +1816,19 @@ function mQoL_AccountOverview:RefreshCharactersView()
         view.summaryText:SetText(string.format("Known characters: %d    Account gold: %s    Last update: %s", #characters, FormatMoneyCompact(totalGold), lastSeenText))
     end
 
-    self:HideProfessionDetailFrame()
+    local detailWasOpen = self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.openProfessionDetailKey ~= nil
+    local detailOwner
+    local detailEntry
 
     for _, row in ipairs(view.rows) do
         row:Hide()
     end
 
     if #characters == 0 then
+        if detailWasOpen then
+            self:HideProfessionDetailFrame()
+        end
+
         view.emptyState:Show()
         view:SetHeight(150)
         view.contentHeight = 150
@@ -1721,6 +1842,7 @@ function mQoL_AccountOverview:RefreshCharactersView()
 
     for index, character in ipairs(characters) do
         local row = self:EnsureCharacterRow(index)
+        row.characterKey = character.key
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", view, "TOPLEFT", 0, startY - ((index - 1) * rowHeight))
         row.bg:SetColorTexture(index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, index % 2 == 1 and 0.07 or 0.09, 0.92)
@@ -1734,7 +1856,12 @@ function mQoL_AccountOverview:RefreshCharactersView()
 
         row.fonts.professions:Hide()
         row.fonts.vault:Hide()
-        self:RefreshProfessionButtons(row, character.professions)
+        local matchedDetailOwner, matchedDetailEntry = self:RefreshProfessionButtons(row, character.professions)
+        if matchedDetailOwner then
+            detailOwner = matchedDetailOwner
+            detailEntry = matchedDetailEntry
+        end
+
         row.vaultButton.icon:SetTexture(VAULT_PLACEHOLDER_ICON)
         row.vaultButton.label:SetText(DEFAULT_VAULT_PROGRESS_TEXT)
         row.vaultButton.label:SetTextColor(0.88, 0.88, 0.88)
@@ -1758,6 +1885,14 @@ function mQoL_AccountOverview:RefreshCharactersView()
     local totalHeight = math.abs(startY) + (#characters * rowHeight) + 20
     view:SetHeight(totalHeight)
     view.contentHeight = totalHeight
+
+    if detailWasOpen then
+        if detailOwner and detailEntry then
+            self:ShowProfessionDetailFrame(detailOwner, detailEntry)
+        else
+            self:HideProfessionDetailFrame()
+        end
+    end
 end
 
 function mQoL_AccountOverview:GetSelectedGoldRange()
@@ -2920,7 +3055,11 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
         return
     end
 
-    self:HideProfessionDetailFrame()
+    local previousTab = self.activeTab
+    if previousTab ~= tabName or tabName ~= "Characters" then
+        self:HideProfessionDetailFrame()
+    end
+
     self.activeTab = tabName
     if self.db and self.db.settings then
         self.db.settings.selectedTab = tabName
@@ -3058,6 +3197,18 @@ RegisterAccountOverviewEvent("TRADE_SKILL_SHOW")
 RegisterAccountOverviewEvent("TRADE_SKILL_LIST_UPDATE")
 RegisterAccountOverviewEvent("TRADE_SKILL_DETAILS_UPDATE")
 RegisterAccountOverviewEvent("TRADE_SKILL_DATA_SOURCE_CHANGED")
+RegisterAccountOverviewEvent("TRADE_SKILL_UPDATE")
+RegisterAccountOverviewEvent("CRAFT_SHOW")
+RegisterAccountOverviewEvent("CRAFT_UPDATE")
+
+local function QueueProfessionSyncFromProfessionsUI()
+    mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
+end
+
+if EventRegistry and type(EventRegistry.RegisterCallback) == "function" then
+    EventRegistry:RegisterCallback("ProfessionsFrame.Show", QueueProfessionSyncFromProfessionsUI, mQoL_AccountOverview)
+    EventRegistry:RegisterCallback("Professions.ProfessionSelected", QueueProfessionSyncFromProfessionsUI, mQoL_AccountOverview)
+end
 
 eventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
@@ -3167,7 +3318,10 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "TRADE_SKILL_SHOW"
         or event == "TRADE_SKILL_LIST_UPDATE"
         or event == "TRADE_SKILL_DETAILS_UPDATE"
-        or event == "TRADE_SKILL_DATA_SOURCE_CHANGED" then
+        or event == "TRADE_SKILL_DATA_SOURCE_CHANGED"
+        or event == "TRADE_SKILL_UPDATE"
+        or event == "CRAFT_SHOW"
+        or event == "CRAFT_UPDATE" then
         mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     elseif event == "PLAYER_LOGOUT" then
         mQoL_AccountOverview:StopBootstrapSync()
