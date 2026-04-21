@@ -11,56 +11,56 @@ local DEFAULT_VAULT_SUMMARY_TEXT = "(0/3, 0/3, 0/3)"
 local DEFAULT_LEGION_SUMMARY_TEXT = "0/1"
 local DEFAULT_UNSUPPORTED_SUMMARY_TEXT = "-"
 
---New Data tables are still not used ill add support for them later for now ui are displaying only S3 values
-local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S1 = { -- Confirmed 7.0.3 values
-    [2] = 850,
-    [3] = 855,
-    [4] = 860,
-    [5] = 865,
-    [6] = 865,
-    [7] = 870,
-    [8] = 870,
-    [9] = 875,
-    [10] = 880,
-    [11] = 880, -- Patch 7.1.0 adds 5 extra item level
-    [12] = 885,
-    [13] = 890,
-    [14] = 895,
-    [15] = 900, -- patch 7.1.5 adds another 15 item level increase
+-- End of Dungeon ilvl added to automatically determine current weekly chest season
+local LEGION_REWARD_ILVL_BY_KEY_S1 = { -- Confirmed weekly chest values for 7.0.3
+    [2] = { endOfDungeon = 845, weeklyChest = 850 },
+    [3] = { endOfDungeon = 845, weeklyChest = 855 },
+    [4] = { endOfDungeon = 850, weeklyChest = 860 },
+    [5] = { endOfDungeon = 850, weeklyChest = 865 },
+    [6] = { endOfDungeon = 855, weeklyChest = 865 },
+    [7] = { endOfDungeon = 855, weeklyChest = 870 },
+    [8] = { endOfDungeon = 860, weeklyChest = 870 },
+    [9] = { endOfDungeon = 860, weeklyChest = 875 },
+    [10] = { endOfDungeon = 865, weeklyChest = 880 },
+    [11] = { endOfDungeon = 870, weeklyChest = 880 }, -- Patch 7.1.0 adds 5 extra item level
+    [12] = { endOfDungeon = 870, weeklyChest = 885 },
+    [13] = { endOfDungeon = 875, weeklyChest = 890 },
+    [14] = { endOfDungeon = 880, weeklyChest = 895 },
+    [15] = { endOfDungeon = 885, weeklyChest = 900 }, -- Patch 7.1.5 adds another 15 item level increase
 }
 
-local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S2 = { -- Confirmed 7.2.0 values
-    [2] = 875,
-    [3] = 880,
-    [4] = 885,
-    [5] = 890,
-    [6] = 890,
-    [7] = 895,
-    [8] = 895,
-    [9] = 900,
-    [10] = 905,
-    [11] = 910, -- patch 7.2.5 adds 25 ivl increase
-    [12] = 915,
-    [13] = 920,
-    [14] = 925,
-    [15] = 930,
+local LEGION_REWARD_ILVL_BY_KEY_S2 = { -- Confirmed weekly chest values for 7.2.0
+    [2] = { endOfDungeon = 870, weeklyChest = 875 },
+    [3] = { endOfDungeon = 870, weeklyChest = 880 },
+    [4] = { endOfDungeon = 875, weeklyChest = 885 },
+    [5] = { endOfDungeon = 875, weeklyChest = 890 },
+    [6] = { endOfDungeon = 880, weeklyChest = 890 },
+    [7] = { endOfDungeon = 880, weeklyChest = 895 },
+    [8] = { endOfDungeon = 885, weeklyChest = 895 },
+    [9] = { endOfDungeon = 885, weeklyChest = 900 },
+    [10] = { endOfDungeon = 890, weeklyChest = 905 },
+    [11] = { endOfDungeon = 890, weeklyChest = 910 }, -- Patch 7.2.5 adds 25 ilvl increase
+    [12] = { endOfDungeon = 895, weeklyChest = 915 },
+    [13] = { endOfDungeon = 900, weeklyChest = 920 },
+    [14] = { endOfDungeon = 905, weeklyChest = 925 },
+    [15] = { endOfDungeon = 910, weeklyChest = 930 },
 }
 
-local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3 = { -- Unconfirmed but expected 7.3.0 values
-    [2] = 905,
-    [3] = 910,
-    [4] = 915,
-    [5] = 920,
-    [6] = 920,
-    [7] = 925,
-    [8] = 925,
-    [9] = 935,
-    [10] = 935,
-    [11] = 940, -- patch 7.3.5 adds 25 ivl increase
-    [12] = 945,
-    [13] = 950,
-    [14] = 955,
-    [15] = 960,
+local LEGION_REWARD_ILVL_BY_KEY_S3 = { -- Unconfirmed but expected weekly chest values for 7.3.0
+    [2] = { endOfDungeon = 890, weeklyChest = 905 },
+    [3] = { endOfDungeon = 895, weeklyChest = 910 },
+    [4] = { endOfDungeon = 895, weeklyChest = 915 },
+    [5] = { endOfDungeon = 900, weeklyChest = 920 },
+    [6] = { endOfDungeon = 900, weeklyChest = 920 },
+    [7] = { endOfDungeon = 905, weeklyChest = 925 },
+    [8] = { endOfDungeon = 910, weeklyChest = 925 },
+    [9] = { endOfDungeon = 910, weeklyChest = 935 },
+    [10] = { endOfDungeon = 915, weeklyChest = 935 },
+    [11] = { endOfDungeon = 920, weeklyChest = 940 }, -- Patch 7.3.5 adds 25 ilvl increase
+    [12] = { endOfDungeon = 925, weeklyChest = 945 },
+    [13] = { endOfDungeon = 930, weeklyChest = 950 },
+    [14] = { endOfDungeon = 935, weeklyChest = 955 },
+    [15] = { endOfDungeon = 940, weeklyChest = 960 },
 }
 
 -- Uses the local client clock on purpose so private-server users can retune this easily.
@@ -70,7 +70,7 @@ local LEGION_WEEKLY_RESET_MINUTE = 0
 
 local GROUP_ORDER = {
     { key = "raid", label = "Raid", total = 3, enumFields = { "Raid" }, fallbackType = 3, defaultThresholds = { 2, 4, 6 } },
-    { key = "mythicPlus", label = DUNGEONS or "Dungeons", total = 3, enumFields = { "Activities", "MythicPlus" }, fallbackType = 1, defaultThresholds = { 1, 4, 8 } },
+    { key = "dungeons", label = DUNGEONS or "Dungeons", total = 3, enumFields = { "Activities", "dungeons" }, fallbackType = 1, defaultThresholds = { 1, 4, 8 } },
     { key = "world", label = "World", total = 3, enumFields = { "World" }, fallbackType = 6, defaultThresholds = { 2, 4, 8 } },
 }
 
@@ -78,7 +78,8 @@ WeeklyRewardUtils.DefaultIcon = DEFAULT_ICON
 WeeklyRewardUtils.DefaultVaultSummaryText = DEFAULT_VAULT_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultLegionSummaryText = DEFAULT_LEGION_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultUnsupportedSummaryText = DEFAULT_UNSUPPORTED_SUMMARY_TEXT
-WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3
+WeeklyRewardUtils.LegionRewardItemLevelByKey = LEGION_REWARD_ILVL_BY_KEY_S3
+WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_REWARD_ILVL_BY_KEY_S3
 
 local function SafeCall(func, ...)
     if type(func) ~= "function" then
@@ -167,7 +168,7 @@ end
 local function BuildLegionGroups()
     return {
         raid = { completed = 0, total = 0, itemLevels = {}, slots = {} },
-        mythicPlus = { completed = 0, total = 1, itemLevels = {}, slots = {} },
+        dungeons = { completed = 0, total = 1, itemLevels = {}, slots = {} },
         world = { completed = 0, total = 0, itemLevels = {}, slots = {} },
     }
 end
@@ -175,7 +176,7 @@ end
 local function BuildUnsupportedGroups()
     return {
         raid = { completed = 0, total = 0, itemLevels = {}, slots = {} },
-        mythicPlus = { completed = 0, total = 0, itemLevels = {}, slots = {} },
+        dungeons = { completed = 0, total = 0, itemLevels = {}, slots = {} },
         world = { completed = 0, total = 0, itemLevels = {}, slots = {} },
     }
 end
@@ -427,7 +428,7 @@ local function NormalizeSnapshotForKind(rawValue, kind)
         base.summaryText = string.format(
             "(%d/3, %d/3, %d/3)",
             base.groups.raid.completed,
-            base.groups.mythicPlus.completed,
+            base.groups.dungeons.completed,
             base.groups.world.completed
         )
         return base
@@ -441,14 +442,14 @@ local function NormalizeSnapshotForKind(rawValue, kind)
         if not base.legacy.dungeonName and base.legacy.dungeonMapID > 0 then
             base.legacy.dungeonName = GetLegionDungeonName(base.legacy.dungeonMapID)
         end
-        base.groups.mythicPlus.completed = base.legacy.bestLevel > 0 and 1 or 0
+        base.groups.dungeons.completed = base.legacy.bestLevel > 0 and 1 or 0
 
-        local storedGroup = type(rawValue.groups) == "table" and rawValue.groups.mythicPlus or nil
-        base.groups.mythicPlus.itemLevels = NormalizeItemLevelList(storedGroup and storedGroup.itemLevels)
-        if base.groups.mythicPlus.completed > 0 and #base.groups.mythicPlus.itemLevels == 0 then
-            base.groups.mythicPlus.itemLevels = { GetLegionWeeklyChestItemLevel(base.legacy.bestLevel) }
+        local storedGroup = type(rawValue.groups) == "table" and rawValue.groups.dungeons or nil
+        base.groups.dungeons.itemLevels = NormalizeItemLevelList(storedGroup and storedGroup.itemLevels)
+        if base.groups.dungeons.completed > 0 and #base.groups.dungeons.itemLevels == 0 then
+            base.groups.dungeons.itemLevels = { GetLegionWeeklyChestItemLevel(base.legacy.bestLevel) }
         end
-        base.summaryText = string.format("%d/1", base.groups.mythicPlus.completed)
+        base.summaryText = string.format("%d/1", base.groups.dungeons.completed)
         return base
     end
 
@@ -536,7 +537,7 @@ local function ResolveRetailActivityProgressText(activity, groupInfo)
         return nil
     end
 
-    if groupInfo.key == "mythicPlus" then
+    if groupInfo.key == "dungeons" then
         local heroicDifficultyID = DifficultyUtil and DifficultyUtil.ID and ClampNumber(DifficultyUtil.ID.DungeonHeroic) or 0
         local difficultyID = ClampNumber(
             SafeCall(C_WeeklyRewards and C_WeeklyRewards.GetDifficultyIDForActivityTier, activity.activityTierID)
@@ -654,7 +655,7 @@ local function CollectRetailSnapshot(rawValue)
     snapshot.summaryText = string.format(
         "(%d/3, %d/3, %d/3)",
         snapshot.groups.raid.completed,
-        snapshot.groups.mythicPlus.completed,
+        snapshot.groups.dungeons.completed,
         snapshot.groups.world.completed
     )
 
@@ -685,10 +686,10 @@ GetLegionWeeklyChestItemLevel = function(bestLevel)
 
     local bestMatchLevel = 0
     local bestItemLevel = 0
-    for level, itemLevel in pairs(LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3) do
+    for level, rewards in pairs(LEGION_REWARD_ILVL_BY_KEY_S3) do
         if bestLevel >= level and level >= bestMatchLevel then
             bestMatchLevel = level
-            bestItemLevel = ClampNumber(itemLevel)
+            bestItemLevel = ClampNumber(rewards and rewards.weeklyChest)
         end
     end
 
@@ -732,11 +733,11 @@ local function UpdateLegionSnapshot(rawValue, context)
         snapshot.legacy.bestLevel = bestLevel
         snapshot.legacy.dungeonMapID = ClampNumber(challengeCompletion.mapChallengeModeID)
         snapshot.legacy.dungeonName = GetLegionDungeonName(snapshot.legacy.dungeonMapID)
-        snapshot.groups.mythicPlus.completed = 1
-        snapshot.groups.mythicPlus.itemLevels = { GetLegionWeeklyChestItemLevel(bestLevel) }
+        snapshot.groups.dungeons.completed = 1
+        snapshot.groups.dungeons.itemLevels = { GetLegionWeeklyChestItemLevel(bestLevel) }
     end
 
-    snapshot.summaryText = string.format("%d/1", snapshot.groups.mythicPlus.completed)
+    snapshot.summaryText = string.format("%d/1", snapshot.groups.dungeons.completed)
     snapshot.lastSync = ClampNumber(GetNow())
     return snapshot
 end
@@ -793,7 +794,7 @@ local function BuildTooltipLines(snapshot)
     end
 
     if snapshot.kind == "legion_weekly_chest" then
-        local group = snapshot.groups.mythicPlus or {}
+        local group = snapshot.groups.dungeons or {}
         lines[#lines + 1] = {
             text = string.format("Mythic+ %d/%d", ClampNumber(group.completed), ClampNumber(group.total)),
             color = { 1, 0.82, 0 },
