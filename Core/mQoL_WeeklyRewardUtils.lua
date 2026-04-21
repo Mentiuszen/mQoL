@@ -11,21 +11,55 @@ local DEFAULT_VAULT_SUMMARY_TEXT = "(0/3, 0/3, 0/3)"
 local DEFAULT_LEGION_SUMMARY_TEXT = "0/1"
 local DEFAULT_UNSUPPORTED_SUMMARY_TEXT = "-"
 
--- These values are for last season of legion later i add other season values. keep in mind there is superior thunderforging pls come back to retail system kekw so this ilvl are base value.
-local LEGION_WEEKLY_CHEST_ILVL_BY_KEY = {
+--New Data tables are still not used ill add support for them later for now ui are displaying only S3 values
+local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S1 = { -- Confirmed 7.0.3 values
+    [2] = 850,
+    [3] = 855,
+    [4] = 860,
+    [5] = 865,
+    [6] = 865,
+    [7] = 870,
+    [8] = 870,
+    [9] = 875,
+    [10] = 880,
+    [11] = 880, -- Patch 7.1.0 adds 5 extra item level
+    [12] = 885,
+    [13] = 890,
+    [14] = 895,
+    [15] = 900, -- patch 7.1.5 adds another 15 item level increase
+}
+
+local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S2 = { -- Confirmed 7.2.0 values
+    [2] = 875,
+    [3] = 880,
+    [4] = 885,
+    [5] = 890,
+    [6] = 890,
+    [7] = 895,
+    [8] = 895,
+    [9] = 900,
+    [10] = 905,
+    [11] = 910, -- patch 7.2.5 adds 25 ivl increase
+    [12] = 915,
+    [13] = 920,
+    [14] = 925,
+    [15] = 930,
+}
+
+local LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3 = { -- Unconfirmed but expected 7.3.0 values
     [2] = 905,
     [3] = 910,
     [4] = 915,
     [5] = 920,
-    [6] = 925,
-    [7] = 930,
-    [8] = 935,
-    [9] = 940,
-    [10] = 945,
-    [11] = 950,
-    [12] = 955,
-    [13] = 960,
-    [14] = 960,
+    [6] = 920,
+    [7] = 925,
+    [8] = 925,
+    [9] = 935,
+    [10] = 935,
+    [11] = 940, -- patch 7.3.5 adds 25 ivl increase
+    [12] = 945,
+    [13] = 950,
+    [14] = 955,
     [15] = 960,
 }
 
@@ -44,7 +78,7 @@ WeeklyRewardUtils.DefaultIcon = DEFAULT_ICON
 WeeklyRewardUtils.DefaultVaultSummaryText = DEFAULT_VAULT_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultLegionSummaryText = DEFAULT_LEGION_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultUnsupportedSummaryText = DEFAULT_UNSUPPORTED_SUMMARY_TEXT
-WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_WEEKLY_CHEST_ILVL_BY_KEY
+WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3
 
 local function SafeCall(func, ...)
     if type(func) ~= "function" then
@@ -651,7 +685,7 @@ GetLegionWeeklyChestItemLevel = function(bestLevel)
 
     local bestMatchLevel = 0
     local bestItemLevel = 0
-    for level, itemLevel in pairs(LEGION_WEEKLY_CHEST_ILVL_BY_KEY) do
+    for level, itemLevel in pairs(LEGION_WEEKLY_CHEST_ILVL_BY_KEY_S3) do
         if bestLevel >= level and level >= bestMatchLevel then
             bestMatchLevel = level
             bestItemLevel = ClampNumber(itemLevel)

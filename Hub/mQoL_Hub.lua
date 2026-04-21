@@ -11,8 +11,8 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.0"
-mQoL_Hub.build = "227"
-mQoL_Hub.vendor = "dev"	--dev / test / release
+mQoL_Hub.build = "229"
+mQoL_Hub.vendor = "test"	--dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -655,6 +655,7 @@ function mQoL_Hub:CreateHomePanel(parent)
 
     AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
     AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an interactive Gold Chart.")
+    AddBulletPoint("Great Vault Preview: See Great Vault of your other characters without character switching.")
     AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
     AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
     AddBulletPoint("Fast Auto Loot: Much faster auto loot option with customizable delay.")
@@ -713,8 +714,6 @@ function mQoL_Hub:CreateHomePanel(parent)
     AddTip("You can right-click the minimap button to quickly open the Version Checker.")
     AddTip("You can use the search bar in the side menu to instantly find any setting.")
     AddTip("Some options have a third state (disabled). This prevents the addon from modifying that specific setting.")
-
-    currentY = currentY - 20
 
     -- Update scroll height (content + footer space)
     local footerHeight = 100

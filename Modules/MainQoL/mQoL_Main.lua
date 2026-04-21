@@ -463,6 +463,7 @@ function mQoL_Main:ApplyActionBarVisibilitySettings(ab)
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("ActionBarsQoL") then return end
 
     local function apply_autoPushSpellToActionBar(value)
+        if clientInfo.isLegion then return end
         applyCVar("AutoPushSpellToActionBar", value)
     end
 
@@ -1629,18 +1630,20 @@ function mQoL_Main:CreateActionBarsPanel(parent)
         AddGap(contentContainer, "Standard")
     end
 
-    AddOptionRow("Auto Push Spell To Action Bar", "checkbox", {
-        value = s.autoPushSpellToActionBar,
-        onValueChanged = function(_, value)
-            s.autoPushSpellToActionBar = value
-            if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.ActionBars and mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar then
-                mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar(value)
-            else
-                mQoL_Main:ApplyActionBarVisibilitySettings(s)
+    if not clientInfo.isLegion then
+        AddOptionRow("Auto Push Spell To Action Bar", "checkbox", {
+            value = s.autoPushSpellToActionBar,
+            onValueChanged = function(_, value)
+                s.autoPushSpellToActionBar = value
+                if mQoL_Main.ApplySetting and mQoL_Main.ApplySetting.ActionBars and mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar then
+                    mQoL_Main.ApplySetting.ActionBars.autoPushSpellToActionBar(value)
+                else
+                    mQoL_Main:ApplyActionBarVisibilitySettings(s)
+                end
             end
-        end
-    })
-    AddGap(contentContainer, "Standard")
+        })
+        AddGap(contentContainer, "Standard")
+    end
 
     AddOptionRow("Auto Self Cast", "checkbox", {
         value = s.autoSelfCast,

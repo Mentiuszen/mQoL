@@ -12,7 +12,7 @@ local SELECTION_STATE_HIDDEN = 1
 
 local FALLBACK_GROUP_ORDER = {
     { key = "raid", label = "Raid", total = 3, defaultThresholds = { 2, 4, 6 } },
-    { key = "mythicPlus", label = DUNGEONS or "Dungeons", total = 3, defaultThresholds = { 1, 4, 8 } },
+    { key = "dungeons", label = DUNGEONS or "Dungeons", total = 3, defaultThresholds = { 1, 4, 8 } },
     { key = "world", label = "World", total = 3, defaultThresholds = { 2, 4, 8 } },
 }
 
@@ -23,11 +23,11 @@ local GROUP_VISUALS = {
         anchorY = -149,
         rewardType = Enum and Enum.WeeklyRewardChestThresholdType and Enum.WeeklyRewardChestThresholdType.Raid or 3,
     },
-    mythicPlus = {
+    dungeons = {
         title = DUNGEONS or "Dungeons",
         atlas = "evergreen-weeklyrewards-category-dungeons",
         anchorY = -307,
-        rewardType = Enum and Enum.WeeklyRewardChestThresholdType and (Enum.WeeklyRewardChestThresholdType.Activities or Enum.WeeklyRewardChestThresholdType.MythicPlus) or 1,
+        rewardType = Enum and Enum.WeeklyRewardChestThresholdType and (Enum.WeeklyRewardChestThresholdType.Activities or Enum.WeeklyRewardChestThresholdType.dungeons) or 1,
     },
     world = {
         title = WORLD or "World",
@@ -224,7 +224,7 @@ local function BuildThresholdText(activityInfo, groupKey)
     local template
     if groupKey == "raid" then
         template = NormalizeOptionalText(activityInfo and activityInfo.raidString) or NormalizeOptionalText(WEEKLY_REWARDS_THRESHOLD_RAID)
-    elseif groupKey == "mythicPlus" then
+    elseif groupKey == "dungeons" then
         template = NormalizeOptionalText(WEEKLY_REWARDS_THRESHOLD_DUNGEONS)
     elseif groupKey == "world" then
         template = NormalizeOptionalText(WEEKLY_REWARDS_THRESHOLD_WORLD)
@@ -238,7 +238,7 @@ local function BuildThresholdText(activityInfo, groupKey)
         return threshold == 1 and "Defeat 1 Boss" or string.format("Defeat %d Bosses", threshold)
     end
 
-    if groupKey == "mythicPlus" then
+    if groupKey == "dungeons" then
         return threshold == 1
             and "Complete 1 Heroic, Mythic, or Timewalking Dungeon"
             or string.format("Complete %d Heroic, Mythic, or Timewalking Dungeons", threshold)
@@ -247,6 +247,12 @@ local function BuildThresholdText(activityInfo, groupKey)
     return threshold == 1
         and "Complete 1 Delve or World Activity"
         or string.format("Complete %d Delves or World Activities", threshold)
+end
+
+local function ResolveRaidThresholdString(slotData)
+    return NormalizeOptionalText(slotData and slotData.raidString)
+        or NormalizeOptionalText(WEEKLY_REWARDS_THRESHOLD_RAID)
+        or "Defeat %d Bosses"
 end
 
 local function ResolveSavedProgressText(slotData, groupKey)
@@ -260,7 +266,7 @@ local function ResolveSavedProgressText(slotData, groupKey)
         return NormalizeOptionalText(SafeCall(DifficultyUtil.GetDifficultyName, level))
     end
 
-    if groupKey == "mythicPlus" then
+    if groupKey == "dungeons" then
         local heroicDifficultyID = DifficultyUtil and DifficultyUtil.ID and ClampNumber(DifficultyUtil.ID.DungeonHeroic) or 0
         local difficultyID = ClampNumber(
             SafeCall(C_WeeklyRewards and C_WeeklyRewards.GetDifficultyIDForActivityTier, slotData and slotData.activityTierID)
@@ -296,6 +302,11 @@ local function BuildSyntheticActivityInfo(groupInfo, slotData, slotIndex)
         progress = threshold > 0 and threshold or 1
     end
 
+    local raidString = NormalizeOptionalText(slotData and slotData.raidString)
+    if groupInfo and groupInfo.key == "raid" then
+        raidString = ResolveRaidThresholdString(slotData)
+    end
+
     local info = {
         id = ClampNumber(slotData and slotData.activityID),
         index = ClampNumber(slotData and slotData.index),
@@ -304,7 +315,7 @@ local function BuildSyntheticActivityInfo(groupInfo, slotData, slotIndex)
         progress = progress,
         level = ClampNumber(slotData and slotData.level),
         activityTierID = ClampNumber(slotData and slotData.activityTierID),
-        raidString = NormalizeOptionalText(slotData and slotData.raidString),
+        raidString = raidString,
         rewards = {},
         progressText = ResolveSavedProgressText(slotData, groupInfo and groupInfo.key),
     }
@@ -320,7 +331,7 @@ local function BuildSyntheticActivityInfo(groupInfo, slotData, slotIndex)
     return info
 end
 
-local function IsHeroicMythicPlusSlot(slotData)
+local function IsDungeonsSlot(slotData)
     local heroicDifficultyID = DifficultyUtil and DifficultyUtil.ID and ClampNumber(DifficultyUtil.ID.DungeonHeroic) or 0
     local difficultyID = ClampNumber(
         SafeCall(C_WeeklyRewards and C_WeeklyRewards.GetDifficultyIDForActivityTier, slotData and slotData.activityTierID)
@@ -351,8 +362,8 @@ end
 
 local function BuildCurrentRewardBasisText(slotData, groupKey)
     local level = ClampNumber(slotData and slotData.level)
-    if groupKey == "mythicPlus" then
-        if IsHeroicMythicPlusSlot(slotData) then
+    if groupKey == "dungeons" then
+        if IsDungeonsSlot(slotData) then
             return "currently Heroic"
         end
 
@@ -388,8 +399,8 @@ local function BuildUnlockedRewardTooltipLines(activityInfo, slotData, groupInfo
                 or string.format("Item Level %d - %s", itemLevel, difficultyName or "Raid"),
             color = { 1, 0.82, 0 },
         }
-    elseif groupInfo.key == "mythicPlus" then
-        if IsHeroicMythicPlusSlot(slotData) then
+    elseif groupInfo.key == "dungeons" then
+        if IsDungeonsSlot(slotData) then
             lines[#lines + 1] = {
                 text = SafeFormatText(WEEKLY_REWARDS_ITEM_LEVEL_HEROIC, itemLevel)
                     or string.format("Item Level %d - Heroic", itemLevel),
@@ -450,7 +461,7 @@ local function BuildIncompleteTooltipLines(activityInfo, slotData, groupInfo)
         return lines
     end
 
-    if groupInfo.key == "mythicPlus" then
+    if groupInfo.key == "dungeons" then
         local rewardOrdinal = GetVaultRewardOrdinalText(activityInfo.index)
         local dungeonWord = remaining == 1 and "dungeon" or "dungeons"
         local firstSentence

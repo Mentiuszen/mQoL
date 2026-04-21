@@ -58,7 +58,7 @@ local ExpectedSettingsSchema = {
             "nameplateMaxDistance"
         },
         actionBars = {
-            "alwaysShowActionBars", "autoPushSpellToActionBar", "autoSelfCast", "showActionBars2", "showActionBars3",
+            "alwaysShowActionBars", "autoSelfCast", "showActionBars2", "showActionBars3",
             "showActionBars4", "showActionBars5"
         },
     },
@@ -217,6 +217,7 @@ local function GetCurrentGameValue(section, key)
         if key == "alwaysShowActionBars" then
             return GetCVarBool("alwaysShowActionBars")
         elseif key == "autoPushSpellToActionBar" then
+            if clientInfo.isLegion then return nil end
             local val = GetCVarBool("AutoPushSpellToActionBar")
             return val ~= nil and val or true
         elseif key == "autoSelfCast" then

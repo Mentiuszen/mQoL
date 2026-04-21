@@ -44,7 +44,7 @@ local defaultSettingsMap = {
             showFriendlyNameplates=false, showFriendlyMinions=false, separateMinions=false, showFriendlyPets=false, showFriendlyGuardians=false, showFriendlyTotems=false,
             nameplateMaxDistance=60
         },
-        actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
+        actionBars = { alwaysShowActionBars=true, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
     Classic = {
         general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
@@ -159,7 +159,9 @@ function GetCurrentGameSettings()
     end
 
     actionBarsSettings.alwaysShowActionBars = GetCVarBool("alwaysShowActionBars")
-    actionBarsSettings.autoPushSpellToActionBar = GetCVarBool("AutoPushSpellToActionBar")
+    if not clientInfo.isLegion then
+        actionBarsSettings.autoPushSpellToActionBar = GetCVarBool("AutoPushSpellToActionBar")
+    end
     actionBarsSettings.autoSelfCast = GetCVarBool("autoSelfCast")
 
     return {
