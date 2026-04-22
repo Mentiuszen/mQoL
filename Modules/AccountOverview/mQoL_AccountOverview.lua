@@ -35,6 +35,7 @@ local PLAYED_DATA_STALE_AFTER = 6 * SECONDS_PER_HOUR
 local BOOTSTRAP_SYNC_INTERVAL = 2
 local BOOTSTRAP_SYNC_ATTEMPTS = 15
 local OVERALL_ARCHIVE_MAX_POINTS = 12
+local LEGION_CHALLENGE_LOOT_CAPTURE_WINDOW = 120
 local DEFAULT_VAULT_PROGRESS_TEXT = "(0/3, 0/3, 0/3)"
 local DEFAULT_UNSUPPORTED_VAULT_TEXT = "-"
 local VAULT_PLACEHOLDER_ICON = WeeklyRewardUtils and WeeklyRewardUtils.DefaultIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
@@ -135,6 +136,146 @@ local function CaptureChallengeCompletionInfo()
     end
 
     return nil
+end
+
+local function GetRealtimeNow()
+    if type(GetTime) == "function" then
+        return tonumber(GetTime()) or 0
+    end
+
+    return tonumber(GetNow and GetNow()) or 0
+end
+
+local function ToPositiveInt(value)
+    local numeric = tonumber(value)
+    if not numeric or numeric <= 0 then
+        return 0
+    end
+
+    return math.floor(numeric)
+end
+
+local function ResolveItemLevelFromLink(itemLink)
+    if type(itemLink) ~= "string" or itemLink == "" then
+        return 0
+    end
+
+    if C_Item and type(C_Item.GetDetailedItemLevelInfo) == "function" then
+        local ok, value = pcall(C_Item.GetDetailedItemLevelInfo, itemLink)
+        if ok then
+            local level = ToPositiveInt(value)
+            if level > 0 then
+                return level
+            end
+        end
+    end
+
+    if type(GetDetailedItemLevelInfo) == "function" then
+        local ok, value = pcall(GetDetailedItemLevelInfo, itemLink)
+        if ok then
+            local level = ToPositiveInt(value)
+            if level > 0 then
+                return level
+            end
+        end
+    end
+
+    return 0
+end
+
+local function ExtractHighestItemLevelFromLootMessage(message)
+    if type(message) ~= "string" or message == "" then
+        return 0
+    end
+
+    local highest = 0
+    for itemLink in message:gmatch("(|c%x+|Hitem:[^|]+|h%[[^%]]+%]|h|r)") do
+        local itemLevel = ResolveItemLevelFromLink(itemLink)
+        if itemLevel > highest then
+            highest = itemLevel
+        end
+    end
+
+    if highest > 0 then
+        return highest
+    end
+
+    for itemLink in message:gmatch("(|Hitem:[^|]+|h%[[^%]]+%]|h)") do
+        local itemLevel = ResolveItemLevelFromLink(itemLink)
+        if itemLevel > highest then
+            highest = itemLevel
+        end
+    end
+
+    return highest
+end
+
+function mQoL_AccountOverview:ArmLegionChallengeLootCapture(challengeCompletion)
+    if not clientInfo.isLegion then return end
+
+    local now = GetRealtimeNow()
+    local state = {}
+
+    state.startedAt = now
+    state.expiresAt = now + LEGION_CHALLENGE_LOOT_CAPTURE_WINDOW
+    state.updatedAt = now
+    if type(challengeCompletion) == "table" then
+        local level = ToPositiveInt(challengeCompletion.level)
+        if level > 0 then
+            state.challengeCompletion = {
+                level = level,
+                mapChallengeModeID = ToPositiveInt(challengeCompletion.mapChallengeModeID),
+            }
+        end
+    end
+
+    self.legionChallengeLootCapture = state
+end
+
+function mQoL_AccountOverview:TryCaptureLegionEndOfDungeonLoot(message)
+    if not clientInfo.isLegion then
+        return
+    end
+
+    local state = self.legionChallengeLootCapture
+    if type(state) ~= "table" then
+        return
+    end
+
+    local now = GetRealtimeNow()
+    if (tonumber(state.expiresAt) or 0) <= now then
+        self.legionChallengeLootCapture = nil
+        return
+    end
+
+    local endOfDungeonItemLevel = ExtractHighestItemLevelFromLootMessage(message)
+    if endOfDungeonItemLevel <= 0 then
+        return
+    end
+
+    local knownBest = ToPositiveInt(state.endOfDungeonItemLevel)
+    if knownBest > 0 and endOfDungeonItemLevel <= knownBest then
+        return
+    end
+
+    local challengeCompletion = state.challengeCompletion or CaptureChallengeCompletionInfo()
+    if type(challengeCompletion) ~= "table" or ToPositiveInt(challengeCompletion.level) <= 0 then
+        state.endOfDungeonItemLevel = endOfDungeonItemLevel
+        self.legionChallengeLootCapture = state
+        return
+    end
+
+    state.endOfDungeonItemLevel = endOfDungeonItemLevel
+    state.challengeCompletion = challengeCompletion
+    self.legionChallengeLootCapture = nil
+
+    self:UpdateCurrentCharacterSnapshot({
+        refreshWeeklyReward = true,
+        weeklyRewardContext = {
+            challengeCompletion = challengeCompletion,
+            endOfDungeonItemLevel = endOfDungeonItemLevel,
+        },
+    })
 end
 
 local function GetWeeklyRewardDisplayState(rawValue)
@@ -3536,6 +3677,7 @@ RegisterAccountOverviewEvent("CRAFT_UPDATE")
 RegisterAccountOverviewEvent("WEEKLY_REWARDS_UPDATE")
 RegisterAccountOverviewEvent("WEEKLY_REWARDS_ITEM_CHANGED")
 RegisterAccountOverviewEvent("CHALLENGE_MODE_COMPLETED")
+RegisterAccountOverviewEvent("CHAT_MSG_LOOT")
 
 local function QueueProfessionSyncFromProfessionsUI()
     mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
@@ -3668,12 +3810,19 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshWeeklyReward = true,
         })
     elseif event == "CHALLENGE_MODE_COMPLETED" then
+        local challengeCompletion = CaptureChallengeCompletionInfo()
+        mQoL_AccountOverview:ArmLegionChallengeLootCapture(challengeCompletion)
+        local captureState = mQoL_AccountOverview.legionChallengeLootCapture
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshWeeklyReward = true,
             weeklyRewardContext = {
-                challengeCompletion = CaptureChallengeCompletionInfo(),
+                challengeCompletion = challengeCompletion,
+                endOfDungeonItemLevel = type(captureState) == "table" and ToPositiveInt(captureState.endOfDungeonItemLevel) or 0,
             },
         })
+    elseif event == "CHAT_MSG_LOOT" then
+        local message = ...
+        mQoL_AccountOverview:TryCaptureLegionEndOfDungeonLoot(message)
     elseif event == "PLAYER_LOGOUT" then
         mQoL_AccountOverview:StopBootstrapSync()
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({

@@ -63,6 +63,15 @@ local LEGION_REWARD_ILVL_BY_KEY_S3 = { -- Unconfirmed but expected weekly chest 
     [15] = { endOfDungeon = 940, weeklyChest = 960 },
 }
 
+local LEGION_REWARD_TABLES_BY_SEASON = {
+    S1 = LEGION_REWARD_ILVL_BY_KEY_S1,
+    S2 = LEGION_REWARD_ILVL_BY_KEY_S2,
+    S3 = LEGION_REWARD_ILVL_BY_KEY_S3,
+}
+
+local LEGION_SEASON_ORDER = { "S1", "S2", "S3" }
+local LEGION_DEFAULT_SEASON = "S3"
+
 -- Uses the local client clock on purpose so private-server users can retune this easily.
 local LEGION_WEEKLY_RESET_WEEKDAY = 4 -- 1 = Sunday, 4 = Wednesday
 local LEGION_WEEKLY_RESET_HOUR = 8
@@ -78,8 +87,8 @@ WeeklyRewardUtils.DefaultIcon = DEFAULT_ICON
 WeeklyRewardUtils.DefaultVaultSummaryText = DEFAULT_VAULT_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultLegionSummaryText = DEFAULT_LEGION_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultUnsupportedSummaryText = DEFAULT_UNSUPPORTED_SUMMARY_TEXT
-WeeklyRewardUtils.LegionRewardItemLevelByKey = LEGION_REWARD_ILVL_BY_KEY_S3
-WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_REWARD_ILVL_BY_KEY_S3
+WeeklyRewardUtils.LegionRewardItemLevelByKey = LEGION_REWARD_TABLES_BY_SEASON
+WeeklyRewardUtils.LegionWeeklyChestItemLevelByKey = LEGION_REWARD_TABLES_BY_SEASON
 
 local function SafeCall(func, ...)
     if type(func) ~= "function" then
@@ -122,6 +131,72 @@ local function SafeFormatText(template, ...)
     end
 
     return template
+end
+
+local function NormalizeLegionSeasonID(value)
+    if type(value) ~= "string" or value == "" then
+        return nil
+    end
+
+    value = string.upper(value)
+    if LEGION_REWARD_TABLES_BY_SEASON[value] then
+        return value
+    end
+
+    return nil
+end
+
+local function GetLegionRewardTableBySeason(seasonID)
+    seasonID = NormalizeLegionSeasonID(seasonID) or LEGION_DEFAULT_SEASON
+    return LEGION_REWARD_TABLES_BY_SEASON[seasonID], seasonID
+end
+
+local function ResolveLegionRewardsForLevel(rewardTable, bestLevel)
+    bestLevel = ClampNumber(bestLevel)
+    if type(rewardTable) ~= "table" or bestLevel <= 0 then
+        return nil
+    end
+
+    local bestMatchLevel = 0
+    local bestRewards = nil
+    for level, rewards in pairs(rewardTable) do
+        level = ClampNumber(level)
+        if bestLevel >= level and level >= bestMatchLevel then
+            bestMatchLevel = level
+            bestRewards = rewards
+        end
+    end
+
+    return bestRewards, bestMatchLevel
+end
+
+local function DetectLegionSeasonFromEndOfDungeon(bestLevel, endOfDungeonItemLevel, preferredSeasonID)
+    bestLevel = ClampNumber(bestLevel)
+    endOfDungeonItemLevel = ClampNumber(endOfDungeonItemLevel)
+    preferredSeasonID = NormalizeLegionSeasonID(preferredSeasonID)
+    if bestLevel <= 0 or endOfDungeonItemLevel <= 0 then
+        return nil
+    end
+
+    if preferredSeasonID then
+        local preferredTable = LEGION_REWARD_TABLES_BY_SEASON[preferredSeasonID]
+        local rewards = ResolveLegionRewardsForLevel(preferredTable, bestLevel)
+        if ClampNumber(rewards and rewards.endOfDungeon) == endOfDungeonItemLevel then
+            return preferredSeasonID
+        end
+    end
+
+    for _, seasonID in ipairs(LEGION_SEASON_ORDER) do
+        if seasonID ~= preferredSeasonID then
+            local rewardTable = LEGION_REWARD_TABLES_BY_SEASON[seasonID]
+            local rewards = ResolveLegionRewardsForLevel(rewardTable, bestLevel)
+            if ClampNumber(rewards and rewards.endOfDungeon) == endOfDungeonItemLevel then
+                return seasonID
+            end
+        end
+    end
+
+    return nil
 end
 
 local function CreateRetailSlot(index, threshold)
@@ -271,6 +346,8 @@ local function CreateBaseSnapshot(kind)
             bestLevel = 0,
             dungeonMapID = nil,
             dungeonName = nil,
+            currentSeason = nil,
+            endOfDungeonItemLevel = 0,
         },
     }
 
@@ -439,6 +516,8 @@ local function NormalizeSnapshotForKind(rawValue, kind)
         base.legacy.bestLevel = ClampNumber(storedLegacy.bestLevel)
         base.legacy.dungeonMapID = ClampNumber(storedLegacy.dungeonMapID)
         base.legacy.dungeonName = type(storedLegacy.dungeonName) == "string" and storedLegacy.dungeonName or nil
+        base.legacy.currentSeason = NormalizeLegionSeasonID(storedLegacy.currentSeason)
+        base.legacy.endOfDungeonItemLevel = ClampNumber(storedLegacy.endOfDungeonItemLevel)
         if not base.legacy.dungeonName and base.legacy.dungeonMapID > 0 then
             base.legacy.dungeonName = GetLegionDungeonName(base.legacy.dungeonMapID)
         end
@@ -447,7 +526,7 @@ local function NormalizeSnapshotForKind(rawValue, kind)
         local storedGroup = type(rawValue.groups) == "table" and rawValue.groups.dungeons or nil
         base.groups.dungeons.itemLevels = NormalizeItemLevelList(storedGroup and storedGroup.itemLevels)
         if base.groups.dungeons.completed > 0 and #base.groups.dungeons.itemLevels == 0 then
-            base.groups.dungeons.itemLevels = { GetLegionWeeklyChestItemLevel(base.legacy.bestLevel) }
+            base.groups.dungeons.itemLevels = { GetLegionWeeklyChestItemLevel(base.legacy.bestLevel, base.legacy.currentSeason) }
         end
         base.summaryText = string.format("%d/1", base.groups.dungeons.completed)
         return base
@@ -678,22 +757,15 @@ GetLegionDungeonName = function(mapChallengeModeID)
     return nil
 end
 
-GetLegionWeeklyChestItemLevel = function(bestLevel)
+GetLegionWeeklyChestItemLevel = function(bestLevel, seasonID)
     bestLevel = ClampNumber(bestLevel)
     if bestLevel <= 0 then
         return 0
     end
 
-    local bestMatchLevel = 0
-    local bestItemLevel = 0
-    for level, rewards in pairs(LEGION_REWARD_ILVL_BY_KEY_S3) do
-        if bestLevel >= level and level >= bestMatchLevel then
-            bestMatchLevel = level
-            bestItemLevel = ClampNumber(rewards and rewards.weeklyChest)
-        end
-    end
-
-    return bestItemLevel
+    local rewardTable = GetLegionRewardTableBySeason(seasonID)
+    local rewards = ResolveLegionRewardsForLevel(rewardTable, bestLevel)
+    return ClampNumber(rewards and rewards.weeklyChest)
 end
 
 local function CaptureChallengeCompletionInfo()
@@ -728,13 +800,34 @@ local function UpdateLegionSnapshot(rawValue, context)
     local snapshot = NormalizeSnapshotForKind(rawValue, "legion_weekly_chest")
     local challengeCompletion = type(context) == "table" and context.challengeCompletion or nil
     local bestLevel = ClampNumber(challengeCompletion and challengeCompletion.level)
+    local endOfDungeonItemLevel = ClampNumber(type(context) == "table" and context.endOfDungeonItemLevel)
 
     if bestLevel > snapshot.legacy.bestLevel then
         snapshot.legacy.bestLevel = bestLevel
         snapshot.legacy.dungeonMapID = ClampNumber(challengeCompletion.mapChallengeModeID)
         snapshot.legacy.dungeonName = GetLegionDungeonName(snapshot.legacy.dungeonMapID)
         snapshot.groups.dungeons.completed = 1
-        snapshot.groups.dungeons.itemLevels = { GetLegionWeeklyChestItemLevel(bestLevel) }
+    end
+
+    if endOfDungeonItemLevel > 0 then
+        snapshot.legacy.endOfDungeonItemLevel = endOfDungeonItemLevel
+
+        local levelForDetection = bestLevel > 0 and bestLevel or snapshot.legacy.bestLevel
+        local detectedSeasonID = DetectLegionSeasonFromEndOfDungeon(
+            levelForDetection,
+            endOfDungeonItemLevel,
+            snapshot.legacy.currentSeason
+        )
+        if detectedSeasonID then
+            snapshot.legacy.currentSeason = detectedSeasonID
+        end
+    end
+
+    if snapshot.legacy.bestLevel > 0 then
+        snapshot.groups.dungeons.completed = 1
+        snapshot.groups.dungeons.itemLevels = {
+            GetLegionWeeklyChestItemLevel(snapshot.legacy.bestLevel, snapshot.legacy.currentSeason),
+        }
     end
 
     snapshot.summaryText = string.format("%d/1", snapshot.groups.dungeons.completed)
