@@ -1521,6 +1521,20 @@ local function AcquireTexture(pool, index, parent, layer)
     return texture
 end
 
+local function AcquireLine(pool, index, parent, layer)
+    local line = pool[index]
+    if not line then
+        if parent.CreateLine then
+            line = parent:CreateLine(nil, layer or "ARTWORK")
+        else
+            line = parent:CreateTexture(nil, layer or "ARTWORK")
+        end
+        pool[index] = line
+    end
+    line:Show()
+    return line
+end
+
 local function AcquireFontString(pool, index, parent, template)
     local fontString = pool[index]
     if not fontString then
@@ -3432,17 +3446,26 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
             local dy = y - previousY
             local length = math.sqrt((dx * dx) + (dy * dy))
 
-            local segment = AcquireTexture(chart.segments, index - 1, chart, "ARTWORK")
-            segment:ClearAllPoints()
-            segment:SetColorTexture(1, 0.82, 0, 0.75)
+            local segment = AcquireLine(chart.segments, index - 1, chart, "ARTWORK")
 
-            if segment.SetRotation then
-                segment:SetSize(length, 2)
-                segment:SetPoint("CENTER", chart, "BOTTOMLEFT", (previousX + x) / 2, (previousY + y) / 2)
-                segment:SetRotation(ComputeRotationAngle(dx, dy))
+            if chart.CreateLine then
+                segment:SetColorTexture(1, 0.82, 0, 0.75)
+                segment:SetThickness(2)
+                segment:SetStartPoint("BOTTOMLEFT", previousX, previousY)
+                segment:SetEndPoint("BOTTOMLEFT", x, y)
             else
-                segment:SetSize(2, math.max(2, math.abs(dy)))
-                segment:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", previousX, math.min(previousY, y))
+                segment:ClearAllPoints()
+                -- Fallback for legacy clients without CreateLine
+                segment:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+                segment:SetVertexColor(1, 0.82, 0, 0.75)
+                if segment.SetRotation then
+                    segment:SetSize(length, 2)
+                    segment:SetPoint("CENTER", chart, "BOTTOMLEFT", (previousX + x) / 2, (previousY + y) / 2)
+                    segment:SetRotation(ComputeRotationAngle(dx, dy))
+                else
+                    segment:SetSize(2, math.max(2, math.abs(dy)))
+                    segment:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", previousX, math.min(previousY, y))
+                end
             end
         end
 
