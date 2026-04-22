@@ -1,4 +1,4 @@
-## Interface: 120000, 120001
+## Interface: 120005
 ## Title: mQoL
 ## Notes: mQoL for Retail
 ## Author: Mentiuszen
