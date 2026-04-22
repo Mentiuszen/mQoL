@@ -654,13 +654,13 @@ function mQoL_Hub:CreateHomePanel(parent)
     end
 
     AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
-    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an interactive Gold Chart.")
+    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an Gold Chart.")
     AddBulletPoint("Great Vault Preview: See Great Vault of your other characters without character switching.")
     AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
     AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
-    AddBulletPoint("Fast Auto Loot: Much faster auto loot option with customizable delay.")
+    AddBulletPoint("Fast Auto Loot: Much faster auto loot option.")
     AddBulletPoint("Edit Mode Backups: Automatically creates and keeps up to 5 backups of your UI profiles upon login.")
-    AddBulletPoint("Miscellaneous: Better combat protection for UI elements, simplified intro, and general improvements.")
+    AddBulletPoint("Edit Mode Backups are only available in config file and not accessible from the UI yet.")
     
     currentY = currentY - 20
 
