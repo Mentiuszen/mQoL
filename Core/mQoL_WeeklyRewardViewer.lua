@@ -235,7 +235,7 @@ local function BuildThresholdText(activityInfo, groupKey)
     end
 
     if groupKey == "raid" then
-        return threshold == 1 and "Defeat 1 Boss" or string.format("Defeat %d Bosses", threshold)
+        return threshold == 1 and "Defeat 2 Bosses" or string.format("Defeat %d Midnight Season 1 Bosses", threshold)
     end
 
     if groupKey == "dungeons" then
@@ -252,7 +252,7 @@ end
 local function ResolveRaidThresholdString(slotData)
     return NormalizeOptionalText(slotData and slotData.raidString)
         or NormalizeOptionalText(WEEKLY_REWARDS_THRESHOLD_RAID)
-        or "Defeat %d Bosses"
+        or "Defeat %d Midnight Season 1 Bosses"
 end
 
 local function ResolveSavedProgressText(slotData, groupKey)
