@@ -78,8 +78,8 @@ mQoL_Modules.AvailableModules = {
         key = "EditMode",
         label = "Edit Mode",
         description = "Manage Edit Mode profiles and settings.",
-        versions = {"isRetail", "isBCC"},
-        hardlock = {"isClassic", "isPandaria", "isLegion", "isEra"},
+        versions = {"isRetail", "isBCC", "isClassic"},
+        hardlock = {"isPandaria", "isLegion", "isEra"},
         defaultEnabled = true,
     },
     {
