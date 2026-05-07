@@ -326,16 +326,10 @@ function mQoL_EditMode:ForceEditModeProfile(profileName)
         if layouts then
             for i, layout in ipairs(layouts) do
                 if layout and layout.layoutName == profileName then
-                     if clientInfo.isRetail then
-                         if layout.layoutIdentifier then
-                             C_EditMode.SetActiveLayout(layout.layoutIdentifier)
-                             return true
-                         end
-                     else
-                         -- BCC uses index instead of identifier
-                         C_EditMode.SetActiveLayout(i)
-                         return true
-                     end
+                    if layout.layoutIdentifier then
+                        C_EditMode.SetActiveLayout(layout.layoutIdentifier)
+                        return true
+                    end
                 end
             end
         end
