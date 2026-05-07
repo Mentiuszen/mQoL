@@ -29,6 +29,12 @@ local HISTORY_MAX_POINTS = 20000
 local HISTORY_RECENT_POINTS = 4000
 local HISTORY_MERGE_WINDOW = 15 * SECONDS_PER_MINUTE
 local HISTORY_CHART_POINTS = 64
+local GOLD_CHART_WIDTH = 770
+local GOLD_CHART_HEIGHT = 320
+local GOLD_CHART_PLOT_TOP = 8
+local GOLD_CHART_PLOT_BOTTOM = 12
+local GOLD_CHART_VALUE_PADDING_RATIO = 0.03
+local GOLD_CHART_FLAT_VALUE_PADDING_RATIO = 0.05
 local OVERALL_DISPLAY_MIN_INTERVAL = 10 * SECONDS_PER_MINUTE
 local PLAYED_REQUEST_COOLDOWN = 10
 local PLAYED_DATA_STALE_AFTER = 6 * SECONDS_PER_HOUR
@@ -1551,6 +1557,23 @@ local function HidePool(pool)
             object:Hide()
         end
     end
+end
+
+local function RoundChartCoordinate(value)
+    return math.floor((tonumber(value) or 0) + 0.5)
+end
+
+local function PrepareChartGridTexture(texture, alpha)
+    if texture.SetDrawLayer then
+        texture:SetDrawLayer("BORDER")
+    end
+    if texture.SetSnapToPixelGrid then
+        texture:SetSnapToPixelGrid(true)
+    end
+    if texture.SetTexelSnappingBias then
+        texture:SetTexelSnappingBias(0)
+    end
+    texture:SetColorTexture(1, 1, 1, alpha)
 end
 
 local function SetTextureColor(texture, color)
@@ -3234,7 +3257,7 @@ function mQoL_AccountOverview:EnsureGoldChartView()
 
     view.rangeButtonsFrame = CreateFrame("Frame", nil, view)
     view.rangeButtonsFrame:SetPoint("TOPLEFT", view.summaryText, "BOTTOMLEFT", 0, -10)
-    view.rangeButtonsFrame:SetSize(770, 28)
+    view.rangeButtonsFrame:SetSize(GOLD_CHART_WIDTH, 28)
 
     self.goldRangeButtons = self.goldRangeButtons or {}
 
@@ -3256,13 +3279,13 @@ function mQoL_AccountOverview:EnsureGoldChartView()
 
     view.statsText = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.statsText:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -408)
-    view.statsText:SetWidth(770)
+    view.statsText:SetWidth(GOLD_CHART_WIDTH)
     view.statsText:SetJustifyH("LEFT")
     view.statsText:SetTextColor(0.88, 0.88, 0.88)
 
     view.chart = CreateFrame("Frame", nil, view)
     view.chart:SetPoint("TOPLEFT", view.rangeButtonsFrame, "BOTTOMLEFT", 0, -12)
-    view.chart:SetSize(770, 320)
+    view.chart:SetSize(GOLD_CHART_WIDTH, GOLD_CHART_HEIGHT)
 
     view.chart.bg = view.chart:CreateTexture(nil, "BACKGROUND")
     view.chart.bg:SetAllPoints()
@@ -3274,8 +3297,8 @@ function mQoL_AccountOverview:EnsureGoldChartView()
 
     view.chart.plotLeft = 70
     view.chart.plotRight = 18
-    view.chart.plotTop = 20
-    view.chart.plotBottom = 34
+    view.chart.plotTop = GOLD_CHART_PLOT_TOP
+    view.chart.plotBottom = GOLD_CHART_PLOT_BOTTOM
     view.chart.gridLines = {}
     view.chart.verticalLines = {}
     view.chart.yLabels = {}
@@ -3313,8 +3336,17 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
 
     chart.emptyText:Hide()
 
-    local plotWidth = chart:GetWidth() - chart.plotLeft - chart.plotRight
-    local plotHeight = chart:GetHeight() - chart.plotTop - chart.plotBottom
+    local chartWidth = tonumber(chart:GetWidth()) or GOLD_CHART_WIDTH
+    local chartHeight = tonumber(chart:GetHeight()) or GOLD_CHART_HEIGHT
+    if chartWidth <= (chart.plotLeft + chart.plotRight) then
+        chartWidth = GOLD_CHART_WIDTH
+    end
+    if chartHeight <= (chart.plotTop + chart.plotBottom) then
+        chartHeight = GOLD_CHART_HEIGHT
+    end
+
+    local plotWidth = math.max(1, RoundChartCoordinate(chartWidth - chart.plotLeft - chart.plotRight))
+    local plotHeight = math.max(1, RoundChartCoordinate(chartHeight - chart.plotTop - chart.plotBottom))
     local firstTimestamp = samples[1].ts
     local lastTimestamp = samples[#samples].ts
     local timeRange = math.max(1, lastTimestamp - firstTimestamp)
@@ -3331,11 +3363,11 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     end
 
     if maxValue <= minValue then
-        local padding = math.max(10000, maxValue * 0.1)
+        local padding = math.max(10000, maxValue * GOLD_CHART_FLAT_VALUE_PADDING_RATIO)
         minValue = math.max(0, minValue - padding)
         maxValue = maxValue + padding
     else
-        local padding = math.max(10000, (maxValue - minValue) * 0.15)
+        local padding = math.max(1, (maxValue - minValue) * GOLD_CHART_VALUE_PADDING_RATIO)
         minValue = math.max(0, minValue - padding)
         maxValue = maxValue + padding
     end
@@ -3344,10 +3376,10 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     local axisStep = valueRange / 4
 
     for index = 0, 4 do
-        local y = chart.plotBottom + (plotHeight * (index / 4))
-        local horizontal = AcquireTexture(chart.gridLines, index + 1, chart, "BACKGROUND")
+        local y = RoundChartCoordinate(chart.plotBottom + (plotHeight * (index / 4)))
+        local horizontal = AcquireTexture(chart.gridLines, index + 1, chart, "BORDER")
         horizontal:ClearAllPoints()
-        horizontal:SetColorTexture(1, 1, 1, 0.08)
+        PrepareChartGridTexture(horizontal, 0.08)
         horizontal:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", chart.plotLeft, y)
         horizontal:SetSize(plotWidth, 1)
 
@@ -3397,11 +3429,11 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
 
     if useBucketSpacing then
         for index, sample in ipairs(samples) do
-            local x = GetChartX(index, sample)
+            local x = RoundChartCoordinate(GetChartX(index, sample))
 
-            local vertical = AcquireTexture(chart.verticalLines, index, chart, "BACKGROUND")
+            local vertical = AcquireTexture(chart.verticalLines, index, chart, "BORDER")
             vertical:ClearAllPoints()
-            vertical:SetColorTexture(1, 1, 1, 0.05)
+            PrepareChartGridTexture(vertical, 0.05)
             vertical:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", x, chart.plotBottom)
             vertical:SetSize(1, plotHeight)
 
@@ -3413,10 +3445,10 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
         end
     else
         for index = 0, 4 do
-            local x = chart.plotLeft + (plotWidth * (index / 4))
-            local vertical = AcquireTexture(chart.verticalLines, index + 1, chart, "BACKGROUND")
+            local x = RoundChartCoordinate(chart.plotLeft + (plotWidth * (index / 4)))
+            local vertical = AcquireTexture(chart.verticalLines, index + 1, chart, "BORDER")
             vertical:ClearAllPoints()
-            vertical:SetColorTexture(1, 1, 1, 0.05)
+            PrepareChartGridTexture(vertical, 0.05)
             vertical:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", x, chart.plotBottom)
             vertical:SetSize(1, plotHeight)
 
