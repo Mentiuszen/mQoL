@@ -422,7 +422,7 @@ local TeleportData = {
     },
 
     ["Midnight"] = {
-        { id = 2805, name = "Windrunner Spire", texture = 7464939, spellID = 1254400, achievementID = 61262, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2805, name = "Windrunner Spire", texture = 7464939, artOffsetY = -0.10, spellID = 1254400, achievementID = 61262, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 2811, name = "Magisters' Terrace", texture = 7467176, spellID = 1254572, achievementID = 61267, requiredLevel = 90, location = "Eversong Woods", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 2874, name = "Maisara Caverns", texture = 7478532, spellID = 1254559, achievementID = 61269, requiredLevel = 90, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 2915, name = "Nexus-Point Xenas", texture = 7570499, spellID = 1254563, achievementID = 61268, requiredLevel = 90, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
@@ -738,6 +738,82 @@ local function GetDungeonTeleportsTabConfig()
         selectedCategoryValue = isClassicLayout and "Mists of Pandaria" or "MID_S1",
         selectedCategoryText = isClassicLayout and "Mists of Pandaria" or "Midnight Season 1",
     }
+end
+
+local TELEPORT_IMAGE_CROP_LEFT = 0.08
+local TELEPORT_IMAGE_CROP_RIGHT = 0.65
+local TELEPORT_IMAGE_CROP_TOP = 0.10
+local TELEPORT_IMAGE_CROP_BOTTOM = 0.60
+
+-- Per-entry artOffsetY moves the crop window vertically without changing zoom.
+local function GetTeleportArtValue(info, fieldName, fallbackFieldName)
+    if type(info) ~= "table" then
+        return nil
+    end
+
+    local value = info[fieldName]
+    if type(value) ~= "number" and fallbackFieldName then
+        value = info[fallbackFieldName]
+    end
+
+    if type(value) == "number" then
+        return value
+    end
+
+    return nil
+end
+
+local function ApplyTeleportImageTexture(btn, info, targetWidth, targetHeight)
+    local textureID = info and info.texture
+    if not btn or not btn.imageArea or not textureID or textureID <= 0 then
+        return
+    end
+
+    btn.imageArea:ClearAllPoints()
+    btn.imageArea:SetAllPoints(btn.imageContainer)
+    btn.imageArea:SetTexture(textureID)
+
+    local left = TELEPORT_IMAGE_CROP_LEFT
+    local right = TELEPORT_IMAGE_CROP_RIGHT
+    local top = TELEPORT_IMAGE_CROP_TOP
+    local bottom = TELEPORT_IMAGE_CROP_BOTTOM
+
+    if targetWidth and targetHeight and targetWidth > 0 and targetHeight > 0 then
+        local targetAspect = targetWidth / targetHeight
+        local cropWidth = right - left
+        local cropHeight = bottom - top
+        local cropAspect = cropWidth / cropHeight
+
+        if targetAspect > cropAspect then
+            local newHeight = cropWidth / targetAspect
+            local offset = (cropHeight - newHeight) * 0.5
+            top = top + offset
+            bottom = bottom - offset
+        elseif targetAspect < cropAspect then
+            local newWidth = cropHeight * targetAspect
+            local offset = (cropWidth - newWidth) * 0.5
+            left = left + offset
+            right = right - offset
+        end
+
+        local artOffsetY = GetTeleportArtValue(info, "artOffsetY", "artoffsety") or GetTeleportArtValue(info, "artY", "arty")
+        if artOffsetY and artOffsetY ~= 0 then
+            local height = bottom - top
+            local offset = height * artOffsetY
+            top = top + offset
+            bottom = bottom + offset
+
+            if top < 0 then
+                bottom = bottom - top
+                top = 0
+            elseif bottom > 1 then
+                top = top - (bottom - 1)
+                bottom = 1
+            end
+        end
+    end
+
+    btn.imageArea:SetTexCoord(left, right, top, bottom)
 end
 
 local function InitDungeonTeleportsTabClassic()
@@ -1110,6 +1186,7 @@ local function InitDungeonTeleportsTabClassic()
 
         local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
         local btnHeight = 95
+        local imageHeight = btnHeight * 0.6
 
         for i, info in ipairs(resolvedData) do
             if not contentFrame.buttons[i] then
@@ -1135,17 +1212,17 @@ local function InitDungeonTeleportsTabClassic()
                 btn.imageContainer = btn:CreateTexture(nil, "BACKGROUND")
                 btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
                 btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
-                btn.imageContainer:SetHeight(btnHeight * 0.6)
+                btn.imageContainer:SetHeight(imageHeight)
                 btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
 
                 btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
                 btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
-                btn.imageArea:SetSize(btnHeight * 0.6, btnHeight * 0.6)
+                btn.imageArea:SetSize(imageHeight, imageHeight)
                 btn.imageArea:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
                 -- Info Section (Instance Name and Location)
                 btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
-                btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+                btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
                 btn.infoBg:SetPoint("BOTTOMRIGHT", 0, 0)
                 btn.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
 
@@ -1197,8 +1274,8 @@ local function InitDungeonTeleportsTabClassic()
 
             -- Update Size
             btn:SetSize(btnWidth, btnHeight)
-            btn.imageContainer:SetHeight(btnHeight * 0.6)
-            btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+            btn.imageContainer:SetHeight(imageHeight)
+            btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
 
             -- Grid Position
             local col = (i - 1) % cols
@@ -1276,10 +1353,7 @@ local function InitDungeonTeleportsTabClassic()
 
             -- Set Texture using texture FileID
             if info.texture and info.texture > 0 then
-                btn.imageArea:ClearAllPoints()
-                btn.imageArea:SetAllPoints(btn.imageContainer)
-                btn.imageArea:SetTexture(info.texture)
-                btn.imageArea:SetTexCoord(0.08, 0.65, 0.14, 0.58)
+                ApplyTeleportImageTexture(btn, info, btnWidth, imageHeight)
             end
         end
 
@@ -2086,6 +2160,7 @@ local function InitDungeonTeleportsTabRetail()
 
         local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
         local btnHeight = 95
+        local imageHeight = btnHeight * 0.6
 
         for i, info in ipairs(resolvedData) do
             if not contentFrame.buttons[i] then
@@ -2108,16 +2183,16 @@ local function InitDungeonTeleportsTabRetail()
                 btn.imageContainer = btn:CreateTexture(nil, "BACKGROUND")
                 btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
                 btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
-                btn.imageContainer:SetHeight(btnHeight * 0.6)
+                btn.imageContainer:SetHeight(imageHeight)
                 btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
 
                 btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
                 btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
-                btn.imageArea:SetSize(btnHeight * 0.6, btnHeight * 0.6)
+                btn.imageArea:SetSize(imageHeight, imageHeight)
                 btn.imageArea:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
                 btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
-                btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+                btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
                 btn.infoBg:SetPoint("BOTTOMRIGHT", 0, 0)
                 btn.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
 
@@ -2164,8 +2239,8 @@ local function InitDungeonTeleportsTabRetail()
             end
 
             btn:SetSize(btnWidth, btnHeight)
-            btn.imageContainer:SetHeight(btnHeight * 0.6)
-            btn.infoBg:SetPoint("TOPLEFT", 0, -(btnHeight * 0.6))
+            btn.imageContainer:SetHeight(imageHeight)
+            btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
 
             local col = (i - 1) % cols
             local row = math.floor((i - 1) / cols)
@@ -2244,10 +2319,7 @@ local function InitDungeonTeleportsTabRetail()
             end
 
             if info.texture and info.texture > 0 then
-                btn.imageArea:ClearAllPoints()
-                btn.imageArea:SetAllPoints(btn.imageContainer)
-                btn.imageArea:SetTexture(info.texture)
-                btn.imageArea:SetTexCoord(0.08, 0.65, 0.14, 0.58)
+                ApplyTeleportImageTexture(btn, info, btnWidth, imageHeight)
             end
         end
 

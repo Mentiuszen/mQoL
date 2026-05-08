@@ -1024,19 +1024,19 @@ function mQoL_EditMode:CreateEditModePanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
-    local function GetForcedProfileDropdownItems()
+    local function GetForcedProfileDropdownItems(profileNames)
         local items = {}
         table.insert(items, { text = SITUATIONAL_MODE_KEY, value = SITUATIONAL_MODE_KEY, underline = true })
-        for _, name in ipairs(module:GetEditModeProfiles()) do
+        for _, name in ipairs(profileNames or module:GetEditModeProfiles()) do
             table.insert(items, { text = name, value = name })
         end
         return items
     end
 
-    local function GetSituationalProfileDropdownItems()
+    local function GetSituationalProfileDropdownItems(profileNames)
         local items = {}
         table.insert(items, { text = "None", value = "" })
-        for _, name in ipairs(module:GetEditModeProfiles()) do
+        for _, name in ipairs(profileNames or module:GetEditModeProfiles()) do
             table.insert(items, { text = name, value = name })
         end
         return items
@@ -1062,7 +1062,7 @@ function mQoL_EditMode:CreateEditModePanel(parent)
 
     local forceProfileRow, dropdownControl = mQoL_Hub:AddOptionRow(simpleSettingsFrame, "Force Edit Mode Profile", "dropdown", {
         list = GetForcedProfileDropdownItems(),
-        value = s.forcedProfile or SITUATIONAL_MODE_KEY,
+        value = (s.forcedProfile and s.forcedProfile ~= "" and s.forcedProfile) or SITUATIONAL_MODE_KEY,
         width = 220,
         onValueChanged = function(value)
             s.forcedProfile = value
@@ -1143,10 +1143,14 @@ function mQoL_EditMode:CreateEditModePanel(parent)
 
     local function RefreshDropdowns()
         local forced = s.forcedProfile or ""
-        local forcedItems = GetForcedProfileDropdownItems()
+        local profileNames = module:GetEditModeProfiles()
+        local profileListReady = #profileNames > 0
+        local forcedItems = GetForcedProfileDropdownItems(profileNames)
         local existsForced = (forced == SITUATIONAL_MODE_KEY) or ValueExists(forcedItems, forced)
-        if not existsForced then
-            s.forcedProfile = nil
+        if s.editModeProfileMode == "Simple" and forced == "" then
+            s.editModeProfileMode = "Disabled"
+        elseif s.editModeProfileMode == "Simple" and not existsForced and profileListReady then
+            s.forcedProfile = ""
             forced = ""
             s.editModeProfileMode = "Disabled"
         end
@@ -1158,13 +1162,13 @@ function mQoL_EditMode:CreateEditModePanel(parent)
             end
         end
 
-        local sitItems = GetSituationalProfileDropdownItems()
+        local sitItems = GetSituationalProfileDropdownItems(profileNames)
         for key, dd in pairs(sitDropdowns) do
             if dd and dd.SetList then
                 dd:SetList(sitItems)
                 local val = s.simpleSituationalProfiles[key] or ""
                 local exists = (val == "") or ValueExists(sitItems, val)
-                if not exists then
+                if not exists and profileListReady then
                     s.simpleSituationalProfiles[key] = ""
                     val = ""
                 end
