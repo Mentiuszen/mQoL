@@ -816,6 +816,422 @@ local function ApplyTeleportImageTexture(btn, info, targetWidth, targetHeight)
     btn.imageArea:SetTexCoord(left, right, top, bottom)
 end
 
+local LISTED_DUNGEON_HIGHLIGHT_TEXTURE = "Interface\\Tooltips\\UI-Tooltip-Border"
+local LISTED_DUNGEON_HIGHLIGHT_STRONG_TEXTURE = "Interface\\Buttons\\WHITE8x8"
+local LISTED_DUNGEON_HIGHLIGHT_COLOR = { 1.00, 0.82, 0.00, 0.95 }
+local LISTED_DUNGEON_TOOLTIP_COLOR = { 1.00, 0.82, 0.00 }
+
+local function AddListedDungeonHighlightTooltipLine()
+    GameTooltip:AddLine("Your group is listed for this dungeon.", LISTED_DUNGEON_TOOLTIP_COLOR[1], LISTED_DUNGEON_TOOLTIP_COLOR[2], LISTED_DUNGEON_TOOLTIP_COLOR[3], true)
+end
+
+local listedDungeonHighlightState = {
+    activeTeleportID = nil,
+    activeSignature = nil,
+    activeSpellIDs = nil,
+    groupGUID = nil,
+    suppressedSignature = nil,
+    wasInGroup = false,
+    ignoreActiveEntryUntilClear = false,
+}
+
+local listedDungeonHighlightListeners = {}
+
+local function NotifyListedDungeonHighlightChanged()
+    for _, listener in ipairs(listedDungeonHighlightListeners) do
+        listener()
+    end
+end
+
+local function RegisterListedDungeonHighlightListener(listener)
+    if type(listener) ~= "function" then
+        return
+    end
+
+    table.insert(listedDungeonHighlightListeners, listener)
+    listener()
+end
+
+local function EnsureListedDungeonHighlight(btn)
+    if not btn or btn.listedDungeonHighlight then
+        return
+    end
+
+    local highlight = CreateFrame("Frame", nil, btn, "BackdropTemplate")
+    highlight:SetPoint("TOPLEFT", -4, 4)
+    highlight:SetPoint("BOTTOMRIGHT", 4, -4)
+    highlight:SetFrameLevel(math.max(btn.border and (btn.border:GetFrameLevel() or 0) or 0, btn:GetFrameLevel() or 0) + 2)
+    highlight:SetBackdrop({
+        edgeFile = LISTED_DUNGEON_HIGHLIGHT_TEXTURE,
+        edgeSize = 16,
+    })
+    highlight:SetBackdropBorderColor(unpack(LISTED_DUNGEON_HIGHLIGHT_COLOR))
+
+    local strongBorder = CreateFrame("Frame", nil, highlight, "BackdropTemplate")
+    strongBorder:SetPoint("TOPLEFT", 3, -3)
+    strongBorder:SetPoint("BOTTOMRIGHT", -3, 3)
+    strongBorder:SetBackdrop({
+        edgeFile = LISTED_DUNGEON_HIGHLIGHT_STRONG_TEXTURE,
+        edgeSize = 2,
+    })
+    strongBorder:SetBackdropBorderColor(unpack(LISTED_DUNGEON_HIGHLIGHT_COLOR))
+    strongBorder:EnableMouse(false)
+    highlight.strongBorder = strongBorder
+
+    highlight:EnableMouse(false)
+    highlight:Hide()
+
+    btn.listedDungeonHighlight = highlight
+end
+
+local GetCurrentInstanceMapID
+
+local function IsSpellCooldownActive(spellID)
+    spellID = tonumber(spellID) or 0
+    if spellID <= 0 then
+        return false
+    end
+
+    local start, duration = GetSpellCooldownWrapper(spellID)
+    local ok, isActive = pcall(function()
+        start = tonumber(start) or 0
+        duration = tonumber(duration) or 0
+        return start > 0 and duration > 1.5
+    end)
+
+    return ok and isActive
+end
+
+local function IsAnyListedDungeonTeleportSpellOnCooldown(primarySpellID)
+    if IsSpellCooldownActive(primarySpellID) then
+        return true
+    end
+
+    for spellID in pairs(listedDungeonHighlightState.activeSpellIDs or {}) do
+        if spellID ~= primarySpellID and IsSpellCooldownActive(spellID) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function IsTeleportHighlightedForListedDungeon(teleportID, spellID)
+    teleportID = tonumber(teleportID) or 0
+    if teleportID <= 0 then
+        return false
+    end
+
+    local state = listedDungeonHighlightState
+    if state.activeTeleportID ~= teleportID
+        or state.activeSignature == nil
+        or state.activeSignature == state.suppressedSignature then
+        return false
+    end
+
+    if GetCurrentInstanceMapID and GetCurrentInstanceMapID() == teleportID then
+        return false
+    end
+
+    if IsAnyListedDungeonTeleportSpellOnCooldown(spellID) then
+        return false
+    end
+
+    return true
+end
+
+local function ApplyListedDungeonHighlight(btn)
+    if not btn then
+        return
+    end
+
+    local isHighlighted = IsTeleportHighlightedForListedDungeon(btn.teleportID, btn.currentSpellID)
+    btn.isListedDungeonHighlightActive = isHighlighted
+
+    if btn.listedDungeonHighlight then
+        if isHighlighted then
+            btn.listedDungeonHighlight:Show()
+        else
+            btn.listedDungeonHighlight:Hide()
+        end
+    end
+end
+
+local function BuildTeleportSpellIDLookup(teleportID)
+    local lookup = {}
+    local entry = FindTeleportDefinitionById(teleportID)
+    if type(entry) ~= "table" then
+        return lookup
+    end
+
+    entry = ApplyClientEntryOverrides(entry)
+
+    local function AddSpellID(spellID)
+        spellID = tonumber(spellID) or 0
+        if spellID > 0 then
+            lookup[spellID] = true
+        end
+    end
+
+    AddSpellID(entry.spellID)
+    AddSpellID(entry.spellIDHorde)
+    AddSpellID(entry.spellIDAlly)
+
+    return lookup
+end
+
+local function IsDungeonListingActivity(activityInfo)
+    if type(activityInfo) ~= "table" then
+        return false
+    end
+
+    local dungeonCategoryID = GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2
+    return activityInfo.categoryID == dungeonCategoryID
+        or activityInfo.isMythicPlusActivity
+        or activityInfo.isMythicActivity
+end
+
+local function GetActiveListedDungeonInfo()
+    if not C_LFGList or not C_LFGList.GetActiveEntryInfo or not C_LFGList.GetActivityInfoTable then
+        return nil, false
+    end
+
+    if C_LFGList.HasActiveEntryInfo then
+        local okHasActive, hasActive = pcall(C_LFGList.HasActiveEntryInfo)
+        if okHasActive and not hasActive then
+            return nil, false
+        end
+    end
+
+    local okEntry, activeEntryInfo = pcall(C_LFGList.GetActiveEntryInfo)
+    if not okEntry or type(activeEntryInfo) ~= "table" then
+        return nil, false
+    end
+
+    local activityIDs = activeEntryInfo.activityIDs
+    if type(activityIDs) ~= "table" then
+        local activityID = tonumber(activeEntryInfo.activityID)
+        activityIDs = activityID and { activityID } or nil
+    end
+    if type(activityIDs) ~= "table" then
+        return nil, true
+    end
+
+    for _, activityID in ipairs(activityIDs) do
+        activityID = tonumber(activityID) or 0
+        if activityID > 0 then
+            local okActivity, activityInfo = pcall(C_LFGList.GetActivityInfoTable, activityID, activeEntryInfo.questID)
+            if okActivity and IsDungeonListingActivity(activityInfo) then
+                local teleportID = tonumber(activityInfo.mapID) or 0
+                if teleportID > 0 and FindTeleportDefinitionById(teleportID) then
+                    return {
+                        teleportID = teleportID,
+                        activityID = activityID,
+                        groupGUID = activeEntryInfo.partyGUID,
+                        signature = tostring(teleportID),
+                    }, true
+                end
+            end
+        end
+    end
+
+    return nil, true
+end
+
+local function ResetListedDungeonHighlightState(keepSuppressedSignature)
+    local hadState = listedDungeonHighlightState.activeSignature ~= nil
+        or listedDungeonHighlightState.groupGUID ~= nil
+        or (not keepSuppressedSignature and listedDungeonHighlightState.suppressedSignature ~= nil)
+
+    listedDungeonHighlightState.activeTeleportID = nil
+    listedDungeonHighlightState.activeSignature = nil
+    listedDungeonHighlightState.activeSpellIDs = nil
+    listedDungeonHighlightState.groupGUID = nil
+    if not keepSuppressedSignature then
+        listedDungeonHighlightState.suppressedSignature = nil
+    end
+
+    return hadState
+end
+
+local function SetActiveListedDungeonHighlight(info)
+    if type(info) ~= "table" or not info.teleportID or not info.signature then
+        return ResetListedDungeonHighlightState()
+    end
+
+    local state = listedDungeonHighlightState
+    local changed = false
+
+    if info.groupGUID and state.groupGUID and info.groupGUID ~= state.groupGUID then
+        state.suppressedSignature = nil
+        changed = true
+    elseif state.suppressedSignature and state.suppressedSignature ~= info.signature then
+        state.suppressedSignature = nil
+        changed = true
+    end
+
+    if state.activeTeleportID ~= info.teleportID then
+        state.activeTeleportID = info.teleportID
+        changed = true
+    end
+
+    if state.activeSignature ~= info.signature then
+        state.activeSignature = info.signature
+        changed = true
+    end
+
+    if state.groupGUID ~= info.groupGUID then
+        state.groupGUID = info.groupGUID
+        changed = true
+    end
+
+    if changed or not state.activeSpellIDs then
+        state.activeSpellIDs = BuildTeleportSpellIDLookup(info.teleportID)
+    end
+
+    return changed
+end
+
+local function IsPlayerInAnyGroup()
+    return IsInGroup and IsInGroup() or false
+end
+
+local function UpdateListedDungeonHighlightState()
+    local state = listedDungeonHighlightState
+    local isInGroup = IsPlayerInAnyGroup()
+    local changed = false
+
+    if state.wasInGroup and not isInGroup then
+        state.ignoreActiveEntryUntilClear = true
+        changed = ResetListedDungeonHighlightState() or changed
+        state.wasInGroup = false
+        if changed then
+            NotifyListedDungeonHighlightChanged()
+        end
+        return
+    end
+    state.wasInGroup = isInGroup
+    if isInGroup then
+        state.ignoreActiveEntryUntilClear = false
+    end
+
+    local info, hasActiveEntry = GetActiveListedDungeonInfo()
+    if state.ignoreActiveEntryUntilClear then
+        if hasActiveEntry then
+            changed = ResetListedDungeonHighlightState() or changed
+            if changed then
+                NotifyListedDungeonHighlightChanged()
+            end
+            return
+        end
+        state.ignoreActiveEntryUntilClear = false
+    end
+
+    if info then
+        changed = SetActiveListedDungeonHighlight(info) or changed
+    elseif hasActiveEntry then
+        changed = ResetListedDungeonHighlightState() or changed
+    elseif isInGroup then
+        changed = ResetListedDungeonHighlightState(true) or changed
+    elseif not isInGroup then
+        changed = ResetListedDungeonHighlightState() or changed
+    end
+
+    if changed then
+        NotifyListedDungeonHighlightChanged()
+    end
+end
+
+GetCurrentInstanceMapID = function()
+    if IsInInstance then
+        local inInstance = IsInInstance()
+        if not inInstance then
+            return nil
+        end
+    end
+
+    if not GetInstanceInfo then
+        return nil
+    end
+
+    local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
+    instanceMapID = tonumber(instanceMapID) or 0
+    if instanceMapID <= 0 or instanceType == "none" then
+        return nil
+    end
+
+    return instanceMapID
+end
+
+local function SuppressListedDungeonHighlightForCurrentInstance()
+    local state = listedDungeonHighlightState
+    local instanceMapID = GetCurrentInstanceMapID()
+    if not instanceMapID or not state.activeTeleportID or not state.activeSignature then
+        return
+    end
+
+    if instanceMapID ~= state.activeTeleportID then
+        return
+    end
+
+    if state.suppressedSignature ~= state.activeSignature then
+        state.suppressedSignature = state.activeSignature
+        NotifyListedDungeonHighlightChanged()
+    end
+end
+
+local function SuppressListedDungeonHighlightForSpell(spellID)
+    spellID = tonumber(spellID) or 0
+    local state = listedDungeonHighlightState
+    if spellID <= 0 or not state.activeSignature or not state.activeSpellIDs or not state.activeSpellIDs[spellID] then
+        return
+    end
+
+    if state.suppressedSignature ~= state.activeSignature then
+        state.suppressedSignature = state.activeSignature
+        NotifyListedDungeonHighlightChanged()
+    end
+end
+
+local function ExtractSpellIDFromSpellcastEvent(...)
+    for index = select("#", ...), 1, -1 do
+        local value = select(index, ...)
+        if type(value) == "number" and value > 0 then
+            return value
+        end
+    end
+
+    return nil
+end
+
+local listedDungeonHighlightEventFrame = CreateFrame("Frame")
+local function RegisterListedDungeonHighlightEvent(eventName)
+    pcall(listedDungeonHighlightEventFrame.RegisterEvent, listedDungeonHighlightEventFrame, eventName)
+end
+
+RegisterListedDungeonHighlightEvent("PLAYER_ENTERING_WORLD")
+RegisterListedDungeonHighlightEvent("ZONE_CHANGED_NEW_AREA")
+RegisterListedDungeonHighlightEvent("GROUP_ROSTER_UPDATE")
+RegisterListedDungeonHighlightEvent("PARTY_LEADER_CHANGED")
+RegisterListedDungeonHighlightEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+RegisterListedDungeonHighlightEvent("UNIT_SPELLCAST_SUCCEEDED")
+
+listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit = ...
+        if unit == "player" then
+            SuppressListedDungeonHighlightForSpell(ExtractSpellIDFromSpellcastEvent(...))
+        end
+        return
+    end
+
+    UpdateListedDungeonHighlightState()
+    SuppressListedDungeonHighlightForCurrentInstance()
+end)
+
+UpdateListedDungeonHighlightState()
+SuppressListedDungeonHighlightForCurrentInstance()
+
 local function InitDungeonTeleportsTabClassic()
     local config = GetDungeonTeleportsTabConfig()
     if _G[config.tabName] then return end
@@ -1046,6 +1462,11 @@ local function InitDungeonTeleportsTabClassic()
     contentFrame.scrollChild = scrollChild
     contentFrame.buttons = {}
     contentFrame.cooldownRefreshPending = false
+    RegisterListedDungeonHighlightListener(function()
+        for _, btn in pairs(contentFrame.buttons) do
+            ApplyListedDungeonHighlight(btn)
+        end
+    end)
 
     local classicCombatBlocker
     if isClassicLayout then
@@ -1071,6 +1492,9 @@ local function InitDungeonTeleportsTabClassic()
         end
         if self.teleportLocation then
             GameTooltip:AddLine(self.teleportLocation, 0.7, 0.7, 0.7)
+        end
+        if self.isListedDungeonHighlightActive then
+            AddListedDungeonHighlightTooltipLine()
         end
 
         if not self.isKnown then
@@ -1207,6 +1631,7 @@ local function InitDungeonTeleportsTabClassic()
                     edgeSize = 1,
                 })
                 btn.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                EnsureListedDungeonHighlight(btn)
 
                 -- Image Section
                 btn.imageContainer = btn:CreateTexture(nil, "BACKGROUND")
@@ -1291,6 +1716,7 @@ local function InitDungeonTeleportsTabClassic()
             btn.teleportName = info.name
             btn.teleportLocation = info.location
             btn.teleportSource = info.source
+            btn.teleportID = info.id
             local effectiveObtainable = info.obtainable
             if effectiveObtainable == nil then
                 effectiveObtainable = false
@@ -1343,6 +1769,7 @@ local function InitDungeonTeleportsTabClassic()
             -- Store current spell ID for tooltip
             btn.currentSpellID = spellToUse
             btn.isKnown = isKnown
+            ApplyListedDungeonHighlight(btn)
 
             -- Update Cooldown immediately
             if contentFrame:IsShown() then
@@ -2029,6 +2456,11 @@ local function InitDungeonTeleportsTabRetail()
     contentFrame.scrollChild = scrollChild
     contentFrame.buttons = {}
     contentFrame.cooldownRefreshPending = false
+    RegisterListedDungeonHighlightListener(function()
+        for _, btn in pairs(contentFrame.buttons) do
+            ApplyListedDungeonHighlight(btn)
+        end
+    end)
 
     if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar then
         mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild)
@@ -2043,6 +2475,9 @@ local function InitDungeonTeleportsTabRetail()
         end
         if self.teleportLocation then
             GameTooltip:AddLine(self.teleportLocation, 0.7, 0.7, 0.7)
+        end
+        if self.isListedDungeonHighlightActive then
+            AddListedDungeonHighlightTooltipLine()
         end
 
         if not self.isKnown then
@@ -2179,6 +2614,7 @@ local function InitDungeonTeleportsTabRetail()
                     edgeSize = 1,
                 })
                 btn.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+                EnsureListedDungeonHighlight(btn)
 
                 btn.imageContainer = btn:CreateTexture(nil, "BACKGROUND")
                 btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
@@ -2255,6 +2691,7 @@ local function InitDungeonTeleportsTabRetail()
             btn.teleportName = info.name
             btn.teleportLocation = info.location
             btn.teleportSource = info.source
+            btn.teleportID = info.id
             local effectiveObtainable = info.obtainable
             if effectiveObtainable == nil then
                 effectiveObtainable = false
@@ -2311,6 +2748,7 @@ local function InitDungeonTeleportsTabRetail()
 
             btn.currentSpellID = spellToUse
             btn.isKnown = isKnown
+            ApplyListedDungeonHighlight(btn)
 
             if contentFrame:IsShown() then
                 RefreshButtonCooldown(btn)
@@ -2636,6 +3074,8 @@ local function TryInitialize(self)
     else
         InitDungeonTeleportsTabRetail()
     end
+    UpdateListedDungeonHighlightState()
+    SuppressListedDungeonHighlightForCurrentInstance()
     isInitialized = true
     self:UnregisterEvent("PLAYER_REGEN_ENABLED")
     self:UnregisterEvent("ADDON_LOADED")
