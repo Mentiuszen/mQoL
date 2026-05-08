@@ -495,30 +495,30 @@ local TeleportData = {
         { id = 1753, name = "Seat of the Triumvirate", texture = 1718205, spellID=1254551, achievementID = 61270, requiredLevel=90, location="Mac'Aree / Eredar", source="Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Warlords of Draenor"] = {
-        { id = 1175, name = "Bloodmaul Slag Mines", texture = 1041984, spellID = 159895, achievementID = 8878,  requiredLevel = 80, location = "Frostfire Ridge", source = "Challenge Mode: Gold (Legacy)" },
-        { id = 1208, name = "Grimrail Depot", texture = 1041986, spellID = 159900, achievementIDs = { 8890, 15695 }, requiredLevel = 80, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1195, name = "Iron Docks", texture = 1060546, spellID = 159896, achievementIDs = { 9000, 15694 }, requiredLevel = 80, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1182, name = "Auchindoun", texture = 1041982, spellID = 159897, achievementID = 8882, requiredLevel = 80, location = "Talador", source = "Challenge Mode: Gold (Legacy)" },
+        { id = 1175, name = "Bloodmaul Slag Mines", texture = 1041984, artOffsetY = -0.10, spellID = 159895, achievementID = 8878,  requiredLevel = 80, location = "Frostfire Ridge", source = "Challenge Mode: Gold (Legacy)" },
+        { id = 1208, name = "Grimrail Depot", texture = 1041986, artOffsetY = -0.10, spellID = 159900, achievementIDs = { 8890, 15695 }, requiredLevel = 80, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1195, name = "Iron Docks", texture = 1060546, artOffsetY = -0.10, spellID = 159896, achievementIDs = { 9000, 15694 }, requiredLevel = 80, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1182, name = "Auchindoun", texture = 1041982, artOffsetY = -0.20, spellID = 159897, achievementID = 8882, requiredLevel = 80, location = "Talador", source = "Challenge Mode: Gold (Legacy)" },
         { id = 1279, name = "The Everbloom", texture = 1060545, spellID = 159901, achievementIDs = { 9004, 19083 }, requiredLevel = 80, location = "Gorgrond", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 1176, name = "Shadowmoon Burial Grounds", texture = 1041988, spellID = 159899, achievementIDs = { 8886, 16660 }, requiredLevel = 80, location = "Shadowmoon Valley", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 1176, name = "Shadowmoon Burial Grounds", texture = 1041988, artOffsetY = 0.10, spellID = 159899, achievementIDs = { 8886, 16660 }, requiredLevel = 80, location = "Shadowmoon Valley", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 1358, name = "Upper Blackrock Spire", texture = 1041990, spellID = 159902, achievementID = 8894, requiredLevel = 80, location = "Blackrock Mountain", source = "Challenge Mode: Gold (Legacy)"},
-        { id = 1209, name = "Skyreach", texture = 1041989, spellID = 159898, achievementIDs = { 8874, 61272 }, requiredLevel=90, location = "Spires of Arak", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1209, name = "Skyreach", texture = 1041989, artOffsetY = -0.20, spellID = 159898, achievementIDs = { 8874, 61272 }, requiredLevel=90, location = "Spires of Arak", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Mists of Pandaria"] = {
-        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, spellID = 131204, achievementIDs = { 6887, 16661 }, requiredLevel = 80, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit.", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 961, name = "Stormstout Brewery", texture = 632282, spellID = 131205, achievementID = 6891, requiredLevel = 80, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 959, name = "Shado-Pan Monastery", texture = 632281, spellID = 131206, achievementID = 6904, requiredLevel = 80, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 994, name = "Mogu'shan Palace", texture = 632279, spellID = 131222, achievementID = 6901, requiredLevel = 80, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 962, name = "Gate of the Setting Sun", texture = 632277, spellID = 131225, achievementID = 6907, requiredLevel = 80, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, spellID = 131228, achievementID = 6919, requiredLevel = 80, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1001, name = "Scarlet Halls", texture = 643265, spellID = 131231, achievementID = 6910, requiredLevel = 80, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1004, name = "Scarlet Monastery", texture = 608253, spellID = 131229, achievementID = 6913, requiredLevel = 80, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
-        { id = 1007, name = "Scholomance", texture = 608254, spellID = 131232, achievementID = 6916, requiredLevel = 80, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 960, name = "Temple of the Jade Serpent", texture = 632283, artOffsetY = 0.10, spellID = 131204, achievementIDs = { 6887, 16661 }, requiredLevel = 80, location = "Jade Forest", source = "Challenge Mode: Gold (Legacy) or Complete Mythic Keystone on Level 20 or higher within the time limit.", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 961, name = "Stormstout Brewery", texture = 632282, artOffsetY = 0.0, spellID = 131205, achievementID = 6891, requiredLevel = 80, location = "Valley of the Four Winds", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 959, name = "Shado-Pan Monastery", texture = 632281, artOffsetY = -0.10, spellID = 131206, achievementID = 6904, requiredLevel = 80, location = "Kun-Lai Summit", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 994, name = "Mogu'shan Palace", texture = 632279, artOffsetY = 0.20, spellID = 131222, achievementID = 6901, requiredLevel = 80, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 962, name = "Gate of the Setting Sun", texture = 632277, artOffsetY = 0.10, spellID = 131225, achievementID = 6907, requiredLevel = 80, location = "Vale of Eternal Blossoms", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1011, name = "Siege of Niuzao Temple", texture = 643266, artOffsetY = 0.10, spellID = 131228, achievementID = 6919, requiredLevel = 80, location = "Townlong Steppes", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1001, name = "Scarlet Halls", texture = 643265, artOffsetY = 0.0, spellID = 131231, achievementID = 6910, requiredLevel = 80, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1004, name = "Scarlet Monastery", texture = 608253, artOffsetY = 0.10, spellID = 131229, achievementID = 6913, requiredLevel = 80, location = "Tirisfal Glades", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
+        { id = 1007, name = "Scholomance", texture = 608254, artOffsetY = 0.10, spellID = 131232, achievementID = 6916, requiredLevel = 80, location = "Western Plaguelands", source = "Challenge Mode: Gold (Legacy)", sourceClassic = "Complete this dungeon on Challenge Mode with a Gold rating or better.", obtainableClassic = true },
     },
     ["Cataclysm"] = {
-        { id = 657, name = "Vortex Pinnacle", texture = 526414, spellID = 410080, achievementID = 17847, requiredLevel = 80, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 643, name = "Throne of the Tides", texture = 526413, spellID = 424142, achievementID = 19082, requiredLevel = 80, location = "Vashj'ir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
-        { id = 670, name = "Grim Batol", texture = 526406, spellID = 445424, achievementID = 20588, requiredLevel = 80, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 657, name = "Vortex Pinnacle", texture = 526414, artOffsetY = -0.20, spellID = 410080, achievementID = 17847, requiredLevel = 80, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 643, name = "Throne of the Tides", texture = 526413, artOffsetY = 0.10, spellID = 424142, achievementID = 19082, requiredLevel = 80, location = "Vashj'ir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
+        { id = 670, name = "Grim Batol", texture = 526406, artOffsetY = 0.20, spellID = 445424, achievementID = 20588, requiredLevel = 80, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Wrath of the Lich King"] = {
         { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, achievementID = 61271, requiredLevel = 90, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
@@ -740,10 +740,13 @@ local function GetDungeonTeleportsTabConfig()
     }
 end
 
-local TELEPORT_IMAGE_CROP_LEFT = 0.08
-local TELEPORT_IMAGE_CROP_RIGHT = 0.65
-local TELEPORT_IMAGE_CROP_TOP = 0.10
-local TELEPORT_IMAGE_CROP_BOTTOM = 0.60
+local TELEPORT_IMAGE_CROP_LEFT = 0.05
+local TELEPORT_IMAGE_CROP_RIGHT = 0.70
+local TELEPORT_IMAGE_CROP_TOP = 0.00
+local TELEPORT_IMAGE_CROP_BOTTOM = 0.70
+local TELEPORT_CARD_IMAGE_HEIGHT = 63
+local TELEPORT_CARD_INFO_HEIGHT = 38
+local TELEPORT_CARD_HEIGHT = TELEPORT_CARD_IMAGE_HEIGHT + TELEPORT_CARD_INFO_HEIGHT
 
 -- Per-entry artOffsetY moves the crop window vertically without changing zoom.
 local function GetTeleportArtValue(info, fieldName, fallbackFieldName)
@@ -1093,7 +1096,15 @@ local function SetActiveListedDungeonHighlight(info)
 end
 
 local function IsPlayerInAnyGroup()
-    return IsInGroup and IsInGroup() or false
+    if not IsInGroup then
+        return false
+    end
+
+    if LE_PARTY_CATEGORY_HOME then
+        return IsInGroup(LE_PARTY_CATEGORY_HOME)
+    end
+
+    return IsInGroup()
 end
 
 local function UpdateListedDungeonHighlightState()
@@ -1129,10 +1140,6 @@ local function UpdateListedDungeonHighlightState()
 
     if info then
         changed = SetActiveListedDungeonHighlight(info) or changed
-    elseif hasActiveEntry then
-        changed = ResetListedDungeonHighlightState() or changed
-    elseif isInGroup then
-        changed = ResetListedDungeonHighlightState(true) or changed
     elseif not isInGroup then
         changed = ResetListedDungeonHighlightState() or changed
     end
@@ -1609,8 +1616,8 @@ local function InitDungeonTeleportsTabClassic()
         local startY = -10
 
         local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
-        local btnHeight = 95
-        local imageHeight = btnHeight * 0.6
+        local btnHeight = TELEPORT_CARD_HEIGHT
+        local imageHeight = TELEPORT_CARD_IMAGE_HEIGHT
 
         for i, info in ipairs(resolvedData) do
             if not contentFrame.buttons[i] then
@@ -1785,7 +1792,7 @@ local function InitDungeonTeleportsTabClassic()
         end
 
         local totalRows = math.ceil(#resolvedData / cols)
-        local totalHeight = math.abs(startY) + (totalRows * (btnHeight + marginY))
+        local totalHeight = math.abs(startY) + (totalRows * btnHeight) + (math.max(totalRows - 1, 0) * marginY) + math.abs(startY)
         scrollChild:SetHeight(totalHeight)
         if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar and scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
              scrollFrame.scrollbar.UpdateScrollbar()
@@ -2594,8 +2601,8 @@ local function InitDungeonTeleportsTabRetail()
         local startY = -10
 
         local btnWidth = (availableWidth - (cols - 1) * marginX - 2 * startX) / cols
-        local btnHeight = 95
-        local imageHeight = btnHeight * 0.6
+        local btnHeight = TELEPORT_CARD_HEIGHT
+        local imageHeight = TELEPORT_CARD_IMAGE_HEIGHT
 
         for i, info in ipairs(resolvedData) do
             if not contentFrame.buttons[i] then
@@ -2762,7 +2769,7 @@ local function InitDungeonTeleportsTabRetail()
         end
 
         local totalRows = math.ceil(#resolvedData / cols)
-        local totalHeight = math.abs(startY) + (totalRows * (btnHeight + marginY))
+        local totalHeight = math.abs(startY) + (totalRows * btnHeight) + (math.max(totalRows - 1, 0) * marginY) + math.abs(startY)
         scrollChild:SetHeight(totalHeight)
         if mQoL_Styles and mQoL_Styles.CreateCustomScrollbar and scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
              scrollFrame.scrollbar.UpdateScrollbar()
