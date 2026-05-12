@@ -1339,7 +1339,9 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
     if opts.refreshProfessions or character.professions == nil then
         local fetchedProfessions = GetProfessionSnapshot()
         local mergedProfessions = MergeProfessionSnapshot(character.professions, fetchedProfessions)
-        if HasProfessionData(mergedProfessions) or not HasProfessionData(character.professions) then
+        local hasCompleteProfessionSnapshot = type(fetchedProfessions) == "table"
+            and (fetchedProfessions.primaryComplete or fetchedProfessions.secondaryComplete)
+        if hasCompleteProfessionSnapshot or HasProfessionData(mergedProfessions) or not HasProfessionData(character.professions) then
             character.professions = mergedProfessions
         end
     end
@@ -1584,6 +1586,32 @@ local function SetTextureColor(texture, color)
     texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
 end
 
+local function SetOverviewCellButtonIcon(texture, icon)
+    if not texture then
+        return
+    end
+
+    texture:SetTexCoord(0, 1, 0, 1)
+
+    local iconValue = icon or VAULT_PLACEHOLDER_ICON
+    if type(iconValue) ~= "table" then
+        texture:SetTexture(iconValue)
+        return
+    end
+
+    local atlas = iconValue.atlas
+    if type(atlas) == "string" and texture.SetAtlas then
+        texture:SetAtlas(atlas, false)
+    else
+        texture:SetTexture(iconValue.texture or iconValue.file or iconValue.path or VAULT_PLACEHOLDER_ICON)
+    end
+
+    local texCoords = iconValue.texCoords or iconValue.texCoord
+    if type(texCoords) == "table" then
+        texture:SetTexCoord(texCoords[1] or 0, texCoords[2] or 1, texCoords[3] or 0, texCoords[4] or 1)
+    end
+end
+
 local function SetBorderColor(border, color)
     if not border or type(color) ~= "table" then
         return
@@ -1720,7 +1748,7 @@ local function CreateOverviewCellButton(parent)
         self.isActive = false
         self.isPlaceholder = false
         ApplyOverviewCellButtonLayout(self, true)
-        self.icon:SetTexture(icon or VAULT_PLACEHOLDER_ICON)
+        SetOverviewCellButtonIcon(self.icon, icon)
         self.label:SetText(text or "")
         UpdateOverviewCellButtonVisual(self)
     end
@@ -2182,6 +2210,7 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         local display = GetWeeklyRewardDisplayState(self.weeklyRewardData)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
+        GameTooltip:AddLine("Click to View Vault Preview", 0.72, 0.72, 0.72)
         for _, line in ipairs(display.lines or {}) do
             local color = line.color or { 0.85, 0.85, 0.85 }
             GameTooltip:AddLine(line.text or "", color[1] or 0.85, color[2] or 0.85, color[3] or 0.85, true)
@@ -2219,8 +2248,8 @@ function mQoL_AccountOverview:EnsureProfessionButton(row, index)
 
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(self.professionEntry.name or "Profession", 1, 0.82, 0)
-        GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry), 0.92, 0.92, 0.92)
         GameTooltip:AddLine("Click to view detailed profession tiers.", 0.72, 0.72, 0.72)
+        GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry, true), 0.92, 0.92, 0.92)
         GameTooltip:Show()
     end
     button.handleLeave = function()

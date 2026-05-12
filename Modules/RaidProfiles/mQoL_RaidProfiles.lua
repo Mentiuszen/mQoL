@@ -1373,22 +1373,23 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         return mQoL_Hub:AddOptionRow(contentContainer, label, type, opts, extra, applyFunc)
     end
 
-    if self:ShouldHandleUseCompactPartyFrames() then
-        AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
-            value = GetCVarBool("useCompactPartyFrames"),
-            onValueChanged = function(self, val)
-                if InCombatLockdown() then
-                    print(addonName .. ": Cannot change this setting while in combat.")
-                    return
+    if clientInfo.isEra or clientInfo.isLegion or clientInfo.isClassic then
+        if self:ShouldHandleUseCompactPartyFrames() then
+            AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
+                value = GetCVarBool("useCompactPartyFrames"),
+                onValueChanged = function(self, val)
+                    if InCombatLockdown() then
+                        print(addonName .. ": Cannot change this setting while in combat.")
+                        return
+                    end
+
+                    mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
                 end
-
-                mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
-            end
-        })
-        AddGap(contentContainer, "Standard")
+            })
+            AddGap(contentContainer, "Standard")
+            AddGap(contentContainer, "BottomSeparator")
+        end
     end
-
-    AddGap(contentContainer, "BottomSeparator")
 
     local function OpenProfileManager()
         if not self.ProfileManagerPopup then

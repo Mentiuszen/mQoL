@@ -7,6 +7,25 @@ local GetNow = Utils.GetNow or time
 
 -- Keep collection and formatting here so AccountOverview only wires events and renders DB state.
 local DEFAULT_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local GREAT_VAULT_ICON_TEXTURE_SIZE = 2048
+local GREAT_VAULT_EMPTY_ICON = {
+    texture = "Interface\\LootFrame\\LootGreatVaultFX",
+    texCoords = {
+        22 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        146 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        33 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        160 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+    },
+}
+local GREAT_VAULT_ACTIVE_ICON = {
+    texture = "Interface\\LootFrame\\LootGreatVaultFXPart2",
+    texCoords = {
+        48 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        172 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        63 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+        191 / GREAT_VAULT_ICON_TEXTURE_SIZE,
+    },
+}
 local DEFAULT_VAULT_SUMMARY_TEXT = "(0/3, 0/3, 0/3)"
 local DEFAULT_LEGION_SUMMARY_TEXT = "0/1"
 local DEFAULT_UNSUPPORTED_SUMMARY_TEXT = "-"
@@ -84,6 +103,8 @@ local GROUP_ORDER = {
 }
 
 WeeklyRewardUtils.DefaultIcon = DEFAULT_ICON
+WeeklyRewardUtils.GreatVaultEmptyIcon = GREAT_VAULT_EMPTY_ICON
+WeeklyRewardUtils.GreatVaultActiveIcon = GREAT_VAULT_ACTIVE_ICON
 WeeklyRewardUtils.DefaultVaultSummaryText = DEFAULT_VAULT_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultLegionSummaryText = DEFAULT_LEGION_SUMMARY_TEXT
 WeeklyRewardUtils.DefaultUnsupportedSummaryText = DEFAULT_UNSUPPORTED_SUMMARY_TEXT
@@ -935,6 +956,39 @@ local function BuildTooltipLines(snapshot)
     return lines
 end
 
+local function HasCompletedGreatVaultSlot(snapshot)
+    if type(snapshot) ~= "table" or snapshot.kind ~= "great_vault" or type(snapshot.groups) ~= "table" then
+        return false
+    end
+
+    for _, groupInfo in ipairs(GROUP_ORDER) do
+        local group = snapshot.groups[groupInfo.key]
+        if ClampNumber(group and group.completed) > 0 then
+            return true
+        end
+
+        local slots = type(group) == "table" and group.slots or nil
+        if type(slots) == "table" then
+            for slotIndex = 1, ClampNumber(groupInfo.total) do
+                local slot = slots[slotIndex]
+                if type(slot) == "table" and slot.unlocked then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+local function GetDisplayIcon(snapshot)
+    if clientInfo.isRetail and type(snapshot) == "table" and snapshot.kind == "great_vault" then
+        return HasCompletedGreatVaultSlot(snapshot) and GREAT_VAULT_ACTIVE_ICON or GREAT_VAULT_EMPTY_ICON
+    end
+
+    return DEFAULT_ICON
+end
+
 function WeeklyRewardUtils.GetCurrentMode()
     return GetCurrentMode()
 end
@@ -973,7 +1027,7 @@ function WeeklyRewardUtils.GetDisplayState(rawValue)
         kind = snapshot.kind,
         title = snapshot.title,
         summaryText = snapshot.summaryText,
-        icon = DEFAULT_ICON,
+        icon = GetDisplayIcon(snapshot),
         lines = BuildTooltipLines(snapshot),
         snapshot = snapshot,
     }

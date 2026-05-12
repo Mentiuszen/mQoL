@@ -2,6 +2,7 @@ mQoL_ProfessionUtils = mQoL_ProfessionUtils or {}
 
 local ProfessionUtils = mQoL_ProfessionUtils
 local DeepCopy = mQoL_Utils and mQoL_Utils.DeepCopy
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 
 local TIER_DEFINITIONS = {
     { key = "classic", label = "Classic", abbr = "CL", aliases = { "classic" } },
@@ -29,6 +30,82 @@ local SECONDARY_PROFESSIONS = {
     ["cooking"] = true,
     ["first aid"] = true,
     ["fishing"] = true,
+}
+
+local SECONDARY_PROFESSION_GLOBAL_KEYS = {
+    "ARCHAEOLOGY",
+    "COOKING",
+    "FIRST_AID",
+    "FISHING",
+    "PROFESSIONS_ARCHAEOLOGY",
+    "PROFESSIONS_COOKING",
+    "PROFESSIONS_FIRST_AID",
+    "PROFESSIONS_FISHING",
+}
+
+local PRIMARY_SKILL_HEADER_GLOBAL_KEYS = {
+    "PROFESSIONS",
+    "SKILL_CATEGORY_PROFESSION",
+    "TRADE_SKILLS",
+}
+
+local SECONDARY_SKILL_HEADER_GLOBAL_KEYS = {
+    "SECONDARY_SKILLS",
+    "SKILL_CATEGORY_SECONDARY",
+}
+
+local PROFESSION_SKILL_LINE_IDS = {
+    alchemy = 171,
+    archaeology = 794,
+    blacksmithing = 164,
+    cooking = 185,
+    enchanting = 333,
+    engineering = 202,
+    ["first aid"] = 129,
+    fishing = 356,
+    herbalism = 182,
+    inscription = 773,
+    jewelcrafting = 755,
+    leatherworking = 165,
+    mining = 186,
+    skinning = 393,
+    tailoring = 197,
+}
+
+local PROFESSION_GLOBAL_KEYS = {
+    alchemy = { "ALCHEMY" },
+    archaeology = { "ARCHAEOLOGY", "PROFESSIONS_ARCHAEOLOGY" },
+    blacksmithing = { "BLACKSMITHING" },
+    cooking = { "COOKING", "PROFESSIONS_COOKING" },
+    enchanting = { "ENCHANTING" },
+    engineering = { "ENGINEERING" },
+    ["first aid"] = { "FIRST_AID", "PROFESSIONS_FIRST_AID" },
+    fishing = { "FISHING", "PROFESSIONS_FISHING" },
+    herbalism = { "HERBALISM" },
+    inscription = { "INSCRIPTION" },
+    jewelcrafting = { "JEWELCRAFTING" },
+    leatherworking = { "LEATHERWORKING" },
+    mining = { "MINING" },
+    skinning = { "SKINNING" },
+    tailoring = { "TAILORING" },
+}
+
+local CLASSIC_PROFESSION_ICON_IDS = {
+    alchemy = 136240, -- Interface/ICONS/Trade_Alchemy.blp
+    archaeology = 441139, -- Interface/ICONS/TRADE_ARCHAEOLOGY.BLP
+    blacksmithing = 136241, -- Interface/ICONS/Trade_BlackSmithing.blp
+    cooking = 133971, -- Interface/ICONS/INV_Misc_Food_15.blp
+    enchanting = 136244, -- Interface/ICONS/Trade_Engraving.blp
+    engineering = 136243, -- Interface/ICONS/Trade_Engineering.blp
+    ["first aid"] = 135966, -- Interface/ICONS/Spell_Holy_SealOfSacrifice.blp
+    fishing = 136245, -- Interface/ICONS/Trade_Fishing.blp
+    herbalism = 136246, -- Interface/ICONS/Trade_Herbalism.blp
+    inscription = 237171, -- Interface/ICONS/INV_Inscription_Tradeskill01.blp
+    jewelcrafting = 134071, -- Interface/ICONS/INV_Misc_Gem_01.blp
+    leatherworking = 136247, -- Interface/ICONS/Trade_LeatherWorking.blp
+    mining = 136248, -- Interface/ICONS/Trade_Mining.blp
+    skinning = 134366, -- Interface/ICONS/INV_Misc_Pelt_Wolf_01.blp
+    tailoring = 136249, -- Interface/ICONS/Trade_Tailoring.blp
 }
 
 ProfessionUtils.TierDefinitions = TIER_DEFINITIONS
@@ -61,6 +138,132 @@ local function NormalizeLabel(text)
 end
 
 ProfessionUtils.NormalizeLabel = NormalizeLabel
+
+local function AddLabelAlias(target, value)
+    if type(value) ~= "string" or value == "" then
+        return
+    end
+
+    local normalized = NormalizeLabel(value)
+    if normalized ~= "" then
+        target[normalized] = true
+    end
+end
+
+local function BuildLabelSet(fallbackLabels, globalKeys)
+    local labels = {}
+
+    for _, label in ipairs(fallbackLabels or {}) do
+        AddLabelAlias(labels, label)
+    end
+
+    for _, globalKey in ipairs(globalKeys or {}) do
+        AddLabelAlias(labels, _G and _G[globalKey])
+    end
+
+    return labels
+end
+
+local secondaryProfessionLabels
+local classicPrimaryProfessionHeaderLabels
+local classicSecondaryProfessionHeaderLabels
+local professionKeyByLabel
+local NormalizePositiveID
+
+local function GetSecondaryProfessionLabels()
+    if secondaryProfessionLabels then
+        return secondaryProfessionLabels
+    end
+
+    local labels = BuildLabelSet(nil, SECONDARY_PROFESSION_GLOBAL_KEYS)
+    for label in pairs(SECONDARY_PROFESSIONS) do
+        AddLabelAlias(labels, label)
+    end
+
+    secondaryProfessionLabels = labels
+    return secondaryProfessionLabels
+end
+
+local function IsSecondaryProfessionName(name)
+    return GetSecondaryProfessionLabels()[NormalizeLabel(name)] == true
+end
+
+local function IsClassicPrimaryProfessionHeader(name)
+    if not classicPrimaryProfessionHeaderLabels then
+        classicPrimaryProfessionHeaderLabels = BuildLabelSet({ "Professions" }, PRIMARY_SKILL_HEADER_GLOBAL_KEYS)
+    end
+
+    return classicPrimaryProfessionHeaderLabels[NormalizeLabel(name)] == true
+end
+
+local function IsClassicSecondaryProfessionHeader(name)
+    if not classicSecondaryProfessionHeaderLabels then
+        classicSecondaryProfessionHeaderLabels = BuildLabelSet({ "Secondary Skills" }, SECONDARY_SKILL_HEADER_GLOBAL_KEYS)
+    end
+
+    return classicSecondaryProfessionHeaderLabels[NormalizeLabel(name)] == true
+end
+
+local function GetProfessionKeyByLabel()
+    if professionKeyByLabel then
+        return professionKeyByLabel
+    end
+
+    local labels = {}
+    for professionKey in pairs(PROFESSION_SKILL_LINE_IDS) do
+        AddLabelAlias(labels, professionKey)
+        labels[NormalizeLabel(professionKey)] = professionKey
+
+        for _, globalKey in ipairs(PROFESSION_GLOBAL_KEYS[professionKey] or {}) do
+            local label = _G and _G[globalKey]
+            local normalizedLabel = NormalizeLabel(label)
+            if normalizedLabel ~= "" then
+                labels[normalizedLabel] = professionKey
+            end
+        end
+    end
+
+    professionKeyByLabel = labels
+    return professionKeyByLabel
+end
+
+local function GetProfessionKey(name)
+    return GetProfessionKeyByLabel()[NormalizeLabel(name)]
+end
+
+local function GetTradeSkillTexture(skillLineID)
+    skillLineID = NormalizePositiveID(skillLineID)
+    if not skillLineID or not C_TradeSkillUI or type(C_TradeSkillUI.GetTradeSkillTexture) ~= "function" then
+        return nil
+    end
+
+    local textureOk, texture = pcall(C_TradeSkillUI.GetTradeSkillTexture, skillLineID)
+    if textureOk and texture then
+        return texture
+    end
+
+    return nil
+end
+
+local function ResolveProfessionIcon(professionName, skillLineID)
+    local professionKey = GetProfessionKey(professionName)
+    if clientInfo.isEra or clientInfo.isBCC then
+        return professionKey and CLASSIC_PROFESSION_ICON_IDS[professionKey] or nil
+    end
+
+    local texture = GetTradeSkillTexture(skillLineID)
+    if texture then
+        return texture
+    end
+
+    local mappedSkillLineID = professionKey and PROFESSION_SKILL_LINE_IDS[professionKey]
+    texture = GetTradeSkillTexture(mappedSkillLineID)
+    if texture then
+        return texture
+    end
+
+    return professionKey and CLASSIC_PROFESSION_ICON_IDS[professionKey] or nil
+end
 
 local function BuildTierAbbreviation(label)
     local normalized = NormalizeLabel(label)
@@ -204,7 +407,7 @@ local function GetTradeSkillCategoryIDs()
     return result
 end
 
-local function NormalizePositiveID(value)
+NormalizePositiveID = function(value)
     local numeric = tonumber(value)
     if numeric and numeric > 0 then
         return math.floor(numeric)
@@ -599,12 +802,64 @@ local function BuildFallbackProfessionEntryFromBucket(bucket)
     local currentTier = tiers[#tiers]
     return {
         name = bucket.professionName,
+        icon = ResolveProfessionIcon(bucket.professionName, bucket.professionID),
         rank = currentTier and currentTier.rank or 0,
         maxRank = currentTier and currentTier.maxRank or 0,
         skillLine = bucket.professionID,
         skillLineName = currentTier and currentTier.rawLabel or bucket.professionName,
         tiers = tiers,
     }
+end
+
+local function AddProfessionEntryToSnapshot(result, entry, targetListKey)
+    if type(result) ~= "table" or type(entry) ~= "table" or not IsValidProfessionName(entry.name) then
+        return
+    end
+
+    local resolvedIcon = ResolveProfessionIcon(entry.name, entry.skillLine)
+    if (clientInfo.isEra or clientInfo.isBCC) and resolvedIcon then
+        entry.icon = resolvedIcon
+    else
+        entry.icon = entry.icon or resolvedIcon
+    end
+
+    local isSecondary = IsSecondaryProfessionName(entry.name)
+    if targetListKey == "primary" and isSecondary then
+        targetListKey = "secondary"
+    else
+        targetListKey = targetListKey or (isSecondary and "secondary" or "primary")
+    end
+    local list = result[targetListKey]
+    if type(list) ~= "table" then
+        return
+    end
+
+    local entryNameKey = NormalizeLabel(entry.name)
+    for _, existingEntry in ipairs(list) do
+        if NormalizeLabel(existingEntry and existingEntry.name) == entryNameKey then
+            if (tonumber(entry.rank) or 0) > (tonumber(existingEntry.rank) or 0) then
+                existingEntry.rank = entry.rank
+            end
+            if (tonumber(entry.maxRank) or 0) > (tonumber(existingEntry.maxRank) or 0) then
+                existingEntry.maxRank = entry.maxRank
+            end
+            if entry.icon and not existingEntry.icon then
+                existingEntry.icon = entry.icon
+            end
+            if entry.skillLine and not existingEntry.skillLine then
+                existingEntry.skillLine = entry.skillLine
+            end
+            if entry.skillLineName and not existingEntry.skillLineName then
+                existingEntry.skillLineName = entry.skillLineName
+            end
+            if type(entry.tiers) == "table" and #entry.tiers > 0 then
+                existingEntry.tiers = entry.tiers
+            end
+            return
+        end
+    end
+
+    list[#list + 1] = entry
 end
 
 local function AddOpenTradeSkillFallbackSnapshot(result, tradeSkillLineCache)
@@ -618,9 +873,7 @@ local function AddOpenTradeSkillFallbackSnapshot(result, tradeSkillLineCache)
             seenBuckets[bucket] = true
             local entry = BuildFallbackProfessionEntryFromBucket(bucket)
             if entry then
-                local normalizedName = NormalizeLabel(entry.name)
-                local target = SECONDARY_PROFESSIONS[normalizedName] and result.secondary or result.primary
-                target[#target + 1] = entry
+                AddProfessionEntryToSnapshot(result, entry)
             end
         end
     end
@@ -674,6 +927,119 @@ local function CollectTierEntries(professionName, parentSkillLineID, currentSkil
     return entries
 end
 
+local function RestoreClassicSkillHeaderState(collapsedHeaderNames)
+    if type(collapsedHeaderNames) ~= "table" or #collapsedHeaderNames == 0
+        or type(CollapseSkillHeader) ~= "function"
+        or type(GetNumSkillLines) ~= "function"
+        or type(GetSkillLineInfo) ~= "function" then
+        return
+    end
+
+    for _, collapsedHeaderName in ipairs(collapsedHeaderNames) do
+        local skillIndex = 1
+        while skillIndex <= GetNumSkillLines() do
+            local ok, skillName, isHeader, isExpanded = pcall(GetSkillLineInfo, skillIndex)
+            if ok and isHeader and isExpanded and skillName == collapsedHeaderName then
+                pcall(CollapseSkillHeader, skillIndex)
+                break
+            end
+            skillIndex = skillIndex + 1
+        end
+    end
+end
+
+local function ExpandClassicSkillHeadersForScan()
+    local collapsedHeaderNames = {}
+    if type(ExpandSkillHeader) ~= "function"
+        or type(GetNumSkillLines) ~= "function"
+        or type(GetSkillLineInfo) ~= "function" then
+        return collapsedHeaderNames
+    end
+
+    local skillIndex = 1
+    local guard = 0
+    while skillIndex <= GetNumSkillLines() and guard < 1000 do
+        guard = guard + 1
+        local ok, skillName, isHeader, isExpanded = pcall(GetSkillLineInfo, skillIndex)
+        if ok and isHeader and not isExpanded then
+            collapsedHeaderNames[#collapsedHeaderNames + 1] = skillName
+            pcall(ExpandSkillHeader, skillIndex)
+        end
+        skillIndex = skillIndex + 1
+    end
+
+    return collapsedHeaderNames
+end
+
+local function BuildClassicSkillLineEntry(skillName, skillRank, numTempPoints, skillMaxRank)
+    if not IsValidProfessionName(skillName) then
+        return nil
+    end
+
+    local professionKey = GetProfessionKey(skillName)
+    local skillLineID = professionKey and PROFESSION_SKILL_LINE_IDS[professionKey] or nil
+    local rank = math.floor((tonumber(skillRank) or 0) + (tonumber(numTempPoints) or 0))
+    local maxRank = math.floor(tonumber(skillMaxRank) or 0)
+    if rank <= 0 and maxRank <= 0 then
+        return nil
+    end
+
+    return {
+        name = skillName,
+        icon = ResolveProfessionIcon(skillName, skillLineID),
+        rank = rank,
+        maxRank = maxRank,
+        skillLine = skillLineID,
+        skillLineName = skillName,
+        tiers = {
+            BuildTierEntry(skillName, skillName, rank, maxRank, skillLineID),
+        },
+    }
+end
+
+local function AddClassicSkillLineSnapshot(result)
+    if not (clientInfo.isEra or clientInfo.isBCC)
+        or type(GetNumSkillLines) ~= "function"
+        or type(GetSkillLineInfo) ~= "function" then
+        return false, false
+    end
+
+    local collapsedHeaderNames = ExpandClassicSkillHeadersForScan()
+    local currentHeaderKind
+    local sawPrimaryHeader = false
+    local sawSecondaryHeader = false
+
+    for skillIndex = 1, GetNumSkillLines() do
+        local ok, skillName, isHeader, isExpanded, skillRank, numTempPoints, skillModifier, skillMaxRank, isAbandonable =
+            pcall(GetSkillLineInfo, skillIndex)
+        if ok then
+            if isHeader then
+                if IsClassicPrimaryProfessionHeader(skillName) then
+                    currentHeaderKind = "primary"
+                    sawPrimaryHeader = true
+                elseif IsClassicSecondaryProfessionHeader(skillName) then
+                    currentHeaderKind = "secondary"
+                    sawSecondaryHeader = true
+                else
+                    currentHeaderKind = nil
+                end
+            else
+                local isSecondary = currentHeaderKind == "secondary" or IsSecondaryProfessionName(skillName)
+                local isPrimary = currentHeaderKind == "primary" or (isAbandonable and not isSecondary)
+                if isPrimary or isSecondary then
+                    local entry = BuildClassicSkillLineEntry(skillName, skillRank, numTempPoints, skillMaxRank)
+                    if entry then
+                        AddProfessionEntryToSnapshot(result, entry, isSecondary and "secondary" or "primary")
+                    end
+                end
+            end
+        end
+    end
+
+    RestoreClassicSkillHeaderState(collapsedHeaderNames)
+    return sawPrimaryHeader, sawSecondaryHeader
+end
+
 
 function ProfessionUtils.GetSnapshot()
     local result = {
@@ -683,13 +1049,19 @@ function ProfessionUtils.GetSnapshot()
     local tradeSkillLineCache = BuildTradeSkillLineCache()
 
     if not GetProfessions or not GetProfessionInfo then
+        local hasPrimarySkillSnapshot, hasSecondarySkillSnapshot = AddClassicSkillLineSnapshot(result)
+        result.primaryComplete = hasPrimarySkillSnapshot or nil
+        result.secondaryComplete = hasSecondarySkillSnapshot or nil
         AddOpenTradeSkillFallbackSnapshot(result, tradeSkillLineCache)
         return result
     end
 
+    result.primaryComplete = true
+    result.secondaryComplete = true
+
     local primaryOne, primaryTwo, archaeology, fishing, cooking, firstAid = GetProfessions()
 
-    local function Add(list, professionIndex)
+    local function Add(professionIndex, targetListKey)
         if not professionIndex then
             return
         end
@@ -699,23 +1071,25 @@ function ProfessionUtils.GetSnapshot()
             return
         end
 
-        list[#list + 1] = {
+        AddProfessionEntryToSnapshot(result, {
             name = name,
-            icon = icon,
+            icon = icon or ResolveProfessionIcon(name, skillLine),
             rank = rank or 0,
             maxRank = maxRank or 0,
             skillLine = skillLine,
             skillLineName = skillLineName,
             tiers = CollectTierEntries(name, skillLine, skillLineName, rank, maxRank, tradeSkillLineCache),
-        }
+        }, targetListKey)
     end
 
-    Add(result.primary, primaryOne)
-    Add(result.primary, primaryTwo)
-    Add(result.secondary, cooking)
-    Add(result.secondary, fishing)
-    Add(result.secondary, archaeology)
-    Add(result.secondary, firstAid)
+    Add(primaryOne, "primary")
+    Add(primaryTwo, "primary")
+    Add(cooking, "secondary")
+    Add(fishing, "secondary")
+    Add(archaeology, "secondary")
+    Add(firstAid, "secondary")
+
+    AddClassicSkillLineSnapshot(result)
 
     return result
 end
@@ -892,7 +1266,7 @@ local function MergeEntries(existingEntry, fetchedEntry)
     return merged
 end
 
-local function MergeList(existingList, fetchedList)
+local function MergeList(existingList, fetchedList, fetchedComplete)
     local mergedList = {}
     local fetchedByName = {}
     local usedNames = {}
@@ -912,9 +1286,11 @@ local function MergeList(existingList, fetchedList)
         for _, existingEntry in ipairs(normalizedExistingList) do
             local entryNameKey = NormalizeLabel(existingEntry and existingEntry.name)
             local fetchedEntry = entryNameKey ~= "" and fetchedByName[entryNameKey] or nil
-            mergedList[#mergedList + 1] = MergeEntries(existingEntry, fetchedEntry)
-            if entryNameKey ~= "" then
-                usedNames[entryNameKey] = true
+            if fetchedEntry or not fetchedComplete then
+                mergedList[#mergedList + 1] = MergeEntries(existingEntry, fetchedEntry)
+                if entryNameKey ~= "" then
+                    usedNames[entryNameKey] = true
+                end
             end
         end
     end
@@ -932,16 +1308,20 @@ local function MergeList(existingList, fetchedList)
 end
 
 function ProfessionUtils.MergeSnapshot(existingProfessions, fetchedProfessions)
-    return {
+    local merged = {
         primary = MergeList(
             type(existingProfessions) == "table" and existingProfessions.primary or nil,
-            type(fetchedProfessions) == "table" and fetchedProfessions.primary or nil
+            type(fetchedProfessions) == "table" and fetchedProfessions.primary or nil,
+            type(fetchedProfessions) == "table" and fetchedProfessions.primaryComplete
         ),
         secondary = MergeList(
             type(existingProfessions) == "table" and existingProfessions.secondary or nil,
-            type(fetchedProfessions) == "table" and fetchedProfessions.secondary or nil
+            type(fetchedProfessions) == "table" and fetchedProfessions.secondary or nil,
+            type(fetchedProfessions) == "table" and fetchedProfessions.secondaryComplete
         ),
     }
+
+    return merged
 end
 
 function ProfessionUtils.HasData(professions)
@@ -964,20 +1344,18 @@ function ProfessionUtils.GetDisplayEntries(professions)
     end
 
     local source = ProfessionUtils.CollectListEntries(professions.primary)
-    if not source then
-        source = ProfessionUtils.CollectListEntries(professions.secondary)
-    end
-
     if type(source) ~= "table" or #source == 0 then
         return nil
     end
 
     local entries = {}
-    for index, entry in ipairs(source) do
-        if index > 2 then
+    for _, entry in ipairs(source) do
+        if not IsSecondaryProfessionName(entry and entry.name) then
+            entries[#entries + 1] = entry
+        end
+        if #entries >= 2 then
             break
         end
-        entries[#entries + 1] = entry
     end
 
     return #entries > 0 and entries or nil
@@ -1024,7 +1402,7 @@ function ProfessionUtils.FormatSkillValue(rank, maxRank)
     return string.format("%d/%d", rank, maxRank)
 end
 
-function ProfessionUtils.GetSummaryText(professionEntry)
+function ProfessionUtils.GetSummaryText(professionEntry, useFullTierLabel)
     local currentTier = ProfessionUtils.GetCurrentTier(professionEntry)
     if not currentTier then
         return "-"
@@ -1033,6 +1411,10 @@ function ProfessionUtils.GetSummaryText(professionEntry)
     local skillText = ProfessionUtils.FormatSkillValue(currentTier.rank, currentTier.maxRank)
     if currentTier.label == "Current" then
         return skillText
+    end
+
+    if useFullTierLabel and currentTier.label and currentTier.label ~= "" then
+        return string.format("%s %s", currentTier.label, skillText)
     end
 
     if currentTier.abbr and currentTier.abbr ~= "" then
