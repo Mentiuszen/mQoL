@@ -9,11 +9,8 @@ if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isClassic) then re
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
 
-local CLASSIC_EDIT_MODE_MIN_TOCVERSION = 50504
-local CLASSIC_EDIT_MODE_AVAILABLE_VERSION = "5.5.4"
-
 local function IsClassicEditModePending()
-    return clientInfo.isClassic and ((tonumber(clientInfo.tocversion) or 0) < CLASSIC_EDIT_MODE_MIN_TOCVERSION)
+    return clientInfo.isClassicToT
 end
 
 local SITUATIONAL_MODE_KEY = "Use Situational Instead"
@@ -964,8 +961,7 @@ function mQoL_EditMode:CreateClassicEditModeNoticePanel(parent)
     message:SetWidth(770)
     message:SetJustifyH("LEFT")
     message:SetText(string.format(
-        "|cffffd100Edit Mode will be available in version %s.|r\n\nCurrent Classic client: %s (%d).",
-        CLASSIC_EDIT_MODE_AVAILABLE_VERSION,
+        "|cffffd100Edit Mode will be available in Mists of Pandaria Classic version 5.5.4.|r\n\nCurrent Mists of Pandaria Classic version: %s (%d).",
         currentVersion,
         currentTocVersion
     ))

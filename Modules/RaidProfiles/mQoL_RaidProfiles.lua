@@ -1373,56 +1373,20 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         return mQoL_Hub:AddOptionRow(contentContainer, label, type, opts, extra, applyFunc)
     end
 
-    local useRaidStyleVal = false
-    if clientInfo.isRetail then
-        if EditModeManagerFrame and EditModeManagerFrame.UseRaidStylePartyFrames then
-            useRaidStyleVal = EditModeManagerFrame:UseRaidStylePartyFrames()
-        end
-    elseif clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
-        useRaidStyleVal = GetCVarBool("useCompactPartyFrames")
+    if self:ShouldHandleUseCompactPartyFrames() then
+        AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
+            value = GetCVarBool("useCompactPartyFrames"),
+            onValueChanged = function(self, val)
+                if InCombatLockdown() then
+                    print(addonName .. ": Cannot change this setting while in combat.")
+                    return
+                end
+
+                mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
+            end
+        })
+        AddGap(contentContainer, "Standard")
     end
-
-    AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
-        value = useRaidStyleVal,
-        onValueChanged = function(self, val)
-            if InCombatLockdown() then
-                print(addonName .. ": Cannot change this setting while in combat.")
-                -- Revert visual state if possible
-                if self.SetValue then 
-                end
-                return 
-            end
-
-            if clientInfo.isRetail then
-                if EditModeManagerFrame then
-                    if EditModeManagerFrame.SetUseRaidStylePartyFrames then
-                        EditModeManagerFrame:SetUseRaidStylePartyFrames(val)
-                    elseif EditModeManagerFrame.OnSystemSettingChange then
-                         local partySystem = nil
-                         if EditModeManagerFrame.GetRegisteredSystemFrame then
-                             partySystem = EditModeManagerFrame:GetRegisteredSystemFrame(Enum.EditModeSystem.UnitFrame, Enum.EditModeUnitFrameSystemIndices.Party)
-                         end
-
-                         if partySystem then
-                             EditModeManagerFrame:OnSystemSettingChange(partySystem, Enum.EditModeUnitFrameSetting.UseRaidStylePartyFrames, val and 1 or 0)
-
-                             if CompactRaidFrameContainer and CompactRaidFrameContainer.TryUpdate then
-                                 CompactRaidFrameContainer:TryUpdate()
-                             end
-                         end
-                    end
-                end
-            else
-                SetCVar("useCompactPartyFrames", val and "1" or "0")
-                if CompactRaidFrameContainer and CompactRaidFrameContainer.TryUpdate then
-                     if not InCombatLockdown() then
-                        CompactRaidFrameContainer:TryUpdate()
-                     end
-                end
-            end
-        end
-    })
-    AddGap(contentContainer, "Standard")
 
     AddGap(contentContainer, "BottomSeparator")
 

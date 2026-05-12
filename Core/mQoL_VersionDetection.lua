@@ -17,12 +17,14 @@ local clientInfo = {
     isPandaria = false,
     isEra = false,
     isBCC = false,
+    isClassicToT = false,
 }
 
 if tocversion >= 120000 then
     clientInfo.isRetail = true
 elseif tocversion >= 50500 and tocversion <= 50505 then
     clientInfo.isClassic = true
+    clientInfo.isClassicToT = tocversion <= 50503
 elseif tocversion >= 70000 and tocversion <= 70300 then
     clientInfo.isLegion = true
 elseif tocversion >= 11300 and tocversion <= 11599 then

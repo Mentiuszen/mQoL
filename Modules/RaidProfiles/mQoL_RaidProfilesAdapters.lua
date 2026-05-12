@@ -93,6 +93,47 @@ local CvarToOptionMappings = {
 
 local MQOL_PROFILE_NAME = "mQoL"
 
+function mQoL_RaidProfiles:ShouldHandleUseCompactPartyFrames()
+    return clientInfo.isClassicToT or clientInfo.isEra or clientInfo.isLegion
+end
+
+function mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
+    if not self:ShouldHandleUseCompactPartyFrames() then
+        return
+    end
+
+    local cvarValue = (value == true or value == 1 or value == "1" or value == "true") and "1" or "0"
+    if BlizzardOptionsPanel_SetCVarSafe then
+        BlizzardOptionsPanel_SetCVarSafe("useCompactPartyFrames", cvarValue)
+    else
+        SetCVar("useCompactPartyFrames", cvarValue)
+    end
+
+    local blizzardControl = _G.CompactUnitFrameProfilesRaidStylePartyFrames
+    if blizzardControl and blizzardControl.setFunc then
+        local ok = pcall(blizzardControl.setFunc, cvarValue)
+        if ok then
+            return
+        end
+    end
+
+    if RaidOptionsFrame_UpdatePartyFrames then
+        RaidOptionsFrame_UpdatePartyFrames()
+    end
+
+    if CompactRaidFrameManager_UpdateShown and CompactRaidFrameManager then
+        CompactRaidFrameManager_UpdateShown(CompactRaidFrameManager)
+    end
+
+    if CompactRaidFrameContainer then
+        if CompactRaidFrameContainer.TryUpdate then
+            CompactRaidFrameContainer:TryUpdate()
+        elseif CompactRaidFrameContainer_TryUpdate then
+            CompactRaidFrameContainer_TryUpdate(CompactRaidFrameContainer)
+        end
+    end
+end
+
 -- Convert string value to appropriate type for Blizzard API
 local function ConvertValueForLoad(value)
     if value == "1" then return true
@@ -164,7 +205,7 @@ local function ApplyProfileOptions(savedCVars, cvarToOption)
                     SetRaidProfileOption(MQOL_PROFILE_NAME, optionName, optValue)
                     applied = applied + 1
                 elseif cvar == "useCompactPartyFrames" then
-                    SetCVar(cvar, value)
+                    mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
                 end
             end
         end

@@ -64,7 +64,7 @@ mQoL_Hub.searchIndex = {
     { label = "Fog Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
     { label = "Edit Mode Profile Mode", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
     { label = "Force Edit Mode Profile", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
-    { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = true },
+    { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = clientInfo.isClassicToT or clientInfo.isEra or clientInfo.isLegion },
     { label = "Saved Raid Profiles", panel = "Raid Profiles", available = true },
     { label = "Forced Raid Profile Mode", panel = "Raid Profiles", available = true },
     { label = "Force Raid Profile", panel = "Raid Profiles", available = true },
