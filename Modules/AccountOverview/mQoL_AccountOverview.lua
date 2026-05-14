@@ -1337,11 +1337,19 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
     end
 
     if opts.refreshProfessions or character.professions == nil then
+        local existingProfessions = character.professions
+        local existingHasProfessionData = HasProfessionData(existingProfessions)
         local fetchedProfessions = GetProfessionSnapshot()
-        local mergedProfessions = MergeProfessionSnapshot(character.professions, fetchedProfessions)
+        local fetchedHasProfessionData = HasProfessionData(fetchedProfessions)
+        local mergedProfessions = MergeProfessionSnapshot(existingProfessions, fetchedProfessions)
         local hasCompleteProfessionSnapshot = type(fetchedProfessions) == "table"
             and (fetchedProfessions.primaryComplete or fetchedProfessions.secondaryComplete)
-        if hasCompleteProfessionSnapshot or HasProfessionData(mergedProfessions) or not HasProfessionData(character.professions) then
+        local keepExistingProfessions = existingHasProfessionData
+            and not fetchedHasProfessionData
+            and not opts.allowEmptyProfessionSnapshot
+
+        if not keepExistingProfessions
+            and (hasCompleteProfessionSnapshot or HasProfessionData(mergedProfessions) or not existingHasProfessionData) then
             character.professions = mergedProfessions
         end
     end
@@ -3864,6 +3872,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "SKILL_LINES_CHANGED" then
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshProfessions = true,
+            allowEmptyProfessionSnapshot = true,
         })
     elseif event == "CHAT_MSG_SKILL" then
         mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
@@ -3913,7 +3922,6 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             refreshStatic = true,
             refreshMoney = true,
             forceLogoutMoney = true,
-            refreshProfessions = true,
             refreshWeeklyReward = true,
             refreshWarbandBank = true,
             allowCachedWarbandBank = true,
