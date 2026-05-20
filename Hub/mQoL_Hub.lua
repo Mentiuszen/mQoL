@@ -10,9 +10,9 @@ local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
-mQoL_Hub.version = "1.2.1a"
-mQoL_Hub.build = "242"
-mQoL_Hub.vendor = "release"    --dev / test / release
+mQoL_Hub.version = "1.2.2"
+mQoL_Hub.build = "243"
+mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar

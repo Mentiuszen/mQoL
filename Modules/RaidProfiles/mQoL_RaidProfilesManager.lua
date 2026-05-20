@@ -83,42 +83,9 @@ function mQoL_RaidProfiles:InitializeDB()
     end
 end
 
--- Combat lockdown handling
-local function SetupCombatEventFrame()
-    if mQoL_RaidProfiles.combatEventFrame then return end
-
-    mQoL_RaidProfiles.combatEventFrame = CreateFrame("Frame")
-    mQoL_RaidProfiles.combatEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    mQoL_RaidProfiles.combatEventFrame:SetScript("OnEvent", function()
-        if mQoL_RaidProfiles.pendingProfileLoad then
-            local pending = mQoL_RaidProfiles.pendingProfileLoad
-            mQoL_RaidProfiles.pendingProfileLoad = nil
-            mQoL_RaidProfiles:LoadRaidProfile(pending)
-            -- Trigger frame layout refresh after profile load to ensure proper positioning
-            C_Timer.After(0.1, function()
-                if CompactRaidFrameContainer then
-                    if CompactRaidFrameContainer.TryUpdate then
-                        CompactRaidFrameContainer:TryUpdate()
-                    elseif CompactRaidFrameContainer_TryUpdate then
-                        CompactRaidFrameContainer_TryUpdate(CompactRaidFrameContainer)
-                    end
-                end
-            end)
-        end
-    end)
-end
-
 -- Load a raid profile
 function mQoL_RaidProfiles:LoadRaidProfile(profileName)
     if not profileName or profileName == "" then return end
-
-    -- Handle combat lockdown
-    if InCombatLockdown() then
-        self.pendingProfileLoad = profileName
-        SetupCombatEventFrame()
-        print(addonName .. ": In combat - profile '" .. profileName .. "' will be applied after combat.")
-        return
-    end
 
     -- Get saved data
     local savedCVars = self.db.settings.raidProfiles and self.db.settings.raidProfiles[profileName]
@@ -220,11 +187,12 @@ end
 
 function mQoL_RaidProfiles:SetFramePosition(frame, pos)
     if not frame or not pos then return end
-    if InCombatLockdown() then return end
 
-    frame:ClearAllPoints()
+    local ok = pcall(frame.ClearAllPoints, frame)
+    if not ok then return end
+
     local relativeTo = _G[pos.relativeTo] or UIParent
-    frame:SetPoint(pos.point, relativeTo, pos.relativePoint, pos.x, pos.y)
+    pcall(frame.SetPoint, frame, pos.point, relativeTo, pos.relativePoint, pos.x, pos.y)
 end
 
 function mQoL_RaidProfiles:GetCurrentSituation()
@@ -327,7 +295,7 @@ function mQoL_RaidProfiles:UpdateCurrentProfile(immediate)
         end
     end
 
-    if immediate then
+    if immediate or InCombatLockdown() then
         Update()
     else
         self.updateTimer = C_Timer.NewTimer(0.5, Update)

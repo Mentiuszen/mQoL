@@ -1378,11 +1378,6 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
             AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
                 value = GetCVarBool("useCompactPartyFrames"),
                 onValueChanged = function(self, val)
-                    if InCombatLockdown() then
-                        print(addonName .. ": Cannot change this setting while in combat.")
-                        return
-                    end
-
                     mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
                 end
             })

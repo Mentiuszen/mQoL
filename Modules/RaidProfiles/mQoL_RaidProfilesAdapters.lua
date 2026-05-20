@@ -93,6 +93,19 @@ local CvarToOptionMappings = {
 
 local MQOL_PROFILE_NAME = "mQoL"
 
+local function SafeCall(func, ...)
+    if not func then
+        return false
+    end
+
+    local ok, result = pcall(func, ...)
+    if not ok then
+        return false
+    end
+
+    return true, result
+end
+
 function mQoL_RaidProfiles:ShouldHandleUseCompactPartyFrames()
     return clientInfo.isClassicToT or clientInfo.isEra or clientInfo.isLegion
 end
@@ -104,32 +117,32 @@ function mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
 
     local cvarValue = (value == true or value == 1 or value == "1" or value == "true") and "1" or "0"
     if BlizzardOptionsPanel_SetCVarSafe then
-        BlizzardOptionsPanel_SetCVarSafe("useCompactPartyFrames", cvarValue)
+        SafeCall(BlizzardOptionsPanel_SetCVarSafe, "useCompactPartyFrames", cvarValue)
     else
-        SetCVar("useCompactPartyFrames", cvarValue)
+        SafeCall(SetCVar, "useCompactPartyFrames", cvarValue)
     end
 
     local blizzardControl = _G.CompactUnitFrameProfilesRaidStylePartyFrames
     if blizzardControl and blizzardControl.setFunc then
-        local ok = pcall(blizzardControl.setFunc, cvarValue)
+        local ok = SafeCall(blizzardControl.setFunc, cvarValue)
         if ok then
             return
         end
     end
 
     if RaidOptionsFrame_UpdatePartyFrames then
-        RaidOptionsFrame_UpdatePartyFrames()
+        SafeCall(RaidOptionsFrame_UpdatePartyFrames)
     end
 
     if CompactRaidFrameManager_UpdateShown and CompactRaidFrameManager then
-        CompactRaidFrameManager_UpdateShown(CompactRaidFrameManager)
+        SafeCall(CompactRaidFrameManager_UpdateShown, CompactRaidFrameManager)
     end
 
     if CompactRaidFrameContainer then
         if CompactRaidFrameContainer.TryUpdate then
-            CompactRaidFrameContainer:TryUpdate()
+            SafeCall(CompactRaidFrameContainer.TryUpdate, CompactRaidFrameContainer)
         elseif CompactRaidFrameContainer_TryUpdate then
-            CompactRaidFrameContainer_TryUpdate(CompactRaidFrameContainer)
+            SafeCall(CompactRaidFrameContainer_TryUpdate, CompactRaidFrameContainer)
         end
     end
 end
@@ -181,12 +194,12 @@ local function EnsureBlizzardProfile()
 
     if exists then
         if DeleteRaidProfile then
-            DeleteRaidProfile(MQOL_PROFILE_NAME)
+            SafeCall(DeleteRaidProfile, MQOL_PROFILE_NAME)
         end
     end
 
     if CreateNewRaidProfile then
-        CreateNewRaidProfile(MQOL_PROFILE_NAME)
+        SafeCall(CreateNewRaidProfile, MQOL_PROFILE_NAME)
     end
 
     return true
@@ -202,8 +215,9 @@ local function ApplyProfileOptions(savedCVars, cvarToOption)
                 local optionName = cvarToOption[cvar]
                 if optionName then
                     local optValue = ConvertValueForLoad(value)
-                    SetRaidProfileOption(MQOL_PROFILE_NAME, optionName, optValue)
-                    applied = applied + 1
+                    if SafeCall(SetRaidProfileOption, MQOL_PROFILE_NAME, optionName, optValue) then
+                        applied = applied + 1
+                    end
                 elseif cvar == "useCompactPartyFrames" then
                     mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
                 end
@@ -217,16 +231,16 @@ end
 -- Activate Blizzard profile safely
 local function ActivateBlizzardProfile()
     if CompactUnitFrameProfiles_ActivateRaidProfile then
-        local success, err = pcall(CompactUnitFrameProfiles_ActivateRaidProfile, MQOL_PROFILE_NAME)
+        local success = SafeCall(CompactUnitFrameProfiles_ActivateRaidProfile, MQOL_PROFILE_NAME)
         if not success then
             if SetActiveRaidProfile then
-                SetActiveRaidProfile(MQOL_PROFILE_NAME)
+                SafeCall(SetActiveRaidProfile, MQOL_PROFILE_NAME)
             end
         end
     elseif SetActiveRaidProfile then
-        SetActiveRaidProfile(MQOL_PROFILE_NAME)
+        SafeCall(SetActiveRaidProfile, MQOL_PROFILE_NAME)
         if CompactUnitFrameProfiles_ApplyCurrentSettings then
-            pcall(CompactUnitFrameProfiles_ApplyCurrentSettings)
+            SafeCall(CompactUnitFrameProfiles_ApplyCurrentSettings)
         end
     end
     
@@ -234,59 +248,21 @@ local function ActivateBlizzardProfile()
     C_Timer.After(0.05, function()
         if CompactRaidFrameContainer then
             if CompactRaidFrameContainer.TryUpdate then
-                CompactRaidFrameContainer:TryUpdate()
+                SafeCall(CompactRaidFrameContainer.TryUpdate, CompactRaidFrameContainer)
             elseif CompactRaidFrameContainer_TryUpdate then
-                CompactRaidFrameContainer_TryUpdate(CompactRaidFrameContainer)
+                SafeCall(CompactRaidFrameContainer_TryUpdate, CompactRaidFrameContainer)
             end
         end
     end)
 end
 
 -- Apply saved positions (Classic/Legion only)
-local pendingPositions = nil
-local positionEventFrame = nil
-
-local function SetupPositionEventFrame()
-    if positionEventFrame then return end
-
-    positionEventFrame = CreateFrame("Frame")
-    positionEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    positionEventFrame:SetScript("OnEvent", function()
-        if pendingPositions and not InCombatLockdown() then
-            local pos = pendingPositions
-            pendingPositions = nil
-
-            if SetRaidProfileSavedPosition then
-                SetRaidProfileSavedPosition(MQOL_PROFILE_NAME, 
-                    pos.isDynamic or false,
-                    pos.topPoint or "TOP",
-                    pos.topOffset or 200,
-                    pos.bottomPoint or "TOP",
-                    pos.bottomOffset or 400,
-                    pos.leftPoint or "LEFT",
-                    pos.leftOffset or 200
-                )
-                if CompactRaidFrameManager_ResizeFrame_LoadPosition then
-                    CompactRaidFrameManager_ResizeFrame_LoadPosition(CompactRaidFrameManager)
-                end
-            end
-        end
-    end)
-end
-
 local function ApplyPositions(positions)
     if not positions then return end
 
     C_Timer.After(0.01, function()
-        if InCombatLockdown() then
-            -- Store for applying after combat
-            pendingPositions = positions
-            SetupPositionEventFrame()
-            return
-        end
-
         if SetRaidProfileSavedPosition then
-            SetRaidProfileSavedPosition(MQOL_PROFILE_NAME, 
+            SafeCall(SetRaidProfileSavedPosition, MQOL_PROFILE_NAME,
                 positions.isDynamic or false,
                 positions.topPoint or "TOP",
                 positions.topOffset or 200,
@@ -296,7 +272,7 @@ local function ApplyPositions(positions)
                 positions.leftOffset or 200
             )
             if CompactRaidFrameManager_ResizeFrame_LoadPosition then
-                CompactRaidFrameManager_ResizeFrame_LoadPosition(CompactRaidFrameManager)
+                SafeCall(CompactRaidFrameManager_ResizeFrame_LoadPosition, CompactRaidFrameManager)
             end
         end
     end)

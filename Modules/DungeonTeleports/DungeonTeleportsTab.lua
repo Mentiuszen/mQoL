@@ -833,6 +833,8 @@ local listedDungeonHighlightState = {
     activeSignature = nil,
     activeSpellIDs = nil,
     groupGUID = nil,
+    joinedGroupInfo = nil,
+    joinedGroupInfoExpires = nil,
     suppressedSignature = nil,
     wasInGroup = false,
     ignoreActiveEntryUntilClear = false,
@@ -994,6 +996,53 @@ local function IsDungeonListingActivity(activityInfo)
         or activityInfo.isMythicActivity
 end
 
+local function BuildListedDungeonInfoFromActivity(activityID, questID, groupGUID)
+    if not C_LFGList or not C_LFGList.GetActivityInfoTable then
+        return nil
+    end
+
+    activityID = tonumber(activityID) or 0
+    if activityID <= 0 then
+        return nil
+    end
+
+    local okActivity, activityInfo = pcall(C_LFGList.GetActivityInfoTable, activityID, questID)
+    if not okActivity or not IsDungeonListingActivity(activityInfo) then
+        return nil
+    end
+
+    local teleportID = tonumber(activityInfo.mapID) or 0
+    if teleportID <= 0 or not FindTeleportDefinitionById(teleportID) then
+        return nil
+    end
+
+    return {
+        teleportID = teleportID,
+        activityID = activityID,
+        groupGUID = groupGUID,
+        signature = tostring(teleportID),
+    }
+end
+
+local function BuildListedDungeonInfoFromActivityIDs(activityIDs, questID, groupGUID)
+    if type(activityIDs) ~= "table" then
+        local activityID = tonumber(activityIDs)
+        activityIDs = activityID and { activityID } or nil
+    end
+    if type(activityIDs) ~= "table" then
+        return nil
+    end
+
+    for _, activityID in ipairs(activityIDs) do
+        local info = BuildListedDungeonInfoFromActivity(activityID, questID, groupGUID)
+        if info then
+            return info
+        end
+    end
+
+    return nil
+end
+
 local function GetActiveListedDungeonInfo()
     if not C_LFGList or not C_LFGList.GetActiveEntryInfo or not C_LFGList.GetActivityInfoTable then
         return nil, false
@@ -1020,36 +1069,83 @@ local function GetActiveListedDungeonInfo()
         return nil, true
     end
 
-    for _, activityID in ipairs(activityIDs) do
-        activityID = tonumber(activityID) or 0
-        if activityID > 0 then
-            local okActivity, activityInfo = pcall(C_LFGList.GetActivityInfoTable, activityID, activeEntryInfo.questID)
-            if okActivity and IsDungeonListingActivity(activityInfo) then
-                local teleportID = tonumber(activityInfo.mapID) or 0
-                if teleportID > 0 and FindTeleportDefinitionById(teleportID) then
-                    return {
-                        teleportID = teleportID,
-                        activityID = activityID,
-                        groupGUID = activeEntryInfo.partyGUID,
-                        signature = tostring(teleportID),
-                    }, true
-                end
-            end
-        end
+    local info = BuildListedDungeonInfoFromActivityIDs(activityIDs, activeEntryInfo.questID, activeEntryInfo.partyGUID)
+    if info then
+        return info, true
     end
 
     return nil, true
 end
 
-local function ResetListedDungeonHighlightState(keepSuppressedSignature)
+local function GetSearchResultListedDungeonInfo(searchResultID)
+    if not C_LFGList or not C_LFGList.GetSearchResultInfo then
+        return nil
+    end
+
+    searchResultID = tonumber(searchResultID) or 0
+    if searchResultID <= 0 then
+        return nil
+    end
+
+    if C_LFGList.HasSearchResultInfo then
+        local okHasInfo, hasInfo = pcall(C_LFGList.HasSearchResultInfo, searchResultID)
+        if okHasInfo and not hasInfo then
+            return nil
+        end
+    end
+
+    local okResult, searchResultInfo = pcall(C_LFGList.GetSearchResultInfo, searchResultID)
+    if not okResult or type(searchResultInfo) ~= "table" then
+        return nil
+    end
+
+    return BuildListedDungeonInfoFromActivityIDs(
+        searchResultInfo.activityIDs or searchResultInfo.activityID,
+        searchResultInfo.questID,
+        searchResultInfo.partyGUID
+    )
+end
+
+local function CaptureJoinedListedDungeonInfo(searchResultID)
+    local info = GetSearchResultListedDungeonInfo(searchResultID)
+    if info then
+        listedDungeonHighlightState.joinedGroupInfo = info
+        listedDungeonHighlightState.joinedGroupInfoExpires = (GetTime and GetTime() or 0) + 180
+        return true
+    end
+
+    return false
+end
+
+local inactiveApplicationStatuses = {
+    cancelled = true,
+    failed = true,
+    declined = true,
+    declined_full = true,
+    declined_delisted = true,
+    timedout = true,
+    invitedeclined = true,
+}
+
+local joinedApplicationStatuses = {
+    invited = true,
+    inviteaccepted = true,
+}
+
+local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoinedGroupInfo)
     local hadState = listedDungeonHighlightState.activeSignature ~= nil
         or listedDungeonHighlightState.groupGUID ~= nil
+        or (not keepJoinedGroupInfo and listedDungeonHighlightState.joinedGroupInfo ~= nil)
         or (not keepSuppressedSignature and listedDungeonHighlightState.suppressedSignature ~= nil)
 
     listedDungeonHighlightState.activeTeleportID = nil
     listedDungeonHighlightState.activeSignature = nil
     listedDungeonHighlightState.activeSpellIDs = nil
     listedDungeonHighlightState.groupGUID = nil
+    if not keepJoinedGroupInfo then
+        listedDungeonHighlightState.joinedGroupInfo = nil
+        listedDungeonHighlightState.joinedGroupInfoExpires = nil
+    end
     if not keepSuppressedSignature then
         listedDungeonHighlightState.suppressedSignature = nil
     end
@@ -1111,6 +1207,12 @@ local function UpdateListedDungeonHighlightState()
     local state = listedDungeonHighlightState
     local isInGroup = IsPlayerInAnyGroup()
     local changed = false
+    local now = GetTime and GetTime() or 0
+
+    if state.joinedGroupInfoExpires and now > state.joinedGroupInfoExpires then
+        state.joinedGroupInfo = nil
+        state.joinedGroupInfoExpires = nil
+    end
 
     if state.wasInGroup and not isInGroup then
         state.ignoreActiveEntryUntilClear = true
@@ -1140,8 +1242,10 @@ local function UpdateListedDungeonHighlightState()
 
     if info then
         changed = SetActiveListedDungeonHighlight(info) or changed
+    elseif isInGroup and state.joinedGroupInfo then
+        changed = SetActiveListedDungeonHighlight(state.joinedGroupInfo) or changed
     elseif not isInGroup then
-        changed = ResetListedDungeonHighlightState() or changed
+        changed = ResetListedDungeonHighlightState(nil, true) or changed
     end
 
     if changed then
@@ -1221,6 +1325,8 @@ RegisterListedDungeonHighlightEvent("ZONE_CHANGED_NEW_AREA")
 RegisterListedDungeonHighlightEvent("GROUP_ROSTER_UPDATE")
 RegisterListedDungeonHighlightEvent("PARTY_LEADER_CHANGED")
 RegisterListedDungeonHighlightEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+RegisterListedDungeonHighlightEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
+RegisterListedDungeonHighlightEvent("LFG_LIST_JOINED_GROUP")
 RegisterListedDungeonHighlightEvent("UNIT_SPELLCAST_SUCCEEDED")
 
 listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
@@ -1230,6 +1336,18 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
             SuppressListedDungeonHighlightForSpell(ExtractSpellIDFromSpellcastEvent(...))
         end
         return
+    end
+
+    if event == "LFG_LIST_JOINED_GROUP" then
+        CaptureJoinedListedDungeonInfo(...)
+    elseif event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
+        local searchResultID, newStatus = ...
+        if joinedApplicationStatuses[newStatus] then
+            CaptureJoinedListedDungeonInfo(searchResultID)
+        elseif inactiveApplicationStatuses[newStatus] then
+            listedDungeonHighlightState.joinedGroupInfo = nil
+            listedDungeonHighlightState.joinedGroupInfoExpires = nil
+        end
     end
 
     UpdateListedDungeonHighlightState()
