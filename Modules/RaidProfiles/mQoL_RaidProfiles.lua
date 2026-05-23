@@ -420,35 +420,79 @@ function mQoL_RaidProfiles:HookSettingsPanelLegion()
     end)
     btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    local function DisableAutoActivateControls()
+    local autoActivateOptions = {
+        "autoActivate2Players",
+        "autoActivate3Players",
+        "autoActivate5Players",
+        "autoActivate10Players",
+        "autoActivate15Players",
+        "autoActivate25Players",
+        "autoActivate40Players",
+        "autoActivateSpec1",
+        "autoActivateSpec2",
+        "autoActivateSpec3",
+        "autoActivateSpec4",
+        "autoActivatePvP",
+        "autoActivatePvE",
+    }
+
+    local function ClearAutoActivateOptions()
+        if not GetNumRaidProfiles or not GetRaidProfileName or not GetRaidProfileOption or not SetRaidProfileOption then
+            return
+        end
+
+        for i = 1, GetNumRaidProfiles() do
+            local profileName = GetRaidProfileName(i)
+            if profileName then
+                for _, optionName in ipairs(autoActivateOptions) do
+                    if GetRaidProfileOption(profileName, optionName) then
+                        SetRaidProfileOption(profileName, optionName, false)
+                    end
+                end
+            end
+        end
+    end
+
+    local function HideAutoActivateSection()
         local optionsFrame = CompactUnitFrameProfiles and CompactUnitFrameProfiles.optionsFrame
         if not optionsFrame then
             return
         end
 
-        local controls = {
-            optionsFrame.autoActivate2Players,
-            optionsFrame.autoActivate3Players,
-            optionsFrame.autoActivate5Players,
-            _G[optionsFrame:GetName() .. "AutoActivate10Players"],
-            _G[optionsFrame:GetName() .. "AutoActivate15Players"],
-            _G[optionsFrame:GetName() .. "AutoActivate20Players"],
-            _G[optionsFrame:GetName() .. "AutoActivate40Players"],
-            optionsFrame.AutoActivatePvP,
-            optionsFrame.AutoActivatePvE,
-        }
-
-        for _, control in ipairs(controls) do
-            if control then
-                control:SetChecked(false)
-                control:Disable()
-                control.disabledTooltip = "Auto-Activation is disabled because mQoL manages Raid Profiles."
+        local function HideFrame(frame)
+            if frame then
+                frame:Hide()
+                if frame.Disable then
+                    frame:Disable()
+                end
+                if frame.SetChecked then
+                    frame:SetChecked(false)
+                end
+                frame.disabledTooltip = nil
             end
         end
 
-        if optionsFrame.autoActivateDisabledLabel then
-            optionsFrame.autoActivateDisabledLabel:SetText("Auto-Activation is disabled because mQoL manages Raid Profiles.")
-            optionsFrame.autoActivateDisabledLabel:Show()
+        HideFrame(optionsFrame.autoActivateBG)
+        HideFrame(optionsFrame.autoActivateLabel)
+        HideFrame(optionsFrame.autoActivateDisabledLabel)
+
+        for _, optionName in ipairs(autoActivateOptions) do
+            local suffix = optionName:sub(1, 1):upper() .. optionName:sub(2)
+            HideFrame(_G[optionsFrame:GetName() .. suffix])
+        end
+
+        if optionsFrame.AutoActivateSpecs then
+            for _, control in ipairs(optionsFrame.AutoActivateSpecs) do
+                HideFrame(control)
+            end
+        end
+
+        if optionsFrame.optionControls then
+            for _, control in ipairs(optionsFrame.optionControls) do
+                if control.optionName and control.optionName:find("^autoActivate") then
+                    HideFrame(control)
+                end
+            end
         end
     end
 
@@ -456,25 +500,34 @@ function mQoL_RaidProfiles:HookSettingsPanelLegion()
         if CompactUnitFrameProfiles_CheckAutoActivation then
             self.originalLegionCheckAutoActivation = CompactUnitFrameProfiles_CheckAutoActivation
             CompactUnitFrameProfiles_CheckAutoActivation = function()
+                ClearAutoActivateOptions()
                 if CompactUnitFrameProfiles_SetLastActivationType then
                     CompactUnitFrameProfiles_SetLastActivationType(nil, nil, nil)
                 end
             end
         end
 
+        if CompactUnitFrameProfile_UpdateAutoActivationDisabledLabel then
+            self.originalLegionUpdateAutoActivationDisabledLabel = CompactUnitFrameProfile_UpdateAutoActivationDisabledLabel
+            CompactUnitFrameProfile_UpdateAutoActivationDisabledLabel = function()
+                HideAutoActivateSection()
+            end
+        end
+
         if CompactUnitFrameProfiles_UpdateCurrentPanel then
-            hooksecurefunc("CompactUnitFrameProfiles_UpdateCurrentPanel", DisableAutoActivateControls)
+            hooksecurefunc("CompactUnitFrameProfiles_UpdateCurrentPanel", HideAutoActivateSection)
         end
 
         local optionsFrame = CompactUnitFrameProfiles and CompactUnitFrameProfiles.optionsFrame
         if optionsFrame then
-            optionsFrame:HookScript("OnShow", DisableAutoActivateControls)
+            optionsFrame:HookScript("OnShow", HideAutoActivateSection)
         end
 
         self.legionAutoActivationHooked = true
     end
 
-    DisableAutoActivateControls()
+    ClearAutoActivateOptions()
+    HideAutoActivateSection()
 
     self.hookedLegionSettings = true
 end
