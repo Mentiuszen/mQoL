@@ -14,6 +14,7 @@ local CVarLists = {
         "raidFramesDisplayAggroHighlight",
         "raidFramesDisplayClassColor",
         "raidFramesHealthBarColor",
+        "raidFramesHealthBarColorBG",
         "raidOptionDisplayPets",
         "raidOptionDisplayMainTankAndAssist",
         "raidFramesDisplayDebuffs",
@@ -24,7 +25,7 @@ local CVarLists = {
         "raidFramesDispelIndicatorOverlay",
         "raidFramesHealthText",
     },
-    Classic = {
+    Classic = { -- Classic Clients that do not got a update to new format (Era and Current MoP Classic 5.5.3)
         "raidFramesDisplayClassColor",
         "raidOptionDisplayPets",
         "raidOptionDisplayMainTankAndAssist",
@@ -34,9 +35,22 @@ local CVarLists = {
         "raidOptionShowBorders",
         "raidFramesDisplayPowerBars",
         "raidOptionKeepGroupsTogether",
+        "raidOptionHorizontalGroups",
         "raidOptionSortMode",
         "raidFramesHeight",
         "raidFramesWidth",
+    },
+    ModernClassic = {   -- Modern Classic Clients that got update to new format (BCC and MoP Classic 5.5.4)
+        "raidFramesDisplayIncomingHeals",
+        "raidFramesDisplayPowerBars",
+        "raidFramesDisplayOnlyHealerPowerBars",
+        "raidFramesDisplayAggroHighlight",
+        "raidFramesDisplayClassColor",
+        "raidOptionDisplayPets",
+        "raidOptionDisplayMainTankAndAssist",
+        "raidFramesDisplayDebuffs",
+        "raidFramesDisplayOnlyDispellableDebuffs",
+        "raidFramesHealthText",
     },
     Legion = {
         "raidFramesDisplayClassColor",
@@ -68,6 +82,7 @@ local CvarToOptionMappings = {
         raidOptionShowBorders = "displayBorder",
         raidFramesDisplayPowerBars = "displayPowerBar",
         raidOptionKeepGroupsTogether = "keepGroupsTogether",
+        raidOptionHorizontalGroups = "horizontalGroups",
         raidOptionSortMode = "sortBy",
         raidFramesHeight = "frameHeight",
         raidFramesWidth = "frameWidth",
@@ -358,6 +373,14 @@ VersionAdapters.Retail = {
     end,
 }
 
+VersionAdapters.ModernClassic = {
+    cvars = CVarLists.ModernClassic,
+    cvarToOption = nil, -- New Classic/BCC clients uses cvar-backed raid frame settings
+
+    LoadProfile = VersionAdapters.Retail.LoadProfile,
+    SaveProfile = VersionAdapters.Retail.SaveProfile,
+}
+
 VersionAdapters.Classic = {
     cvars = CVarLists.Classic,
     cvarToOption = CvarToOptionMappings.Classic,
@@ -406,7 +429,9 @@ VersionAdapters.Legion = {
 
 -- Get adapter for current client version
 function VersionAdapters:GetCurrent()
-    if clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+    if clientInfo.isBCC or (clientInfo.isClassic and not clientInfo.isClassicToT) then
+        return self.ModernClassic
+    elseif clientInfo.isClassic or clientInfo.isEra then
         return self.Classic
     elseif clientInfo.isLegion then
         return self.Legion
