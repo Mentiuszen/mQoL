@@ -77,6 +77,7 @@ mQoL_AccountOverview.defaults = {
     settings = {
         selectedTab = "Characters",
         selectedGoldRange = "overall",
+        favoriteCharacters = {},
     },
     characters = {},
     goldSession = {},
@@ -437,6 +438,9 @@ local function GetAccountDB()
 
     local accountDB = mQoL_AccountOverview_DB.Account
     accountDB.settings = accountDB.settings or DeepCopy(mQoL_AccountOverview.defaults.settings)
+    if type(accountDB.settings.favoriteCharacters) ~= "table" then
+        accountDB.settings.favoriteCharacters = {}
+    end
     accountDB.characters = accountDB.characters or {}
     if type(accountDB.goldSession) ~= "table" then
         if type(accountDB.goldHistory) == "table" then
@@ -1452,6 +1456,7 @@ function mQoL_AccountOverview:GetKnownCharacters()
     end
 
     local currentKey = select(1, GetCurrentCharacterIdentity())
+    local favorites = self.db.settings and self.db.settings.favoriteCharacters or {}
     local characters = {}
 
     for key, data in pairs(self.db.characters) do
@@ -1460,11 +1465,16 @@ function mQoL_AccountOverview:GetKnownCharacters()
             local row = DeepCopy(data)
             row.key = key
             row.isCurrent = key == currentKey
+            row.isFavorite = favorites[tostring(key)] == true
             characters[#characters + 1] = row
         end
     end
 
     table.sort(characters, function(a, b)
+        if a.isFavorite ~= b.isFavorite then
+            return a.isFavorite
+        end
+
         if a.isCurrent ~= b.isCurrent then
             return a.isCurrent
         end
@@ -1481,6 +1491,36 @@ function mQoL_AccountOverview:GetKnownCharacters()
     end)
 
     return characters
+end
+
+function mQoL_AccountOverview:IsCharacterFavorite(characterKey)
+    if not self.db or not self.db.settings or not characterKey then
+        return false
+    end
+
+    local favorites = self.db.settings.favoriteCharacters
+    return type(favorites) == "table" and favorites[tostring(characterKey)] == true
+end
+
+function mQoL_AccountOverview:SetCharacterFavorite(characterKey, isFavorite)
+    if not self.db or not characterKey then
+        return
+    end
+
+    self.db.settings = self.db.settings or DeepCopy(mQoL_AccountOverview.defaults.settings)
+    self.db.settings.favoriteCharacters = self.db.settings.favoriteCharacters or {}
+
+    local favorites = self.db.settings.favoriteCharacters
+    favorites[tostring(characterKey)] = isFavorite and true or nil
+
+    self:RefreshCharactersView()
+    if self.activeTab == "Characters" then
+        self:SetActiveTab("Characters")
+    end
+end
+
+function mQoL_AccountOverview:ToggleCharacterFavorite(characterKey)
+    self:SetCharacterFavorite(characterKey, not self:IsCharacterFavorite(characterKey))
 end
 
 function mQoL_AccountOverview:GetDisplayedPlayedTime(character)
@@ -1825,16 +1865,80 @@ end
 
 local CHARACTER_COLUMNS = {
     { key = "level", label = "Level", x = 12, width = 40, justify = "CENTER" },
-    { key = "name", label = "Name", x = 62, width = 165, justify = "LEFT", headerJustify = "LEFT" },
-    { key = "professions", label = "Professions", x = 237, width = 225, justify = "CENTER" },
-    { key = "vault", label = "Vault", x = 467, width = 115, justify = "LEFT" },
-    { key = "played", label = "Played", x = 592, width = 80, justify = "LEFT", headerJustify = "LEFT" },
-    { key = "gold", label = "Gold", x = 682, width = 80, justify = "LEFT", headerJustify = "LEFT" },
+    { key = "name", label = "Name", x = 62, width = 125, justify = "LEFT", headerJustify = "LEFT" },
+    { key = "professions", label = "Professions", x = 192, width = 336, justify = "CENTER" },
+    { key = "vault", label = "Vault", x = 532, width = 115, justify = "LEFT" },
+    { key = "played", label = "Played", x = 651, width = 61, justify = "LEFT", headerJustify = "LEFT" },
+    { key = "gold", label = "Gold", x = 716, width = 51, justify = "LEFT", headerJustify = "LEFT" },
 }
+
+local CHARACTER_PROFESSION_BUTTON_COUNT = 3
+local CHARACTER_PROFESSION_BUTTON_GAP = 6
 
 local CHARACTER_COLUMN_BY_KEY = {}
 for _, column in ipairs(CHARACTER_COLUMNS) do
     CHARACTER_COLUMN_BY_KEY[column.key] = column
+end
+
+local function UpdateFavoriteButtonVisual(button)
+    if not button or not button.icon then
+        return
+    end
+
+    if button.isFavorite then
+        button.icon:SetVertexColor(1, 0.82, 0, button.isHovered and 1 or 0.92)
+        if button.icon.SetDesaturated then
+            button.icon:SetDesaturated(false)
+        end
+        return
+    end
+
+    button.icon:SetVertexColor(0.62, 0.62, 0.66, button.isHovered and 0.95 or 0.55)
+    if button.icon.SetDesaturated then
+        button.icon:SetDesaturated(true)
+    end
+end
+
+local function CreateFavoriteButton(parent)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(18, 22)
+    button:RegisterForClicks("LeftButtonUp")
+    button.isFavorite = false
+    button.isHovered = false
+
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetSize(14, 14)
+    button.icon:SetPoint("CENTER", button, "CENTER", 0, 0)
+    button.icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
+
+    button:SetScript("OnEnter", function(self)
+        self.isHovered = true
+        UpdateFavoriteButtonVisual(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(self.isFavorite and "Remove Favorite" or "Toggle Favorite", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", function(self)
+        self.isHovered = false
+        UpdateFavoriteButtonVisual(self)
+        GameTooltip:Hide()
+    end)
+
+    button:SetScript("OnClick", function(self)
+        if self.characterKey then
+            mQoL_AccountOverview:ToggleCharacterFavorite(self.characterKey)
+        end
+    end)
+
+    function button:SetFavorite(characterKey, isFavorite)
+        self.characterKey = characterKey
+        self.isFavorite = isFavorite and true or false
+        UpdateFavoriteButtonVisual(self)
+    end
+
+    UpdateFavoriteButtonVisual(button)
+    return button
 end
 
 function mQoL_AccountOverview:HideProfessionDetailFrame()
@@ -2032,6 +2136,15 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
     ownerButton:SetActive(true)
 
     frame.title:SetText(professionEntry.name or "Profession")
+    if professionEntry.isSecondarySummary then
+        frame.subtitle:SetText("All secondary professions")
+        frame.headerLeft:SetText("Profession")
+        frame.headerRight:SetText("Skill")
+    else
+        frame.subtitle:SetText("Detailed profession tiers")
+        frame.headerLeft:SetText("Expansion")
+        frame.headerRight:SetText("Skill")
+    end
 
     local detailRows = GetProfessionDetailRows(professionEntry)
     HidePool(frame.rowsLeft)
@@ -2191,6 +2304,9 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         row.fonts[column.key] = font
     end
 
+    row.favoriteButton = CreateFavoriteButton(row)
+    row.favoriteButton:SetPoint("LEFT", row, "LEFT", 0, 0)
+
     local professionColumn = CHARACTER_COLUMN_BY_KEY.professions
     row.professionsFrame = CreateFrame("Frame", nil, row)
     row.professionsFrame:SetPoint("LEFT", row, "LEFT", professionColumn.x, 0)
@@ -2218,7 +2334,9 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         local display = GetWeeklyRewardDisplayState(self.weeklyRewardData)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
-        GameTooltip:AddLine("Click to View Vault Preview", 0.72, 0.72, 0.72)
+        if clientInfo.isRetail then
+            GameTooltip:AddLine("Click to View Vault Preview", 1, 1, 1)
+        end
         for _, line in ipairs(display.lines or {}) do
             local color = line.color or { 0.85, 0.85, 0.85 }
             GameTooltip:AddLine(line.text or "", color[1] or 0.85, color[2] or 0.85, color[3] or 0.85, true)
@@ -2256,8 +2374,15 @@ function mQoL_AccountOverview:EnsureProfessionButton(row, index)
 
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(self.professionEntry.name or "Profession", 1, 0.82, 0)
-        GameTooltip:AddLine("Click to view detailed profession tiers.", 0.72, 0.72, 0.72)
-        GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry, true), 0.92, 0.92, 0.92)
+        if self.professionEntry.isSecondarySummary then
+            GameTooltip:AddLine("Click to view all secondary professions.", 1, 1, 1)
+            for _, entry in ipairs(self.professionEntry.secondaryProfessions or {}) do
+                GameTooltip:AddLine(string.format("%s %s", entry.name or "Unknown", GetProfessionSummaryText(entry, true)), 1, 1, 1)
+            end
+        else
+            GameTooltip:AddLine("Click to view detailed profession tiers.", 1, 1, 1)
+            GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry, true), 1, 1, 1)
+        end
         GameTooltip:Show()
     end
     button.handleLeave = function()
@@ -2278,10 +2403,11 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
     local hasEntries = #entries > 0
     row.professionEmptyText:Hide()
 
-    local visibleCount = 2
-    local gap = 6
-    local buttonWidth = math.floor((row.professionsFrame:GetWidth() - gap) / visibleCount)
-    local totalWidth = (buttonWidth * visibleCount) + (gap * math.max(0, visibleCount - 1))
+    local visibleCount = CHARACTER_PROFESSION_BUTTON_COUNT
+    local gap = CHARACTER_PROFESSION_BUTTON_GAP
+    local totalGap = gap * math.max(0, visibleCount - 1)
+    local buttonWidth = math.floor((row.professionsFrame:GetWidth() - totalGap) / visibleCount)
+    local totalWidth = (buttonWidth * visibleCount) + totalGap
     local startOffset = math.floor((row.professionsFrame:GetWidth() - totalWidth) / 2)
     local matchedDetailOwner
     local matchedDetailEntry
@@ -2289,6 +2415,9 @@ function mQoL_AccountOverview:RefreshProfessionButtons(row, professions)
     for index = 1, visibleCount do
         local button = self:EnsureProfessionButton(row, index)
         local professionEntry = hasEntries and entries[index] or nil
+        if type(professionEntry) == "table" and professionEntry.isProfessionPlaceholder then
+            professionEntry = nil
+        end
         button:ClearAllPoints()
         button:SetPoint("LEFT", row.professionsFrame, "LEFT", startOffset + ((index - 1) * (buttonWidth + gap)), 0)
         button:SetSize(buttonWidth, 22)
@@ -2382,6 +2511,7 @@ function mQoL_AccountOverview:RefreshCharactersView()
         SetTextureColor(row.bg, index % 2 == 1 and ACCOUNT_OVERVIEW_STYLE.rowOdd or ACCOUNT_OVERVIEW_STYLE.rowEven)
 
         local displayName = string.format("%s - %s", character.name or "Unknown", character.realm or "UnknownRealm")
+        row.favoriteButton:SetFavorite(character.key, character.isFavorite)
         row.fonts.level:SetText(tostring(tonumber(character.level) or 0))
         row.fonts.level:SetTextColor(0.92, 0.92, 0.92)
         row.fonts.name:SetText(displayName)

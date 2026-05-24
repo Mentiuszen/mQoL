@@ -1343,18 +1343,62 @@ function ProfessionUtils.GetDisplayEntries(professions)
         return nil
     end
 
-    local source = ProfessionUtils.CollectListEntries(professions.primary)
-    if type(source) ~= "table" or #source == 0 then
-        return nil
+    local entries = {
+        { isProfessionPlaceholder = true },
+        { isProfessionPlaceholder = true },
+        { isProfessionPlaceholder = true },
+    }
+
+    local primarySource = ProfessionUtils.CollectListEntries(professions.primary)
+    if type(primarySource) == "table" then
+        local primarySlot = 1
+        for _, entry in ipairs(primarySource) do
+            if not IsSecondaryProfessionName(entry and entry.name) then
+                entries[primarySlot] = entry
+                primarySlot = primarySlot + 1
+            end
+            if primarySlot > 2 then
+                break
+            end
+        end
     end
 
-    local entries = {}
-    for _, entry in ipairs(source) do
-        if not IsSecondaryProfessionName(entry and entry.name) then
-            entries[#entries + 1] = entry
+    local secondarySource = ProfessionUtils.CollectListEntries(professions.secondary)
+    if type(secondarySource) == "table" and #secondarySource > 0 then
+        local secondaryEntries = {}
+        for _, entry in ipairs(secondarySource) do
+            if type(entry) == "table" and IsSecondaryProfessionName(entry.name) then
+                secondaryEntries[#secondaryEntries + 1] = entry
+            end
         end
-        if #entries >= 2 then
-            break
+
+        table.sort(secondaryEntries, function(a, b)
+            local aTier = ProfessionUtils.GetCurrentTier(a)
+            local bTier = ProfessionUtils.GetCurrentTier(b)
+            local aRank = tonumber(aTier and aTier.rank) or tonumber(a and a.rank) or 0
+            local bRank = tonumber(bTier and bTier.rank) or tonumber(b and b.rank) or 0
+            if aRank ~= bRank then
+                return aRank > bRank
+            end
+
+            local aMaxRank = tonumber(aTier and aTier.maxRank) or tonumber(a and a.maxRank) or 0
+            local bMaxRank = tonumber(bTier and bTier.maxRank) or tonumber(b and b.maxRank) or 0
+            if aMaxRank ~= bMaxRank then
+                return aMaxRank > bMaxRank
+            end
+
+            return tostring(a and a.name or "") < tostring(b and b.name or "")
+        end)
+
+        local bestEntry = secondaryEntries[1]
+        if bestEntry then
+            entries[3] = {
+                name = "Secondary Professions",
+                icon = bestEntry.icon,
+                isSecondarySummary = true,
+                bestSecondaryProfession = bestEntry,
+                secondaryProfessions = secondaryEntries,
+            }
         end
     end
 
@@ -1403,6 +1447,19 @@ function ProfessionUtils.FormatSkillValue(rank, maxRank)
 end
 
 function ProfessionUtils.GetSummaryText(professionEntry, useFullTierLabel)
+    if type(professionEntry) == "table" and professionEntry.isSecondarySummary then
+        local bestEntry = professionEntry.bestSecondaryProfession
+        if type(bestEntry) ~= "table" then
+            return "-"
+        end
+
+        local currentTier = ProfessionUtils.GetCurrentTier(bestEntry)
+        local skillText = currentTier
+            and ProfessionUtils.FormatSkillValue(currentTier.rank, currentTier.maxRank)
+            or ProfessionUtils.FormatSkillValue(bestEntry.rank, bestEntry.maxRank)
+        return string.format("%s %s", bestEntry.name or "Secondary", skillText)
+    end
+
     local currentTier = ProfessionUtils.GetCurrentTier(professionEntry)
     if not currentTier then
         return "-"
@@ -1426,6 +1483,29 @@ end
 
 function ProfessionUtils.GetDetailRows(professionEntry)
     local rows = {}
+
+    if type(professionEntry) == "table" and professionEntry.isSecondarySummary then
+        for _, entry in ipairs(professionEntry.secondaryProfessions or {}) do
+            if type(entry) == "table" then
+                rows[#rows + 1] = {
+                    label = entry.name or "Unknown",
+                    value = ProfessionUtils.GetSummaryText(entry, false),
+                    isActive = true,
+                }
+            end
+        end
+
+        if #rows == 0 then
+            rows[#rows + 1] = {
+                label = "Secondary",
+                value = "-",
+                isActive = false,
+            }
+        end
+
+        return rows
+    end
+
     local tiersByKey = {}
     local hasMappedTier = false
     local currentTier = ProfessionUtils.GetCurrentTier(professionEntry)
