@@ -16,6 +16,7 @@ local CreateCustomButton = mQoL_Styles.CreateCustomButton
 local CreateCustomDropdown = mQoL_Styles.CreateCustomDropdown
 local CreateCustomSlider = mQoL_Styles.CreateCustomSlider
 local CreateCustomCheckbox = mQoL_Styles.CreateCustomCheckbox
+local CreateCustomInputBox = mQoL_Styles.CreateCustomInputBox
 
 --Info Box
 local CreateInfoSection = mQoL_Hub.CreateInfoSection
@@ -871,6 +872,15 @@ function mQoL_Main:CreateGeneralPanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
+    AddOptionRow(contentContainer, "Enable Auto Quest Tracking", "checkbox", {
+        value = s.autoQuestTracking,
+        onValueChanged = function(_, value)
+            s.autoQuestTracking = value
+            mQoL_Main:ApplyGeneralSettings(s)
+            end
+    })
+    AddGap(contentContainer, "Standard")
+
     AddOptionRow(contentContainer, "Enable Autoloot", "checkbox", {
         value = s.autoLoot,
         onValueChanged = function(_, value)
@@ -891,15 +901,42 @@ function mQoL_Main:CreateGeneralPanel(parent)
             end
         end
     })
-    AddGap(contentContainer, "Standard")
 
-    AddOptionRow(contentContainer, "Enable Auto Quest Tracking", "checkbox", {
-        value = s.autoQuestTracking,
+    local lootSpeedMin, lootSpeedMax, lootSpeedStep = 0.01, 0.10, 0.01
+    local currentLootSpeed = mQoL_FastAutoloot and type(mQoL_FastAutoloot.GetSpeed) == "function"
+        and mQoL_FastAutoloot:GetSpeed()
+        or tonumber(s.fastAutoLootSpeed)
+        or 0.02
+    currentLootSpeed = math.max(lootSpeedMin, math.min(lootSpeedMax, currentLootSpeed))
+
+    local lootSpeedEditBox = CreateCustomInputBox(contentContainer)
+    lootSpeedEditBox:SetSize(60, 24)
+
+    local lootSpeedApplyFunc
+    local _, lootSpeedSlider = AddOptionRow(contentContainer, "Fast Auto Loot Speed", "slider", {
+        value = currentLootSpeed,
+        min = lootSpeedMin,
+        max = lootSpeedMax,
+        step = lootSpeedStep,
+        applyLabel = "Apply Speed",
+        applyWidth = 120,
         onValueChanged = function(_, value)
-            s.autoQuestTracking = value
-            mQoL_Main:ApplyGeneralSettings(s)
-            end
-    })
+            lootSpeedEditBox:SetText(string.format("%.2f", value))
+        end
+    }, {lootSpeedEditBox}, function()
+        lootSpeedApplyFunc()
+    end)
+
+    lootSpeedEditBox:SetText(string.format("%.2f", currentLootSpeed))
+    lootSpeedEditBox.slider = lootSpeedSlider
+
+    lootSpeedApplyFunc = mQoL_Hub:SetupNumberInputBox(lootSpeedEditBox, lootSpeedSlider, lootSpeedMin, lootSpeedMax, lootSpeedStep, function(val)
+        s.fastAutoLootSpeed = val
+        if mQoL_FastAutoloot and type(mQoL_FastAutoloot.SetSpeed) == "function" then
+            mQoL_FastAutoloot:SetSpeed(val)
+        end
+    end)
+
     AddGap(contentContainer, "BottomSeparator")
 
     -- Dropdown Items for My Name

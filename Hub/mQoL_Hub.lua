@@ -39,6 +39,7 @@ mQoL_Hub.searchIndex = {
 	{ label = "Enable LUA Errors", panel = "General QoL", available = true },
     { label = "Enable Autoloot", panel = "General QoL", available = true },
 	{ label = "Fast Auto Loot", panel = "General QoL", available = true },
+	{ label = "Fast Auto Loot Speed", panel = "General QoL", available = true },
 	{ label = "Enable Auto Quest Tracking", panel = "General QoL", available = true },
 	{ label = "My Name", panel = "General QoL", available = true },
     { label = "Enemy Nameplates", panel = "Nameplates", available = true },

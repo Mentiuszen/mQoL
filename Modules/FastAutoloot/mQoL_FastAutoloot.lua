@@ -14,6 +14,8 @@ FastAutoloot.currentLootSlot = nil
 FastAutoloot.defaults = {
     FastAutoLootEnabled = false,
     FastAutoLootSpeed = 0.02,
+    FastAutoLootMinSpeed = 0.01,
+    FastAutoLootMaxSpeed = 0.10,
 }
 
 local function GetGeneralSettings()
@@ -53,6 +55,16 @@ local function GetSavedFastAutoLootValue()
     end
 
     return general.fastAutoLoot == true
+end
+
+local function ClampFastAutoLootSpeed(value)
+    value = tonumber(value) or FastAutoloot.defaults.FastAutoLootSpeed
+    return math.max(FastAutoloot.defaults.FastAutoLootMinSpeed, math.min(FastAutoloot.defaults.FastAutoLootMaxSpeed, value))
+end
+
+local function GetSavedFastAutoLootSpeed()
+    local general = GetGeneralSettings()
+    return ClampFastAutoLootSpeed(general.fastAutoLootSpeed)
 end
 
 local function ResolveAutoLootState(autoLoot)
@@ -157,7 +169,7 @@ function FastAutoloot:StartLootTicker(lootCount)
     self.pendingClose = true
 
     if C_Timer and C_Timer.NewTicker then
-        self.lootTicker = C_Timer.NewTicker(FastAutoloot.defaults.FastAutoLootSpeed, function()
+        self.lootTicker = C_Timer.NewTicker(GetSavedFastAutoLootSpeed(), function()
             if not FastAutoloot.currentLootSlot or FastAutoloot.currentLootSlot < 1 then
                 FastAutoloot:CancelLootTicker()
                 FastAutoloot:ScheduleCloseCheck()
@@ -222,12 +234,22 @@ end
 
 function FastAutoloot:SetEnabled(value)
     if value == nil then
-        self.isEnabled = FastAutoloot.defaults.DEFAULT_FAST_AUTO_LOOT
+        self.isEnabled = FastAutoloot.defaults.FastAutoLootEnabled
     else
         self.isEnabled = value == true
     end
 
     self:UpdateEventRegistration()
+end
+
+function FastAutoloot:GetSpeed()
+    return GetSavedFastAutoLootSpeed()
+end
+
+function FastAutoloot:SetSpeed(value)
+    local general = GetGeneralSettings()
+    general.fastAutoLootSpeed = ClampFastAutoLootSpeed(value)
+    return general.fastAutoLootSpeed
 end
 
 function FastAutoloot:MigrateSettings()
@@ -237,6 +259,7 @@ function FastAutoloot:MigrateSettings()
         general.fastAutoLoot = GetLegacyFastLootValue(general.autoLootRate)
     end
 
+    general.fastAutoLootSpeed = ClampFastAutoLootSpeed(general.fastAutoLootSpeed)
     general.autoLootRate = nil
     self:SetEnabled(GetSavedFastAutoLootValue())
 end
