@@ -823,6 +823,9 @@ local LISTED_DUNGEON_HIGHLIGHT_TEXTURE = "Interface\\Tooltips\\UI-Tooltip-Border
 local LISTED_DUNGEON_HIGHLIGHT_STRONG_TEXTURE = "Interface\\Buttons\\WHITE8x8"
 local LISTED_DUNGEON_HIGHLIGHT_COLOR = { 1.00, 0.82, 0.00, 0.95 }
 local LISTED_DUNGEON_TOOLTIP_COLOR = { 1.00, 0.82, 0.00 }
+local TELEPORT_POPUP_WIDTH = 360
+local TELEPORT_POPUP_HEIGHT = 260
+local TELEPORT_POPUP_IMAGE_HEIGHT = 108
 
 local function AddListedDungeonHighlightTooltipLine()
     GameTooltip:AddLine("Your group is listed for this dungeon.", LISTED_DUNGEON_TOOLTIP_COLOR[1], LISTED_DUNGEON_TOOLTIP_COLOR[2], LISTED_DUNGEON_TOOLTIP_COLOR[3], true)
@@ -832,6 +835,7 @@ local listedDungeonHighlightState = {
     activeTeleportID = nil,
     activeSignature = nil,
     activeSpellIDs = nil,
+    activeInfo = nil,
     groupGUID = nil,
     joinedGroupInfo = nil,
     joinedGroupInfoExpires = nil,
@@ -841,6 +845,7 @@ local listedDungeonHighlightState = {
 }
 
 local listedDungeonHighlightListeners = {}
+local BuildTeleportSpellIDLookup
 
 local function NotifyListedDungeonHighlightChanged()
     for _, listener in ipairs(listedDungeonHighlightListeners) do
@@ -962,7 +967,7 @@ local function ApplyListedDungeonHighlight(btn)
     end
 end
 
-local function BuildTeleportSpellIDLookup(teleportID)
+BuildTeleportSpellIDLookup = function(teleportID)
     local lookup = {}
     local entry = FindTeleportDefinitionById(teleportID)
     if type(entry) ~= "table" then
@@ -983,6 +988,263 @@ local function BuildTeleportSpellIDLookup(teleportID)
     AddSpellID(entry.spellIDAlly)
 
     return lookup
+end
+
+local listedDungeonTeleportPopup
+local listedDungeonTeleportPopupKey
+local listedDungeonTeleportPopupDeclinedKey
+
+local function GetListedDungeonTeleportPopupKey(info, signature)
+    if type(info) ~= "table" then
+        return signature
+    end
+
+    if info.groupGUID then
+        return tostring(signature or "") .. ":" .. tostring(info.groupGUID)
+    end
+
+    if info.activityID then
+        return tostring(signature or "") .. ":" .. tostring(info.activityID)
+    end
+
+    return signature
+end
+
+local function GetListedDungeonTeleportPopupTitle(PopupInfo)
+    if PopupInfo and PopupInfo == listedDungeonHighlightState.joinedGroupInfo then
+        return "You joined a group for"
+    end
+
+    return "Your group is listed for"
+end
+
+local function GetTeleportSpellIDForPlayer(entry)
+    if type(entry) ~= "table" then
+        return nil
+    end
+
+    if entry.spellIDHorde and entry.spellIDAlly then
+        local faction = UnitFactionGroup and UnitFactionGroup("player") or nil
+        if faction == "Horde" then
+            return entry.spellIDHorde
+        end
+        return entry.spellIDAlly
+    end
+
+    return entry.spellID
+end
+
+local function SetTeleportPopupButtonText(button, text)
+    if not button then
+        return
+    end
+
+    if button.text then
+        button.text:SetText(text or "")
+    elseif button.SetText then
+        button:SetText(text or "")
+    end
+end
+
+local function CreateTeleportPopupButton(parent, text, isSecure)
+    local template = isSecure and "SecureActionButtonTemplate" or nil
+    local button = CreateFrame("Button", nil, parent, template)
+    button:SetSize(132, 24)
+    button:EnableMouse(true)
+
+    button.bg = button:CreateTexture(nil, "BACKGROUND")
+    button.bg:SetAllPoints()
+    button.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+
+    button.border = CreateFrame("Frame", nil, button, "BackdropTemplate")
+    button.border:SetAllPoints()
+    button.border:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    button.border:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+
+    button.text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    button.text:SetPoint("CENTER")
+    button.text:SetTextColor(0.9, 0.9, 0.9)
+    SetTeleportPopupButtonText(button, text)
+
+    button:SetScript("OnEnter", function(self)
+        self.bg:SetColorTexture(0.22, 0.22, 0.22, 1)
+        self.border:SetBackdropBorderColor(1, 0.82, 0, 1)
+    end)
+    button:SetScript("OnLeave", function(self)
+        self.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        self.border:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+    end)
+
+    return button
+end
+
+local function EnsureListedDungeonTeleportPopup()
+    if listedDungeonTeleportPopup then
+        return listedDungeonTeleportPopup
+    end
+
+    local frame = CreateFrame("Frame", "mQoL_DungeonTeleportPopup", UIParent, "BackdropTemplate")
+    frame:SetSize(TELEPORT_POPUP_WIDTH, TELEPORT_POPUP_HEIGHT)
+    frame:SetPoint("CENTER", 0, 160)
+    frame:SetFrameStrata("DIALOG")
+    frame:EnableMouse(true)
+    frame:SetMovable(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    frame:SetBackdropColor(0.04, 0.04, 0.04, 0.96)
+    frame:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+
+    frame.titleText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.titleText:SetPoint("TOPLEFT", 10, -10)
+    frame.titleText:SetPoint("TOPRIGHT", -10, -10)
+    frame.titleText:SetJustifyH("CENTER")
+    frame.titleText:SetText("Your group is listed for")
+
+    frame.imageContainer = CreateFrame("Frame", nil, frame)
+    frame.imageContainer:SetPoint("TOPLEFT", 10, -32)
+    frame.imageContainer:SetPoint("TOPRIGHT", -10, -32)
+    frame.imageContainer:SetHeight(TELEPORT_POPUP_IMAGE_HEIGHT)
+
+    frame.imageBg = frame.imageContainer:CreateTexture(nil, "BACKGROUND")
+    frame.imageBg:SetAllPoints()
+    frame.imageBg:SetColorTexture(0.05, 0.05, 0.05, 1)
+
+    frame.imageArea = frame.imageContainer:CreateTexture(nil, "ARTWORK")
+    frame.imageArea:SetAllPoints(frame.imageContainer)
+
+    frame.infoBg = frame:CreateTexture(nil, "ARTWORK")
+    frame.infoBg:SetPoint("TOPLEFT", frame.imageContainer, "BOTTOMLEFT", 0, 0)
+    frame.infoBg:SetPoint("TOPRIGHT", frame.imageContainer, "BOTTOMRIGHT", 0, 0)
+    frame.infoBg:SetHeight(38)
+    frame.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.86)
+
+    frame.nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    frame.nameText:SetPoint("TOPLEFT", frame.infoBg, "TOPLEFT", 8, -5)
+    frame.nameText:SetPoint("TOPRIGHT", frame.infoBg, "TOPRIGHT", -8, -5)
+    frame.nameText:SetJustifyH("LEFT")
+    frame.nameText:SetMaxLines(1)
+
+    frame.locationText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    frame.locationText:SetPoint("BOTTOMLEFT", frame.infoBg, "BOTTOMLEFT", 8, 5)
+    frame.locationText:SetPoint("BOTTOMRIGHT", frame.infoBg, "BOTTOMRIGHT", -8, 5)
+    frame.locationText:SetJustifyH("LEFT")
+    frame.locationText:SetTextColor(0.7, 0.7, 0.7)
+    frame.locationText:SetMaxLines(1)
+
+    frame.popupText = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.popupText:SetPoint("TOPLEFT", frame.infoBg, "BOTTOMLEFT", 8, -12)
+    frame.popupText:SetPoint("TOPRIGHT", frame.infoBg, "BOTTOMRIGHT", -8, -12)
+    frame.popupText:SetJustifyH("CENTER")
+    frame.popupText:SetText("Do you want to teleport to this dungeon?")
+
+    frame.teleportButton = CreateTeleportPopupButton(frame, "YES", true)
+    frame.teleportButton:SetPoint("BOTTOMRIGHT", frame, "BOTTOM", -6, 14)
+    ConfigureTeleportButtonClicks(frame.teleportButton)
+    frame.teleportButton:SetScript("PostClick", function(self)
+        self:GetParent():Hide()
+    end)
+
+    frame.cancelButton = CreateTeleportPopupButton(frame, "NO", false)
+    frame.cancelButton:SetPoint("BOTTOMLEFT", frame, "BOTTOM", 6, 14)
+    frame.cancelButton:SetScript("OnClick", function(self)
+        local parent = self:GetParent()
+        listedDungeonTeleportPopupDeclinedKey = parent.PopupKey
+        parent:Hide()
+    end)
+
+    frame:SetScript("OnHide", function(self)
+        if not InCombatLockdown or not InCombatLockdown() then
+            ClearTeleportButtonAction(self.teleportButton)
+        end
+    end)
+    frame:Hide()
+
+    listedDungeonTeleportPopup = frame
+    return frame
+end
+
+local function HideListedDungeonTeleportPopup(signature)
+    local frame = listedDungeonTeleportPopup
+    if not frame or not frame:IsShown() then
+        return
+    end
+
+    if not signature or frame.signature == signature then
+        frame:Hide()
+    end
+end
+
+local function ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKey, titleText)
+    if InCombatLockdown and InCombatLockdown() then
+        return false
+    end
+
+    local frame = EnsureListedDungeonTeleportPopup()
+    frame.signature = signature
+    frame.PopupKey = PopupKey
+    frame.teleportID = entry.id
+    frame.spellID = spellID
+
+    frame.nameText:SetText(entry.name or "Dungeon Teleport")
+    frame.locationText:SetText(entry.location or "Unknown Location")
+    frame.titleText:SetText(titleText or "Your group is listed for")
+    frame.popupText:SetText("Do you want to teleport to this dungeon?")
+    ApplyTeleportImageTexture(frame, entry, TELEPORT_POPUP_WIDTH - 20, TELEPORT_POPUP_IMAGE_HEIGHT)
+
+    ConfigureTeleportButtonClicks(frame.teleportButton)
+    if not SetTeleportButtonSpellAction(frame.teleportButton, spellID) then
+        return false
+    end
+
+    frame:Show()
+    return true
+end
+
+local function MaybeShowListedDungeonTeleportPopup()
+    local state = listedDungeonHighlightState
+    local PopupInfo = state.joinedGroupInfo or state.activeInfo
+    local signature = state.activeSignature
+    local teleportID = state.activeTeleportID
+
+    if type(PopupInfo) ~= "table" or not signature or not teleportID then
+        HideListedDungeonTeleportPopup()
+        return
+    end
+    if PopupInfo.signature ~= signature then
+        return
+    end
+    local PopupKey = GetListedDungeonTeleportPopupKey(PopupInfo, signature)
+    if signature == state.suppressedSignature or PopupKey == listedDungeonTeleportPopupDeclinedKey then
+        HideListedDungeonTeleportPopup(signature)
+        return
+    end
+    if PopupKey == listedDungeonTeleportPopupKey then
+        return
+    end
+
+    local entry = FindTeleportDefinitionById(teleportID)
+    if type(entry) ~= "table" then
+        return
+    end
+    entry = ApplyClientEntryOverrides(entry)
+
+    local spellID = GetTeleportSpellIDForPlayer(entry)
+    if not IsTeleportSpellKnown(spellID) or not IsTeleportHighlightedForListedDungeon(teleportID, spellID) then
+        return
+    end
+
+    if ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKey, GetListedDungeonTeleportPopupTitle(PopupInfo)) then
+        listedDungeonTeleportPopupKey = PopupKey
+    end
 end
 
 local function IsDungeonListingActivity(activityInfo)
@@ -1134,6 +1396,7 @@ local joinedApplicationStatuses = {
 
 local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoinedGroupInfo)
     local hadState = listedDungeonHighlightState.activeSignature ~= nil
+        or listedDungeonHighlightState.activeInfo ~= nil
         or listedDungeonHighlightState.groupGUID ~= nil
         or (not keepJoinedGroupInfo and listedDungeonHighlightState.joinedGroupInfo ~= nil)
         or (not keepSuppressedSignature and listedDungeonHighlightState.suppressedSignature ~= nil)
@@ -1141,6 +1404,7 @@ local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoi
     listedDungeonHighlightState.activeTeleportID = nil
     listedDungeonHighlightState.activeSignature = nil
     listedDungeonHighlightState.activeSpellIDs = nil
+    listedDungeonHighlightState.activeInfo = nil
     listedDungeonHighlightState.groupGUID = nil
     if not keepJoinedGroupInfo then
         listedDungeonHighlightState.joinedGroupInfo = nil
@@ -1183,6 +1447,8 @@ local function SetActiveListedDungeonHighlight(info)
         state.groupGUID = info.groupGUID
         changed = true
     end
+
+    state.activeInfo = info
 
     if changed or not state.activeSpellIDs then
         state.activeSpellIDs = BuildTeleportSpellIDLookup(info.teleportID)
@@ -1328,12 +1594,14 @@ RegisterListedDungeonHighlightEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
 RegisterListedDungeonHighlightEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
 RegisterListedDungeonHighlightEvent("LFG_LIST_JOINED_GROUP")
 RegisterListedDungeonHighlightEvent("UNIT_SPELLCAST_SUCCEEDED")
+RegisterListedDungeonHighlightEvent("PLAYER_REGEN_ENABLED")
 
 listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit = ...
         if unit == "player" then
             SuppressListedDungeonHighlightForSpell(ExtractSpellIDFromSpellcastEvent(...))
+            HideListedDungeonTeleportPopup(listedDungeonHighlightState.activeSignature)
         end
         return
     end
@@ -1352,6 +1620,11 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
 
     UpdateListedDungeonHighlightState()
     SuppressListedDungeonHighlightForCurrentInstance()
+    if not IsPlayerInAnyGroup() and not listedDungeonHighlightState.activeSignature then
+        listedDungeonTeleportPopupKey = nil
+        listedDungeonTeleportPopupDeclinedKey = nil
+    end
+    MaybeShowListedDungeonTeleportPopup()
 end)
 
 UpdateListedDungeonHighlightState()
