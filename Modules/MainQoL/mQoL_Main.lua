@@ -902,6 +902,8 @@ function mQoL_Main:CreateGeneralPanel(parent)
         end
     })
 
+    AddGap(contentContainer, "BottomSeparator")
+
     local lootSpeedMin, lootSpeedMax, lootSpeedStep = 0.01, 0.10, 0.01
     local currentLootSpeed = mQoL_FastAutoloot and type(mQoL_FastAutoloot.GetSpeed) == "function"
         and mQoL_FastAutoloot:GetSpeed()

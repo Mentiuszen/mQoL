@@ -11,8 +11,8 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.2"
-mQoL_Hub.build = "248"
-mQoL_Hub.vendor = "dev"    --dev / test / release
+mQoL_Hub.build = "250"
+mQoL_Hub.vendor = "test"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -338,7 +338,7 @@ function mQoL_Hub:AddOptionRow(parent, name, controlType, controlParams, extra, 
         end
 
 	elseif controlType == "slider" then
-		local sliderRowHeight = controlParams.hasMarkers and 70 or 50
+		local sliderRowHeight = controlParams.hasMarkers and 70 or rowHeight
 		row:SetHeight(sliderRowHeight)
 		uiArea:SetHeight(sliderRowHeight)
 		contentOffset = (sliderRowHeight - rowHeight) / 2
@@ -910,6 +910,8 @@ function mQoL_Hub:CreateDisplayPanel(parent)
 			self.MainFrame:SetScale(val)
 		end
 	end)
+
+    AddGap(contentContainer, "Standard")
 
 	-- Window Opacity
 	local opacityEditBox = CreateCustomInputBox(contentContainer)

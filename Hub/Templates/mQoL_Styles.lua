@@ -738,14 +738,14 @@ function mQoL_Styles.CreateCustomSlider(parent, labelText, minValue, maxValue, s
     -- Min/Max text
     if not markers then
         slider.lowText = slider:CreateFontString(nil,"OVERLAY")
-        slider.lowText:SetFont("Fonts\\FRIZQT__.TTF",12)
-        slider.lowText:SetPoint("TOPLEFT", slider, "BOTTOMLEFT",0,-6)
+        slider.lowText:SetFont("Fonts\\FRIZQT__.TTF",10)
+        slider.lowText:SetPoint("TOPLEFT", slider, "BOTTOMLEFT",0,-4)
         slider.lowText:SetText(NormalizeValue(minValue))
         slider.lowText:SetTextColor(1,1,1)
 
         slider.highText = slider:CreateFontString(nil,"OVERLAY")
-        slider.highText:SetFont("Fonts\\FRIZQT__.TTF",12)
-        slider.highText:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT",0,-6)
+        slider.highText:SetFont("Fonts\\FRIZQT__.TTF",10)
+        slider.highText:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT",0,-4)
         slider.highText:SetText(NormalizeValue(maxValue))
         slider.highText:SetTextColor(1,1,1)
     end
