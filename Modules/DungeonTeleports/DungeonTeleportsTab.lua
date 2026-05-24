@@ -1561,13 +1561,15 @@ local function SuppressListedDungeonHighlightForSpell(spellID)
     spellID = tonumber(spellID) or 0
     local state = listedDungeonHighlightState
     if spellID <= 0 or not state.activeSignature or not state.activeSpellIDs or not state.activeSpellIDs[spellID] then
-        return
+        return false
     end
 
     if state.suppressedSignature ~= state.activeSignature then
         state.suppressedSignature = state.activeSignature
         NotifyListedDungeonHighlightChanged()
     end
+
+    return true
 end
 
 local function ExtractSpellIDFromSpellcastEvent(...)
@@ -1600,8 +1602,9 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit = ...
         if unit == "player" then
-            SuppressListedDungeonHighlightForSpell(ExtractSpellIDFromSpellcastEvent(...))
-            HideListedDungeonTeleportPopup(listedDungeonHighlightState.activeSignature)
+            if SuppressListedDungeonHighlightForSpell(ExtractSpellIDFromSpellcastEvent(...)) then
+                HideListedDungeonTeleportPopup(listedDungeonHighlightState.activeSignature)
+            end
         end
         return
     end
