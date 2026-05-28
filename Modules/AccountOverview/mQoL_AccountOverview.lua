@@ -2069,6 +2069,7 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
     frame.rowsRight = {}
     frame.rowBackgrounds = {}
     frame.rowSeparators = {}
+    frame.secondaryTables = {}
 
     frame:SetScript("OnMouseDown", function()
         GameTooltip:Hide()
@@ -2086,6 +2087,7 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
         HidePool(self.rowsRight)
         HidePool(self.rowBackgrounds)
         HidePool(self.rowSeparators)
+        HidePool(self.secondaryTables)
     end)
 
     self.professionDetailFrame = frame
@@ -2099,6 +2101,126 @@ local function GetProfessionDetailKey(characterKey, professionEntry)
     end
 
     return string.format("%s:%s", tostring(characterKey or ""), professionKey)
+end
+
+local function GetSecondaryProfessionTableRows(entry)
+    local rows = {}
+
+    if type(entry) ~= "table" then
+        return rows
+    end
+
+    for _, rowData in ipairs(GetProfessionDetailRows(entry) or {}) do
+        if rowData.isActive and rowData.value and rowData.value ~= "-" then
+            rows[#rows + 1] = {
+                label = rowData.label or "Current",
+                value = rowData.value,
+                isActive = true,
+            }
+        end
+    end
+
+    if #rows == 0 then
+        rows[#rows + 1] = {
+            label = "Current",
+            value = GetProfessionSummaryText(entry, false),
+            isActive = true,
+        }
+    end
+
+    return rows
+end
+
+local function EnsureSecondaryProfessionTable(frame, index)
+    frame.secondaryTables = frame.secondaryTables or {}
+    local tableFrame = frame.secondaryTables[index]
+    if tableFrame then
+        tableFrame:Show()
+        return tableFrame
+    end
+
+    tableFrame = CreateFrame("Frame", nil, frame)
+    tableFrame.rowsLeft = {}
+    tableFrame.rowsRight = {}
+    tableFrame.rowBackgrounds = {}
+    tableFrame.rowSeparators = {}
+
+    tableFrame.title = tableFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    tableFrame.title:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 0, 0)
+    tableFrame.title:SetPoint("TOPRIGHT", tableFrame, "TOPRIGHT", 0, 0)
+    tableFrame.title:SetJustifyH("CENTER")
+    tableFrame.title:SetTextColor(1, 0.82, 0)
+
+    tableFrame.separator = tableFrame:CreateTexture(nil, "ARTWORK")
+    tableFrame.separator:SetColorTexture(1, 1, 1, 0.12)
+    tableFrame.separator:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 0, -20)
+    tableFrame.separator:SetPoint("TOPRIGHT", tableFrame, "TOPRIGHT", 0, -20)
+    tableFrame.separator:SetHeight(1)
+
+    tableFrame.headerLeft = tableFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    tableFrame.headerLeft:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 2, -32)
+    tableFrame.headerLeft:SetJustifyH("LEFT")
+    tableFrame.headerLeft:SetTextColor(0.9, 0.9, 0.9)
+    tableFrame.headerLeft:SetText("Expansion")
+
+    tableFrame.headerRight = tableFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    tableFrame.headerRight:SetPoint("TOPRIGHT", tableFrame, "TOPRIGHT", -2, -32)
+    tableFrame.headerRight:SetJustifyH("RIGHT")
+    tableFrame.headerRight:SetTextColor(0.9, 0.9, 0.9)
+    tableFrame.headerRight:SetText("Skill")
+
+    frame.secondaryTables[index] = tableFrame
+    return tableFrame
+end
+
+local function PopulateSecondaryProfessionTable(tableFrame, professionEntry, width)
+    local rows = GetSecondaryProfessionTableRows(professionEntry)
+    tableFrame:SetWidth(width)
+    tableFrame:SetHeight(54 + (#rows * 20))
+    tableFrame.title:SetText(professionEntry.name or "Unknown")
+    tableFrame.headerLeft:SetWidth(width - 76)
+    tableFrame.headerRight:SetWidth(66)
+
+    HidePool(tableFrame.rowsLeft)
+    HidePool(tableFrame.rowsRight)
+    HidePool(tableFrame.rowBackgrounds)
+    HidePool(tableFrame.rowSeparators)
+
+    local rowStartY = -54
+    local rowHeight = 20
+    for index, rowData in ipairs(rows) do
+        local rowOffset = rowStartY - ((index - 1) * rowHeight)
+
+        local rowBackground = AcquireTexture(tableFrame.rowBackgrounds, index, tableFrame, "BACKGROUND")
+        rowBackground:ClearAllPoints()
+        rowBackground:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 0, rowOffset + 2)
+        rowBackground:SetSize(width, rowHeight - 2)
+        rowBackground:SetColorTexture(index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
+
+        local rowSeparator = AcquireTexture(tableFrame.rowSeparators, index, tableFrame, "ARTWORK")
+        rowSeparator:ClearAllPoints()
+        rowSeparator:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 2, rowOffset + 1)
+        rowSeparator:SetSize(width - 4, 1)
+        rowSeparator:SetColorTexture(1, 1, 1, 0.05)
+
+        local left = AcquireFontString(tableFrame.rowsLeft, index, tableFrame, "GameFontNormalSmall")
+        left:ClearAllPoints()
+        left:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 4, rowOffset - 2)
+        left:SetWidth(width - 82)
+        left:SetJustifyH("LEFT")
+        left:SetText(rowData.label or "Current")
+        left:SetTextColor(rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62)
+
+        local right = AcquireFontString(tableFrame.rowsRight, index, tableFrame, "GameFontNormalSmall")
+        right:ClearAllPoints()
+        right:SetPoint("TOPRIGHT", tableFrame, "TOPRIGHT", -4, rowOffset - 2)
+        right:SetWidth(72)
+        right:SetJustifyH("RIGHT")
+        right:SetText(rowData.value or "-")
+        right:SetTextColor(rowData.isActive and 1 or 0.58, rowData.isActive and 0.82 or 0.58, rowData.isActive and 0 or 0.58)
+    end
+
+    return #rows
 end
 
 function mQoL_AccountOverview:PositionProfessionDetailFrame(frame)
@@ -2135,23 +2257,66 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
     self.openProfessionDetailKey = detailKey
     ownerButton:SetActive(true)
 
+    local isSecondaryDetail = professionEntry.isSecondarySummary and true or false
+    local secondaryEntries = isSecondaryDetail and professionEntry.secondaryProfessions or nil
+    local secondaryCount = type(secondaryEntries) == "table" and math.max(1, #secondaryEntries) or 1
+    local secondaryColumnWidth = 180
+    local secondaryColumnGap = 12
+    local frameWidth = isSecondaryDetail and math.max(300, 24 + (secondaryCount * secondaryColumnWidth) + ((secondaryCount - 1) * secondaryColumnGap)) or 300
+    frame:SetWidth(frameWidth)
+    frame.separator:SetSize(frameWidth - 24, 1)
+
     frame.title:SetText(professionEntry.name or "Profession")
-    if professionEntry.isSecondarySummary then
+    if isSecondaryDetail then
         frame.subtitle:SetText("All secondary professions")
-        frame.headerLeft:SetText("Profession")
-        frame.headerRight:SetText("Skill")
+        frame.headerLeft:Hide()
+        frame.headerRight:Hide()
     else
         frame.subtitle:SetText("Detailed profession tiers")
+        frame.headerLeft:ClearAllPoints()
+        frame.headerLeft:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -78)
+        frame.headerLeft:SetWidth(186)
+        frame.headerLeft:SetJustifyH("LEFT")
         frame.headerLeft:SetText("Expansion")
+        frame.headerLeft:Show()
         frame.headerRight:SetText("Skill")
+        frame.headerRight:Show()
     end
 
-    local detailRows = GetProfessionDetailRows(professionEntry)
     HidePool(frame.rowsLeft)
     HidePool(frame.rowsRight)
     HidePool(frame.rowBackgrounds)
     HidePool(frame.rowSeparators)
+    HidePool(frame.secondaryTables)
 
+    if isSecondaryDetail then
+        local maxRows = 1
+        local startX = 12
+        for index, entry in ipairs(secondaryEntries or {}) do
+            if type(entry) == "table" then
+                local tableFrame = EnsureSecondaryProfessionTable(frame, index)
+                tableFrame:ClearAllPoints()
+                tableFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", startX + ((index - 1) * (secondaryColumnWidth + secondaryColumnGap)), -78)
+                maxRows = math.max(maxRows, PopulateSecondaryProfessionTable(tableFrame, entry, secondaryColumnWidth))
+            end
+        end
+
+        if not secondaryEntries or #secondaryEntries == 0 then
+            local tableFrame = EnsureSecondaryProfessionTable(frame, 1)
+            tableFrame:ClearAllPoints()
+            tableFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", startX, -78)
+            maxRows = math.max(maxRows, PopulateSecondaryProfessionTable(tableFrame, { name = "Secondary" }, secondaryColumnWidth))
+        end
+
+        local frameHeight = math.max(164, 148 + (maxRows * 20))
+        frame:SetHeight(frameHeight)
+        self:PositionProfessionDetailFrame(frame)
+
+        frame:Show()
+        return
+    end
+
+    local detailRows = GetProfessionDetailRows(professionEntry)
     local startY = -102
     local rowHeight = 20
     for index, rowData in ipairs(detailRows) do
@@ -2159,20 +2324,20 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
         local rowBackground = AcquireTexture(frame.rowBackgrounds, index, frame, "BACKGROUND")
         rowBackground:ClearAllPoints()
         rowBackground:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, rowOffset + 2)
-        rowBackground:SetSize(276, rowHeight - 2)
+        rowBackground:SetSize(frameWidth - 24, rowHeight - 2)
         rowBackground:SetColorTexture(index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
 
         local rowSeparator = AcquireTexture(frame.rowSeparators, index, frame, "ARTWORK")
         rowSeparator:ClearAllPoints()
         rowSeparator:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, rowOffset + 1)
-        rowSeparator:SetSize(268, 1)
+        rowSeparator:SetSize(frameWidth - 32, 1)
         rowSeparator:SetColorTexture(1, 1, 1, 0.05)
 
         local left = AcquireFontString(frame.rowsLeft, index, frame, "GameFontNormalSmall")
         left:ClearAllPoints()
         left:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, rowOffset - 2)
-        left:SetWidth(186)
         left:SetJustifyH("LEFT")
+        left:SetWidth(186)
         left:SetText(rowData.label or "Unknown")
         left:SetTextColor(rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62, rowData.isActive and 0.92 or 0.62)
 
