@@ -1390,7 +1390,6 @@ local inactiveApplicationStatuses = {
 }
 
 local joinedApplicationStatuses = {
-    invited = true,
     inviteaccepted = true,
 }
 
