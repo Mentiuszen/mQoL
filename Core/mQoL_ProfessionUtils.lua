@@ -1457,7 +1457,20 @@ function ProfessionUtils.GetSummaryText(professionEntry, useFullTierLabel)
         local skillText = currentTier
             and ProfessionUtils.FormatSkillValue(currentTier.rank, currentTier.maxRank)
             or ProfessionUtils.FormatSkillValue(bestEntry.rank, bestEntry.maxRank)
-        return string.format("%s %s", bestEntry.name or "Secondary", skillText)
+
+        if currentTier and currentTier.label == "Current" then
+            return skillText
+        end
+
+        if useFullTierLabel and currentTier and currentTier.label and currentTier.label ~= "" then
+            return string.format("%s %s", currentTier.label, skillText)
+        end
+
+        if currentTier and currentTier.abbr and currentTier.abbr ~= "" then
+            return string.format("%s %s", currentTier.abbr, skillText)
+        end
+
+        return skillText
     end
 
     local currentTier = ProfessionUtils.GetCurrentTier(professionEntry)

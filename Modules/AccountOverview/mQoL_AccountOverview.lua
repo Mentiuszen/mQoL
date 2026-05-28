@@ -2207,6 +2207,19 @@ function mQoL_AccountOverview:ToggleProfessionDetailFrame(ownerButton, professio
     self:ShowProfessionDetailFrame(ownerButton, professionEntry)
 end
 
+local function AddSecondaryProfessionTooltipSection(entry, isFirstSection)
+    if type(entry) ~= "table" then
+        return
+    end
+
+    if not isFirstSection then
+        GameTooltip:AddLine(" ")
+    end
+
+    GameTooltip:AddLine(entry.name or "Unknown", 1, 0.82, 0)
+    GameTooltip:AddLine(GetProfessionSummaryText(entry, true), 1, 1, 1)
+end
+
 function mQoL_AccountOverview:EnsureCharactersView()
     if self.charactersView then
         return self.charactersView
@@ -2376,11 +2389,13 @@ function mQoL_AccountOverview:EnsureProfessionButton(row, index)
         GameTooltip:AddLine(self.professionEntry.name or "Profession", 1, 0.82, 0)
         if self.professionEntry.isSecondarySummary then
             GameTooltip:AddLine("Click to view all secondary professions.", 1, 1, 1)
-            for _, entry in ipairs(self.professionEntry.secondaryProfessions or {}) do
-                GameTooltip:AddLine(string.format("%s %s", entry.name or "Unknown", GetProfessionSummaryText(entry, true)), 1, 1, 1)
+            GameTooltip:AddLine(" ")
+            for index, entry in ipairs(self.professionEntry.secondaryProfessions or {}) do
+                AddSecondaryProfessionTooltipSection(entry, index == 1)
             end
         else
             GameTooltip:AddLine("Click to view detailed profession tiers.", 1, 1, 1)
+            GameTooltip:AddLine(" ")
             GameTooltip:AddLine(GetProfessionSummaryText(self.professionEntry, true), 1, 1, 1)
         end
         GameTooltip:Show()
