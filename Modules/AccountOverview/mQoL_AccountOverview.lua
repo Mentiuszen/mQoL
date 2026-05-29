@@ -73,11 +73,32 @@ local GOLD_RANGE_OPTIONS = {
     yearly = { label = "Year", days = 365 },
 }
 
+local CHARACTER_SORT_DEFAULT = { key = "lastcharacter", ascending = false }
+local CHARACTER_SORT_FIELDS = {
+    lastcharacter = true,
+    name = true,
+    level = true,
+    vault = true,
+    played = true,
+    gold = true,
+}
+local CHARACTER_SORT_DEFAULT_ASCENDING = {
+    lastcharacter = false,
+    name = true,
+    level = false,
+    vault = false,
+    played = false,
+    gold = false,
+}
+local CHARACTER_SORT_UP_TEXTURE = "Interface\\AddOns\\mQoL\\Media\\Textures\\Up"
+local CHARACTER_SORT_DOWN_TEXTURE = "Interface\\AddOns\\mQoL\\Media\\Textures\\Down"
+
 mQoL_AccountOverview.defaults = {
     settings = {
         selectedTab = "Characters",
         selectedGoldRange = "overall",
         favoriteCharacters = {},
+        characterSort = { key = CHARACTER_SORT_DEFAULT.key, ascending = CHARACTER_SORT_DEFAULT.ascending },
     },
     characters = {},
     goldSession = {},
@@ -440,6 +461,15 @@ local function GetAccountDB()
     accountDB.settings = accountDB.settings or DeepCopy(mQoL_AccountOverview.defaults.settings)
     if type(accountDB.settings.favoriteCharacters) ~= "table" then
         accountDB.settings.favoriteCharacters = {}
+    end
+    if type(accountDB.settings.characterSort) ~= "table"
+        or not CHARACTER_SORT_FIELDS[accountDB.settings.characterSort.key] then
+        accountDB.settings.characterSort = {
+            key = CHARACTER_SORT_DEFAULT.key,
+            ascending = CHARACTER_SORT_DEFAULT.ascending,
+        }
+    else
+        accountDB.settings.characterSort.ascending = accountDB.settings.characterSort.ascending == true
     end
     accountDB.characters = accountDB.characters or {}
     if type(accountDB.goldSession) ~= "table" then
@@ -1450,13 +1480,162 @@ function mQoL_AccountOverview:QueueOpenTradeSkillProfessionSync()
     Sync()
 end
 
+local function NormalizeCharacterSortSettings(settings)
+    settings = settings or {}
+
+    local sort = type(settings.characterSort) == "table" and settings.characterSort or nil
+    local key = sort and sort.key
+    local usedDefaultKey = false
+    if not CHARACTER_SORT_FIELDS[key] then
+        key = CHARACTER_SORT_DEFAULT.key
+        usedDefaultKey = true
+    end
+
+    local ascending = sort and sort.ascending == true
+    if sort == nil or usedDefaultKey then
+        ascending = CHARACTER_SORT_DEFAULT.ascending
+    end
+    settings.characterSort = {
+        key = key,
+        ascending = ascending,
+    }
+
+    return settings.characterSort
+end
+
+local function NormalizeSortText(value)
+    return string.lower(tostring(value or ""))
+end
+
+local function GetCharacterDisplayNameSortValue(character)
+    return NormalizeSortText(string.format("%s-%s", character.name or "", character.realm or ""))
+end
+
+local function GetCharacterVaultSortValue(character)
+    if clientInfo.isRetail and not IsCharacterAtMaxLevel(character) then
+        return ""
+    end
+
+    local display = GetWeeklyRewardDisplayState(character.weeklyReward)
+    return NormalizeSortText(display and display.summaryText or GetDefaultWeeklyRewardSummaryText())
+end
+
+local function GetCharacterGoldSortValue(owner, character)
+    if character.isCurrent then
+        return owner:GetCurrentCharacterMoney()
+    end
+
+    return math.floor(tonumber(character.money) or 0)
+end
+
+local function BuildCharacterSortValues(owner, character)
+    return {
+        name = GetCharacterDisplayNameSortValue(character),
+        level = tonumber(character.level) or 0,
+        vault = GetCharacterVaultSortValue(character),
+        played = tonumber(owner:GetDisplayedPlayedTime(character)) or 0,
+        gold = GetCharacterGoldSortValue(owner, character),
+    }
+end
+
+local function CompareCharacterFallback(a, b)
+    if a.isCurrent ~= b.isCurrent then
+        return a.isCurrent
+    end
+
+    local aSeen = tonumber(a.lastSeen) or 0
+    local bSeen = tonumber(b.lastSeen) or 0
+    if aSeen ~= bSeen then
+        return aSeen > bSeen
+    end
+
+    local aName = GetCharacterDisplayNameSortValue(a)
+    local bName = GetCharacterDisplayNameSortValue(b)
+    if aName ~= bName then
+        return aName < bName
+    end
+
+    return tostring(a.key or "") < tostring(b.key or "")
+end
+
+local function CompareCharacterSortValue(a, b, sortKey, ascending)
+    local aValue = a.sortValues and a.sortValues[sortKey]
+    local bValue = b.sortValues and b.sortValues[sortKey]
+
+    if aValue ~= bValue then
+        if ascending then
+            return aValue < bValue
+        end
+
+        return aValue > bValue
+    end
+
+    return nil
+end
+
+local function SortCharactersForOverview(characters, sortSettings)
+    local sortKey = sortSettings and sortSettings.key or CHARACTER_SORT_DEFAULT.key
+    local ascending = sortSettings and sortSettings.ascending == true
+
+    table.sort(characters, function(a, b)
+        if a.isFavorite ~= b.isFavorite then
+            return a.isFavorite
+        end
+
+        if sortKey ~= "lastcharacter" then
+            local sortResult = CompareCharacterSortValue(a, b, sortKey, ascending)
+            if sortResult ~= nil then
+                return sortResult
+            end
+        end
+
+        return CompareCharacterFallback(a, b)
+    end)
+end
+
+function mQoL_AccountOverview:GetCharacterSortSettings()
+    if not self.db then
+        self:InitializeDB()
+    end
+
+    self.db.settings = self.db.settings or DeepCopy(mQoL_AccountOverview.defaults.settings)
+    return NormalizeCharacterSortSettings(self.db.settings)
+end
+
+function mQoL_AccountOverview:SetCharacterSort(sortKey)
+    if sortKey == "lastcharacter" or not CHARACTER_SORT_FIELDS[sortKey] then
+        return
+    end
+
+    local sort = self:GetCharacterSortSettings()
+    local defaultAscending = CHARACTER_SORT_DEFAULT_ASCENDING[sortKey] == true
+    if sort.key == sortKey then
+        if sort.ascending == defaultAscending then
+            sort.ascending = not defaultAscending
+        else
+            sort.key = CHARACTER_SORT_DEFAULT.key
+            sort.ascending = CHARACTER_SORT_DEFAULT.ascending
+        end
+    else
+        sort.key = sortKey
+        sort.ascending = defaultAscending
+    end
+
+    self:RefreshCharactersView()
+    if self.activeTab == "Characters" then
+        self:SetActiveTab("Characters")
+    end
+end
+
 function mQoL_AccountOverview:GetKnownCharacters()
     if not self.db then
         return {}
     end
 
     local currentKey = select(1, GetCurrentCharacterIdentity())
+    self.currentCharacterKey = currentKey
     local favorites = self.db.settings and self.db.settings.favoriteCharacters or {}
+    local sortSettings = self:GetCharacterSortSettings()
     local characters = {}
 
     for key, data in pairs(self.db.characters) do
@@ -1466,29 +1645,12 @@ function mQoL_AccountOverview:GetKnownCharacters()
             row.key = key
             row.isCurrent = key == currentKey
             row.isFavorite = favorites[tostring(key)] == true
+            row.sortValues = BuildCharacterSortValues(self, row)
             characters[#characters + 1] = row
         end
     end
 
-    table.sort(characters, function(a, b)
-        if a.isFavorite ~= b.isFavorite then
-            return a.isFavorite
-        end
-
-        if a.isCurrent ~= b.isCurrent then
-            return a.isCurrent
-        end
-
-        local aSeen = tonumber(a.lastSeen) or 0
-        local bSeen = tonumber(b.lastSeen) or 0
-        if aSeen ~= bSeen then
-            return aSeen > bSeen
-        end
-
-        local aName = string.format("%s-%s", a.name or "", a.realm or "")
-        local bName = string.format("%s-%s", b.name or "", b.realm or "")
-        return aName < bName
-    end)
+    SortCharactersForOverview(characters, sortSettings)
 
     return characters
 end
@@ -1878,6 +2040,85 @@ local CHARACTER_PROFESSION_BUTTON_GAP = 6
 local CHARACTER_COLUMN_BY_KEY = {}
 for _, column in ipairs(CHARACTER_COLUMNS) do
     CHARACTER_COLUMN_BY_KEY[column.key] = column
+end
+
+local function UpdateCharacterSortHeaderButton(button)
+    if not button or not button.sortKey then
+        return
+    end
+
+    local sort = mQoL_AccountOverview:GetCharacterSortSettings()
+    local isActive = sort.key == button.sortKey
+    local headerText = ACCOUNT_OVERVIEW_STYLE.headerText
+    local label = button.labelText or ""
+
+    button.text:SetText(label)
+
+    if isActive then
+        local texture = sort.ascending and CHARACTER_SORT_UP_TEXTURE or CHARACTER_SORT_DOWN_TEXTURE
+        local textWidth = button.text.GetStringWidth and button.text:GetStringWidth() or 0
+
+        button.icon:SetTexture(texture)
+        button.icon:ClearAllPoints()
+        if button.headerJustify == "LEFT" then
+            button.icon:SetPoint("RIGHT", button, "LEFT", -2, 0)
+        elseif button.headerJustify == "RIGHT" then
+            button.icon:SetPoint("RIGHT", button, "RIGHT", -math.floor(textWidth + 4), 0)
+        else
+            button.icon:SetPoint("RIGHT", button, "CENTER", -math.floor((textWidth / 2) + 4), 0)
+        end
+        button.icon:Show()
+    else
+        button.icon:Hide()
+    end
+
+    button.text:SetTextColor(
+        isActive and 1 or headerText[1],
+        isActive and 0.82 or headerText[2],
+        isActive and 0 or headerText[3]
+    )
+end
+
+local function CreateCharacterSortHeaderButton(parent, column)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetPoint("LEFT", parent, "LEFT", column.x, 0)
+    button:SetSize(column.width, 26)
+    if parent.GetFrameLevel and button.SetFrameLevel then
+        button:SetFrameLevel(parent:GetFrameLevel() + 2)
+    end
+    button:RegisterForClicks("LeftButtonUp")
+    button.sortKey = column.key
+    button.labelText = column.label
+    button.headerJustify = column.headerJustify or "CENTER"
+
+    button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    button.text:SetAllPoints()
+    button.text:SetJustifyH(button.headerJustify)
+    button.text:SetText(button.labelText)
+
+    button.icon = button:CreateTexture(nil, "OVERLAY")
+    if button.icon.SetDrawLayer then
+        button.icon:SetDrawLayer("OVERLAY", 7)
+    end
+    button.icon:SetSize(8, 8)
+    button.icon:Hide()
+
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine("Sort by " .. (column.label or ""), 1, 1, 1)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    button:SetScript("OnClick", function(self)
+        mQoL_AccountOverview:SetCharacterSort(self.sortKey)
+    end)
+
+    UpdateCharacterSortHeaderButton(button)
+    return button
 end
 
 local function UpdateFavoriteButtonVisual(button)
@@ -2420,18 +2661,25 @@ function mQoL_AccountOverview:EnsureCharactersView()
     SetTextureColor(view.header.accent, ACCOUNT_OVERVIEW_STYLE.headerAccent)
 
     view.header.labels = {}
+    view.header.sortButtons = {}
     for _, column in ipairs(CHARACTER_COLUMNS) do
-        local label = view.header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("LEFT", view.header, "LEFT", column.x, 0)
-        label:SetWidth(column.width)
-        label:SetJustifyH(column.headerJustify or "CENTER")
-        label:SetText(column.label)
-        label:SetTextColor(
-            ACCOUNT_OVERVIEW_STYLE.headerText[1],
-            ACCOUNT_OVERVIEW_STYLE.headerText[2],
-            ACCOUNT_OVERVIEW_STYLE.headerText[3]
-        )
-        view.header.labels[column.key] = label
+        if CHARACTER_SORT_FIELDS[column.key] then
+            local button = CreateCharacterSortHeaderButton(view.header, column)
+            view.header.sortButtons[column.key] = button
+            view.header.labels[column.key] = button.text
+        else
+            local label = view.header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            label:SetPoint("LEFT", view.header, "LEFT", column.x, 0)
+            label:SetWidth(column.width)
+            label:SetJustifyH(column.headerJustify or "CENTER")
+            label:SetText(column.label)
+            label:SetTextColor(
+                ACCOUNT_OVERVIEW_STYLE.headerText[1],
+                ACCOUNT_OVERVIEW_STYLE.headerText[2],
+                ACCOUNT_OVERVIEW_STYLE.headerText[3]
+            )
+            view.header.labels[column.key] = label
+        end
     end
 
     view.emptyState = view:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -2514,6 +2762,7 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
         if clientInfo.isRetail then
             GameTooltip:AddLine("Click to View Vault Preview", 1, 1, 1)
+            GameTooltip:AddLine(" ", 1, 1, 1)   -- seperator
         end
         for _, line in ipairs(display.lines or {}) do
             local color = line.color or { 0.85, 0.85, 0.85 }
@@ -2657,6 +2906,10 @@ function mQoL_AccountOverview:RefreshCharactersView()
         ))
     else
         view.summaryText:SetText(string.format("Known characters: %d    Account gold: %s    Last update: %s", #characters, FormatMoneyCompact(totalGold), lastSeenText))
+    end
+
+    for _, button in pairs(view.header.sortButtons or {}) do
+        UpdateCharacterSortHeaderButton(button)
     end
 
     local detailWasOpen = self.professionDetailFrame and self.professionDetailFrame:IsShown() and self.openProfessionDetailKey ~= nil
