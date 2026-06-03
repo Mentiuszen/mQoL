@@ -536,3 +536,134 @@ function mQoL_Utils.FormatRemainingDuration(remaining)
 
     return string.format("%02dh %02dm", hours, minutes)
 end
+
+function mQoL_Utils.ClampPositiveInteger(value)
+    local numeric = tonumber(value)
+    if not numeric or numeric <= 0 then
+        return 0
+    end
+
+    return math.floor(numeric)
+end
+
+function mQoL_Utils.GetStartOfDay(timestamp)
+    local info = date("*t", timestamp)
+    info.hour = 0
+    info.min = 0
+    info.sec = 0
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.ShiftDays(timestamp, days)
+    local info = date("*t", timestamp)
+    info.day = info.day + days
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.GetStartOfWeek(timestamp)
+    local info = date("*t", timestamp)
+    local daysSinceMonday = (info.wday + 5) % 7
+    info.day = info.day - daysSinceMonday
+    info.hour = 0
+    info.min = 0
+    info.sec = 0
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.GetStartOfMonth(timestamp)
+    local info = date("*t", timestamp)
+    info.day = 1
+    info.hour = 0
+    info.min = 0
+    info.sec = 0
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.AddMonths(timestamp, offset)
+    local info = date("*t", timestamp)
+    info.day = 1
+    info.hour = 0
+    info.min = 0
+    info.sec = 0
+    info.month = info.month + offset
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.AddHours(timestamp, hours)
+    local info = date("*t", timestamp)
+    info.min = 0
+    info.sec = 0
+    info.hour = info.hour + hours
+    info.isdst = nil
+    return time(info)
+end
+
+function mQoL_Utils.ResolveMaxPlayerLevel()
+    local ClampPositiveInteger = mQoL_Utils.ClampPositiveInteger
+
+    if type(GetMaxLevelForPlayerExpansion) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxLevelForPlayerExpansion())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if type(GetMaxPlayerLevel) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxPlayerLevel())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if type(GetMaxLevelForLatestExpansion) == "function" then
+        local maxLevel = ClampPositiveInteger(GetMaxLevelForLatestExpansion())
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    if ClampPositiveInteger(MAX_PLAYER_LEVEL) > 0 then
+        return ClampPositiveInteger(MAX_PLAYER_LEVEL)
+    end
+
+    if type(GetMaxLevelForExpansionLevel) == "function" then
+        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
+        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
+            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
+        end
+
+        if expansionLevel > 0 then
+            local maxLevel = ClampPositiveInteger(GetMaxLevelForExpansionLevel(expansionLevel))
+            if maxLevel > 0 then
+                return maxLevel
+            end
+        end
+    end
+
+    if type(MAX_PLAYER_LEVEL_TABLE) == "table" then
+        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
+        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
+            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
+        end
+
+        local maxLevel = ClampPositiveInteger(MAX_PLAYER_LEVEL_TABLE[expansionLevel])
+        if maxLevel > 0 then
+            return maxLevel
+        end
+
+        for _, value in pairs(MAX_PLAYER_LEVEL_TABLE) do
+            maxLevel = math.max(maxLevel, ClampPositiveInteger(value))
+        end
+
+        if maxLevel > 0 then
+            return maxLevel
+        end
+    end
+
+    return 0
+end

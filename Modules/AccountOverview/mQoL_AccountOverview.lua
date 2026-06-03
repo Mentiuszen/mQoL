@@ -19,6 +19,14 @@ local FormatAxisMoney = mQoL_Utils.FormatAxisMoney
 local FormatDuration = mQoL_Utils.FormatDuration
 local FormatTimestamp = mQoL_Utils.FormatTimestamp
 local GetClassColor = mQoL_Utils.GetClassColorRGB
+local ClampPositiveInteger = mQoL_Utils.ClampPositiveInteger
+local GetStartOfDay = mQoL_Utils.GetStartOfDay
+local ShiftDays = mQoL_Utils.ShiftDays
+local GetStartOfWeek = mQoL_Utils.GetStartOfWeek
+local GetStartOfMonth = mQoL_Utils.GetStartOfMonth
+local AddMonths = mQoL_Utils.AddMonths
+local AddHours = mQoL_Utils.AddHours
+local ResolveMaxPlayerLevel = mQoL_Utils.ResolveMaxPlayerLevel
 local ProfessionUtils = mQoL_ProfessionUtils
 local WeeklyRewardUtils = mQoL_WeeklyRewardUtils
 local SECONDS_PER_MINUTE = 60
@@ -125,7 +133,7 @@ mQoL_AccountOverview.defaults = {
         lastSeen = 0,
     },
     meta = {
-        schemaVersion = 10, -- remember to remove this in release build its only dev db menagement
+        schemaVersion = 10,
     },
 }
 
@@ -175,14 +183,7 @@ local function GetRealtimeNow()
     return tonumber(GetNow and GetNow()) or 0
 end
 
-local function ToPositiveInt(value)
-    local numeric = tonumber(value)
-    if not numeric or numeric <= 0 then
-        return 0
-    end
-
-    return math.floor(numeric)
-end
+local ToPositiveInt = ClampPositiveInteger
 
 local function ResolveItemLevelFromLink(itemLink)
     if type(itemLink) ~= "string" or itemLink == "" then
@@ -356,78 +357,6 @@ local function GetDefaultWeeklyRewardSummaryText()
     return clientInfo.isRetail and DEFAULT_VAULT_PROGRESS_TEXT or DEFAULT_UNSUPPORTED_VAULT_TEXT
 end
 
-local function ClampPositiveInteger(value)
-    local numeric = tonumber(value)
-    if not numeric or numeric <= 0 then
-        return 0
-    end
-
-    return math.floor(numeric)
-end
-
-local function ResolveMaxPlayerLevel()
-    if type(GetMaxLevelForPlayerExpansion) == "function" then
-        local maxLevel = ClampPositiveInteger(GetMaxLevelForPlayerExpansion())
-        if maxLevel > 0 then
-            return maxLevel
-        end
-    end
-
-    if type(GetMaxPlayerLevel) == "function" then
-        local maxLevel = ClampPositiveInteger(GetMaxPlayerLevel())
-        if maxLevel > 0 then
-            return maxLevel
-        end
-    end
-
-    if type(GetMaxLevelForLatestExpansion) == "function" then
-        local maxLevel = ClampPositiveInteger(GetMaxLevelForLatestExpansion())
-        if maxLevel > 0 then
-            return maxLevel
-        end
-    end
-
-    if ClampPositiveInteger(MAX_PLAYER_LEVEL) > 0 then
-        return ClampPositiveInteger(MAX_PLAYER_LEVEL)
-    end
-
-    if type(GetMaxLevelForExpansionLevel) == "function" then
-        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
-        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
-            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
-        end
-
-        if expansionLevel > 0 then
-            local maxLevel = ClampPositiveInteger(GetMaxLevelForExpansionLevel(expansionLevel))
-            if maxLevel > 0 then
-                return maxLevel
-            end
-        end
-    end
-
-    if type(MAX_PLAYER_LEVEL_TABLE) == "table" then
-        local expansionLevel = ClampPositiveInteger(type(GetServerExpansionLevel) == "function" and GetServerExpansionLevel() or nil)
-        if expansionLevel <= 0 and type(GetAccountExpansionLevel) == "function" then
-            expansionLevel = ClampPositiveInteger(GetAccountExpansionLevel())
-        end
-
-        local maxLevel = ClampPositiveInteger(MAX_PLAYER_LEVEL_TABLE[expansionLevel])
-        if maxLevel > 0 then
-            return maxLevel
-        end
-
-        for _, value in pairs(MAX_PLAYER_LEVEL_TABLE) do
-            maxLevel = math.max(maxLevel, ClampPositiveInteger(value))
-        end
-
-        if maxLevel > 0 then
-            return maxLevel
-        end
-    end
-
-    return 0
-end
-
 local function IsCharacterAtMaxLevel(character)
     if not clientInfo.isRetail then
         return true
@@ -531,54 +460,6 @@ local function GetAccountDB()
     return accountDB
 end
 
-local function GetStartOfDay(timestamp)
-    local info = date("*t", timestamp)
-    info.hour = 0
-    info.min = 0
-    info.sec = 0
-    info.isdst = nil
-    return time(info)
-end
-
-local function ShiftDays(timestamp, days)
-    local info = date("*t", timestamp)
-    info.day = info.day + days
-    info.isdst = nil
-    return time(info)
-end
-
-local function GetStartOfWeek(timestamp)
-    local info = date("*t", timestamp)
-    local daysSinceMonday = (info.wday + 5) % 7
-    info.day = info.day - daysSinceMonday
-    info.hour = 0
-    info.min = 0
-    info.sec = 0
-    info.isdst = nil
-    return time(info)
-end
-
-local function GetStartOfMonth(timestamp)
-    local info = date("*t", timestamp)
-    info.day = 1
-    info.hour = 0
-    info.min = 0
-    info.sec = 0
-    info.isdst = nil
-    return time(info)
-end
-
-local function AddMonths(timestamp, offset)
-    local info = date("*t", timestamp)
-    info.day = 1
-    info.hour = 0
-    info.min = 0
-    info.sec = 0
-    info.month = info.month + offset
-    info.isdst = nil
-    return time(info)
-end
-
 local function GetLongTermArchiveKey(timestamp)
     return date("%d.%m.%Y", GetStartOfWeek(timestamp))
 end
@@ -620,15 +501,6 @@ local function GetDailyBucketKey(timestamp)
     info.min = 0
     info.sec = 0
     info.hour = math.floor(info.hour / 2) * 2
-    info.isdst = nil
-    return time(info)
-end
-
-local function AddHours(timestamp, hours)
-    local info = date("*t", timestamp)
-    info.min = 0
-    info.sec = 0
-    info.hour = info.hour + hours
     info.isdst = nil
     return time(info)
 end
@@ -1335,7 +1207,6 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
         character.faction = UnitFactionGroup("player") or character.faction or "Neutral"
         character.firstSeen = character.firstSeen or now
 
-        -- Spec tracking (supported in Retail, Cataclysm, and Wrath Classic)
         local getSpecIndex = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
         local getSpecInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
         local specIndex = getSpecIndex and getSpecIndex()
@@ -2788,7 +2659,7 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
         GameTooltip:AddLine(display.title or "Weekly Reward", 1, 0.82, 0)
         if clientInfo.isRetail then
             GameTooltip:AddLine("Click to View Vault Preview", 1, 1, 1)
-            GameTooltip:AddLine(" ", 1, 1, 1)   -- seperator
+            GameTooltip:AddLine(" ", 1, 1, 1)
         end
         for _, line in ipairs(display.lines or {}) do
             local color = line.color or { 0.85, 0.85, 0.85 }
@@ -4233,12 +4104,10 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view:SetWidth(770)
     view.chartRows = {}
 
-    -- Summary text (aligned vertically with the dropdown center)
     view.summaryText = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     view.summaryText:SetPoint("LEFT", view, "TOPLEFT", 0, -13)
     view.summaryText:SetTextColor(1, 0.82, 0)
 
-    -- Chart Type Dropdown (aligned to the top right)
     view.chartTypeDropdown = mQoL_Styles.CreateCustomDropdown(view, 180, {
         { text = "Horizontal Bars", value = "BAR" },
         { text = "Column Chart", value = "GRAPH" },
@@ -4249,18 +4118,15 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     end)
     view.chartTypeDropdown:SetPoint("RIGHT", view, "TOPRIGHT", 0, -13)
 
-    -- Chart Container (holds the horizontal bars)
     view.chartContainer = CreateFrame("Frame", nil, view)
     view.chartContainer:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.chartContainer:SetWidth(770)
 
-    -- Empty State
     view.emptyState = view:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     view.emptyState:SetPoint("CENTER", view.chartContainer, "CENTER", 0, 0)
     view.emptyState:SetText("No characters match the selected filters.")
     view.emptyState:Hide()
 
-    -- Graph Area (for COLUMN chart)
     view.graphFrame = CreateFrame("Frame", nil, view)
     view.graphFrame:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.graphFrame:SetSize(770, 360)
@@ -4284,13 +4150,11 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view.graphFrame.bars = {}
     view.graphFrame.barButtons = {}
 
-    -- Distribution Area (for DIST chart)
     view.distArea = CreateFrame("Frame", nil, view)
     view.distArea:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.distArea:SetWidth(770)
     view.distArea:Hide()
 
-    -- Custom Pie/Donut Chart Frame
     view.distArea.pieFrame = CreateFrame("Frame", nil, view.distArea)
     view.distArea.pieFrame:SetSize(360, 360)
     view.distArea.pieFrame:SetPoint("TOP", view.distArea, "TOP", 0, -5)
@@ -4307,7 +4171,6 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view.distArea.pieLines = {}
     view.distArea.pieLabelLines = {}
     view.distArea.pieLabelTexts = {}
-
 
     self.playedTimeView = view
     self.views["Played Time"] = view
@@ -4391,7 +4254,7 @@ function mQoL_AccountOverview:EnsureChartRow(index)
         end
         GameTooltip:Show()
     end)
-    
+
     row:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
@@ -4400,14 +4263,12 @@ function mQoL_AccountOverview:EnsureChartRow(index)
     return row
 end
 
-
 function mQoL_AccountOverview:RefreshPlayedTimeView()
     local view = self:EnsurePlayedTimeView()
     if not view then
         return
     end
 
-    -- Reset pieFrame hover states and scripts
     local pieFrame = view.distArea.pieFrame
     if pieFrame then
         pieFrame:SetScript("OnUpdate", nil)
@@ -4426,7 +4287,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         local played = self:GetDisplayedPlayedTime(char) or 0
         totalPlayed = totalPlayed + played
 
-        -- Group by Class
         if char.classFile then
             if not classData[char.classFile] then
                 classData[char.classFile] = {
@@ -4443,7 +4303,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         end
     end
 
-    -- Sort the contributors in each group descending by played time
     local sortFunc = function(a, b)
         return (self:GetDisplayedPlayedTime(a) or 0) > (self:GetDisplayedPlayedTime(b) or 0)
     end
@@ -4466,15 +4325,12 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         return (a.name or "") < (b.name or "")
     end)
 
-    -- Toggle View Frames
     view.chartContainer:SetShown(chartType == "BAR")
     view.graphFrame:SetShown(chartType == "GRAPH")
     view.distArea:SetShown(chartType == "DIST")
 
-    -- Set summary text
     view.summaryText:SetText(string.format("Total played time across all characters: %s", FormatDuration(totalPlayed)))
 
-    -- Filter empty state
     if #activeDataList == 0 then
         view.emptyState:SetPoint("CENTER", chartType == "BAR" and view.chartContainer or (chartType == "GRAPH" and view.graphFrame or view.distArea), "CENTER", 0, 0)
         view.emptyState:Show()
@@ -4500,7 +4356,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             row:ClearAllPoints()
             row:SetPoint("TOPLEFT", view.chartContainer, "TOPLEFT", 0, startY - (index - 1) * rowHeight)
 
-            -- Icon
             local texturePath, coords = GetCharacterIcon(data)
             row.icon:SetTexture(texturePath)
             if coords then
@@ -4509,7 +4364,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                 row.icon:SetTexCoord(0, 1, 0, 1)
             end
 
-            -- Text labels
             row.nameText:SetText(data.name)
             local r, g, b = GetClassColor(data.classFile)
             row.nameText:SetTextColor(r, g, b)
@@ -4524,7 +4378,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             row.pct = pct
             row.pctText:SetText(string.format("%.1f%%", pct))
 
-            -- Width of progress bar
             local ratio = maxPlayed > 0 and (data.time / maxPlayed) or 0
             row.barFill:SetColorTexture(r, g, b, 0.65)
             row.barFill:SetWidth(math.max(1, ratio * 762))
@@ -4532,7 +4385,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             row:Show()
         end
 
-        -- Hide unused rows
         for i = #activeDataList + 1, #(view.chartRows or {}) do
             if view.chartRows[i] then
                 view.chartRows[i]:Hide()
@@ -4553,7 +4405,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         local plotWidth = chart:GetWidth() - chart.plotLeft - chart.plotRight
         local plotHeight = chart:GetHeight() - chart.plotTop - chart.plotBottom
 
-        -- Hide elements initially
         HidePool(chart.gridLines)
         HidePool(chart.yLabels)
         HidePool(chart.xLabels)
@@ -4575,10 +4426,9 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         end
         if maxTime <= 0 then maxTime = 3600 end
 
-        -- Y-Axis Grid Lines & Labels
         for index = 0, 4 do
             local y = chart.plotBottom + (plotHeight * (index / 4))
-            
+
             local line = AcquireTexture(chart.gridLines, index + 1, chart, "BORDER")
             line:ClearAllPoints()
             PrepareChartGridTexture(line, 0.08)
@@ -4595,7 +4445,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             label:SetTextColor(0.78, 0.78, 0.78)
         end
 
-        -- Render Columns
         local colGap = 15
         local barWidth = math.min(50, (plotWidth - (numBars - 1) * colGap) / numBars)
         local totalColsWidth = (barWidth * numBars) + (colGap * (numBars - 1))
@@ -4613,7 +4462,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             bar:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", x - barWidth/2, chart.plotBottom)
             bar:SetSize(barWidth, math.max(1, barHeight))
 
-            -- Percentage above column
             local topLabel = AcquireFontString(chart.xLabels, i, chart, "GameFontNormalSmall")
             topLabel:ClearAllPoints()
             topLabel:SetPoint("BOTTOM", chart, "BOTTOMLEFT", x, chart.plotBottom + barHeight + 4)
@@ -4622,7 +4470,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             topLabel:SetTextColor(0.9, 0.9, 0.9)
             topLabel:Show()
 
-            -- Icon below column
             local iconTexture, iconCoords = GetCharacterIcon(data)
             local iconFrame = chart.xIcons and chart.xIcons[i]
             if not iconFrame then
@@ -4643,7 +4490,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end
             iconFrame:Show()
 
-            -- Mouse hover frame
             local mouseFrame = chart.barButtons[i]
             if not mouseFrame then
                 mouseFrame = CreateFrame("Frame", nil, chart)
@@ -4661,7 +4507,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             mouseFrame:SetScript("OnEnter", function(self)
                 if not self.aggregatedData then return end
                 self.barTexture:SetColorTexture(r, g, b, 0.9)
-                
+
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:AddLine(self.aggregatedData.name, 1, 0.82, 0)
                 GameTooltip:AddLine(" ", 1, 1, 1)
@@ -4669,7 +4515,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                 GameTooltip:AddDoubleLine("Percentage of Total:", string.format("%.1f%%", self.pct or 0), 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
                 GameTooltip:AddDoubleLine("Characters:", tostring(self.aggregatedData.charCount), 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
                 GameTooltip:AddLine(" ", 1, 1, 1)
-                
+
                 GameTooltip:AddLine("Contributing Characters:", 1, 0.82, 0)
                 for _, char in ipairs(self.aggregatedData.characters) do
                     local charPlayed = mQoL_AccountOverview:GetDisplayedPlayedTime(char) or 0
@@ -4699,21 +4545,17 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         local pieFrame = view.distArea.pieFrame
         local HighlightClass, ResetHighlight
 
-        -- Hide old segment elements just in case
         HidePool(view.distArea.segments)
         HidePool(view.distArea.segmentButtons)
 
         pieFrame:Show()
 
-        -- Update center text with total played time
         pieFrame.centerTextValue:SetText(FormatDuration(totalPlayed))
 
-        -- Reset all pie lines and callout lines/texts
         HidePool(view.distArea.pieLines)
         HidePool(view.distArea.pieLabelLines)
         HidePool(view.distArea.pieLabelTexts)
 
-        -- Calculate slice angle ranges
         local numSegments = #activeDataList
         local numRows = math.ceil(numSegments / 2)
         local legendHeight = 0
@@ -4736,7 +4578,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             local angle = 90 - degree
             local rad = math.rad(angle)
 
-            -- Find segment containing this degree
             local segment = nil
             for _, data in ipairs(activeDataList) do
                 if degree >= data.startAngle and degree < data.endAngle then
@@ -4774,7 +4615,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end
         end
 
-        -- Hide unused slices in the pool
         for i = lineIndex, #(view.distArea.pieLines or {}) do
             if view.distArea.pieLines[i] then view.distArea.pieLines[i]:Hide() end
         end
@@ -4803,7 +4643,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     x1 = x1,
                     y1 = y1,
                     x2 = x2,
-                    y2 = y2, -- adjusted y position
+                    y2 = y2,
                     isRightSide = isRightSide,
                 }
                 if isRightSide then
@@ -4839,7 +4679,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         AdjustHemisphereY(rightLabels)
         AdjustHemisphereY(leftLabels)
 
-        -- Draw the label lines and texts using the adjusted y coordinates
         local labelLineIndex = 1
         local labelTextIndex = 1
 
@@ -4849,10 +4688,10 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
 
                 local x1, y1 = node.x1, node.y1
                 local isRightSide = node.isRightSide
-                local y_elbow = node.y2 -- adjusted y
+                local y_elbow = node.y2
                 local x3 = isRightSide and 185 or -185
                 local y3 = y_elbow
-                
+
                 local useLShape = false
                 if y1 > 0 and y_elbow > y1 then
                     useLShape = true
@@ -4875,27 +4714,23 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                 if useLShape then
                     -- L-Shape routing (2 segments: vertical, then horizontal)
                     if pieFrame.CreateLine then
-                        -- Line 1: Vertical segment from slice to y_elbow
                         line1:SetColorTexture(r, g, b, 0.5)
                         line1:SetThickness(1.2)
                         line1:SetStartPoint("CENTER", x1, y1)
                         line1:SetEndPoint("CENTER", x1, y_elbow)
                         line1:Show()
 
-                        -- Line 2: Horizontal segment from vertical line to text
                         line2:SetColorTexture(r, g, b, 0.5)
                         line2:SetThickness(1.2)
                         line2:SetStartPoint("CENTER", x1, y_elbow)
                         line2:SetEndPoint("CENTER", x3, y3)
                         line2:Show()
 
-                        -- Hide Line 3 (unused in L-shape)
                         line3:Hide()
                     else
                         line1:Hide()
                         line2:Hide()
-                        
-                        -- Fallback dot at the elbow
+
                         line3:ClearAllPoints()
                         line3:SetTexture("Interface\\BUTTONS\\WHITE8X8")
                         line3:SetVertexColor(r, g, b, 0.85)
@@ -4911,21 +4746,18 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     local x_elbow = isRightSide and 170 or -170
 
                     if pieFrame.CreateLine then
-                        -- Line 1: Radial segment
                         line1:SetColorTexture(r, g, b, 0.5)
                         line1:SetThickness(1.2)
                         line1:SetStartPoint("CENTER", x1, y1)
                         line1:SetEndPoint("CENTER", x_radial, y_radial)
                         line1:Show()
 
-                        -- Line 2: Slanted segment
                         line2:SetColorTexture(r, g, b, 0.5)
                         line2:SetThickness(1.2)
                         line2:SetStartPoint("CENTER", x_radial, y_radial)
                         line2:SetEndPoint("CENTER", x_elbow, y_elbow)
                         line2:Show()
 
-                        -- Line 3: Horizontal segment to text
                         line3:SetColorTexture(r, g, b, 0.5)
                         line3:SetThickness(1.2)
                         line3:SetStartPoint("CENTER", x_elbow, y_elbow)
@@ -4934,8 +4766,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     else
                         line1:Hide()
                         line2:Hide()
-                        
-                        -- Fallback dot
+
                         line3:ClearAllPoints()
                         line3:SetTexture("Interface\\BUTTONS\\WHITE8X8")
                         line3:SetVertexColor(r, g, b, 0.85)
@@ -4945,7 +4776,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     end
                 end
 
-                -- Label text frame (with mouse enabled)
                 local labelFrame = view.distArea.pieLabelTexts[labelTextIndex]
                 if labelFrame and labelFrame.text and labelFrame.text:GetParent() ~= pieFrame then
                     labelFrame.text:Hide()
@@ -5028,12 +4858,10 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         DrawLabels(rightLabels)
         DrawLabels(leftLabels)
 
-        -- Hide unused label lines
         for i = labelLineIndex, #(view.distArea.pieLabelLines or {}) do
             if view.distArea.pieLabelLines[i] then view.distArea.pieLabelLines[i]:Hide() end
         end
 
-        -- Hide unused label texts
         for i = labelTextIndex, #(view.distArea.pieLabelTexts or {}) do
             local frame = view.distArea.pieLabelTexts[i]
             if frame then
@@ -5042,7 +4870,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end
         end
 
-        -- Legend highlight functions
         HighlightClass = function(classFile)
             for _, line in ipairs(view.distArea.pieLines) do
                 if line:IsShown() then
@@ -5091,7 +4918,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end
         end
 
-        -- Mouse tracking on pieFrame itself
         pieFrame:SetScript("OnEnter", function(self)
             self:SetScript("OnUpdate", function(self, elapsed)
                 if not self:IsMouseOver() then
@@ -5121,7 +4947,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                         deg = deg - 360
                     end
 
-                    -- Find slice
                     local hoveredSeg = nil
                     for _, data in ipairs(activeDataList) do
                         if deg >= data.startAngle and deg < data.endAngle then
