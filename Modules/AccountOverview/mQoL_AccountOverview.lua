@@ -112,9 +112,9 @@ mQoL_AccountOverview.defaults = {
     characters = {},
     goldSession = {},
     overallArchive = {
-        weekly = {},
+        daily = {},
         points = {},
-        currentWeekKey = nil,
+        currentDayKey = nil,
     },
     chartBuckets = {
         daily = {},
@@ -133,7 +133,7 @@ mQoL_AccountOverview.defaults = {
         lastSeen = 0,
     },
     meta = {
-        schemaVersion = 10,
+        schemaVersion = 11,
     },
 }
 
@@ -436,18 +436,35 @@ local function GetAccountDB()
         accountDB.overallArchive = DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     end
 
-    if type(accountDB.overallArchive.weekly) ~= "table" then
-        accountDB.overallArchive.weekly = {}
+    -- Migrate weekly to daily archive schema (schemaVersion 11)
+    if accountDB.overallArchive then
+        if type(accountDB.overallArchive.weekly) == "table" then
+            if type(accountDB.overallArchive.daily) ~= "table" then
+                accountDB.overallArchive.daily = accountDB.overallArchive.weekly
+            end
+            accountDB.overallArchive.weekly = nil
+        end
+        if type(accountDB.overallArchive.currentWeekKey) == "string" then
+            if type(accountDB.overallArchive.currentDayKey) ~= "string" then
+                accountDB.overallArchive.currentDayKey = accountDB.overallArchive.currentWeekKey
+            end
+            accountDB.overallArchive.currentWeekKey = nil
+        end
+    end
+
+    accountDB.overallArchive = accountDB.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
+    if type(accountDB.overallArchive.daily) ~= "table" then
+        accountDB.overallArchive.daily = {}
     end
     if type(accountDB.overallArchive.points) ~= "table" then
         accountDB.overallArchive.points = {}
     end
-    if type(accountDB.overallArchive.currentWeekKey) ~= "string" then
-        accountDB.overallArchive.currentWeekKey = nil
+    if type(accountDB.overallArchive.currentDayKey) ~= "string" then
+        accountDB.overallArchive.currentDayKey = nil
     end
 
     accountDB.goldHistory = nil
-    accountDB.meta.schemaVersion = 10
+    accountDB.meta.schemaVersion = 11
 
     if accountDB.settings.selectedTab ~= "Characters" and accountDB.settings.selectedTab ~= "Gold Chart" and accountDB.settings.selectedTab ~= "Played Time" then
         accountDB.settings.selectedTab = "Characters"
@@ -461,7 +478,7 @@ local function GetAccountDB()
 end
 
 local function GetLongTermArchiveKey(timestamp)
-    return date("%d.%m.%Y", GetStartOfWeek(timestamp))
+    return date("%d.%m.%Y", timestamp)
 end
 
 local function ParseLongTermArchiveKey(key)
@@ -1082,38 +1099,38 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
     goldData = NormalizeGoldSnapshotData(goldData)
 
     local archive = self.db.overallArchive
-    archive.weekly = archive.weekly or {}
+    archive.daily = archive.daily or {}
     archive.points = self:NormalizeOverallArchivePoints(archive.points or {})
 
     self:EnsureOverallArchivePoints(goldData.OverallGold, observedAt)
 
-    local currentWeekStart = GetStartOfWeek(observedAt)
-    local currentWeekKey = GetLongTermArchiveKey(currentWeekStart)
-    local previousWeekKey = archive.currentWeekKey
+    local currentDayStart = GetStartOfDay(observedAt)
+    local currentDayKey = GetLongTermArchiveKey(currentDayStart)
+    local previousDayKey = archive.currentDayKey
 
-    if type(previousWeekKey) ~= "string" or previousWeekKey == "" then
-        archive.currentWeekKey = currentWeekKey
+    if type(previousDayKey) ~= "string" or previousDayKey == "" then
+        archive.currentDayKey = currentDayKey
         return false
     end
 
-    if previousWeekKey == currentWeekKey then
+    if previousDayKey == currentDayKey then
         return false
     end
 
-    local previousWeekStart = ParseLongTermArchiveKey(previousWeekKey)
-    if not previousWeekStart then
-        archive.currentWeekKey = currentWeekKey
+    local previousDayStart = ParseLongTermArchiveKey(previousDayKey)
+    if not previousDayStart then
+        archive.currentDayKey = currentDayKey
         return false
     end
 
-    if previousWeekStart < currentWeekStart then
-        local checkpointTime = currentWeekStart
+    if previousDayStart < currentDayStart then
+        local checkpointTime = observedAt
         local observedKey = GetLongTermArchiveKey(checkpointTime)
-        archive.weekly[observedKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        archive.daily[observedKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
         self:StoreOverallArchivePoint(checkpointTime, goldData.OverallGold)
     end
 
-    archive.currentWeekKey = currentWeekKey
+    archive.currentDayKey = currentDayKey
     return true
 end
 
@@ -1624,6 +1641,20 @@ function mQoL_AccountOverview:RequestCurrentPlayedTime(forceRequest)
     self.lastPlayedRequestAt = nowUiTime
     self.isTimePlayedPending = true
     RequestTimePlayed()
+end
+
+local function Clamp(val, minVal, maxVal)
+    return math.max(minVal, math.min(maxVal, val))
+end
+
+local function AcquireFrame(pool, index, parent)
+    local frame = pool[index]
+    if not frame then
+        frame = CreateFrame("Frame", nil, parent)
+        pool[index] = frame
+    end
+    frame:Show()
+    return frame
 end
 
 local function AcquireTexture(pool, index, parent, layer)
@@ -2988,12 +3019,12 @@ function mQoL_AccountOverview:GetVirtualGoldSession()
 end
 
 function mQoL_AccountOverview:GetOverallArchiveEntries(currentTotal, now)
-    if not self.db or not self.db.overallArchive or type(self.db.overallArchive.weekly) ~= "table" then
+    if not self.db or not self.db.overallArchive or type(self.db.overallArchive.daily) ~= "table" then
         return {}
     end
 
     local entries = {}
-    for rawKey, rawValue in pairs(self.db.overallArchive.weekly) do
+    for rawKey, rawValue in pairs(self.db.overallArchive.daily) do
         local timestamp = ParseLongTermArchiveKey(rawKey)
         if timestamp then
             local goldData = NormalizeGoldSnapshotData(rawValue)
@@ -3011,10 +3042,10 @@ function mQoL_AccountOverview:GetOverallArchiveEntries(currentTotal, now)
         return a.ts < b.ts
     end)
 
-    local currentWeekStart = GetStartOfWeek(now)
-    if #entries == 0 or entries[#entries].ts < currentWeekStart then
+    local currentDayStart = GetStartOfDay(now)
+    if #entries == 0 or entries[#entries].ts < currentDayStart then
         entries[#entries + 1] = {
-            ts = currentWeekStart,
+            ts = currentDayStart,
             total = currentTotal,
         }
     else
@@ -3026,18 +3057,18 @@ end
 
 function mQoL_AccountOverview:NormalizeOverallArchivePoints(points)
     local normalized = NormalizeTimeSeriesEntries(points)
-    local weeklyBuckets = {}
+    local dailyBuckets = {}
     local result = {}
 
     for _, entry in ipairs(normalized) do
-        local weekStart = GetStartOfWeek(entry.ts)
-        weeklyBuckets[weekStart] = {
-            ts = weekStart,
+        local dayStart = GetStartOfDay(entry.ts)
+        dailyBuckets[dayStart] = {
+            ts = entry.ts,
             total = entry.total,
         }
     end
 
-    for _, entry in pairs(weeklyBuckets) do
+    for _, entry in pairs(dailyBuckets) do
         result[#result + 1] = {
             ts = entry.ts,
             total = entry.total,
@@ -3128,18 +3159,25 @@ function mQoL_AccountOverview:BuildBucketSeriesFromEntries(rangeKey, bucketKeys,
 
     for index, key in ipairs(bucketKeys) do
         local value
+        local actualTs = key
         if index == windowSize then
             value = currentTotal
+            actualTs = now
         else
+            local foundEntry = nil
             while sourceIndex <= #entries and entries[sourceIndex].ts <= key do
                 carryValue = entries[sourceIndex].total
+                foundEntry = entries[sourceIndex]
                 sourceIndex = sourceIndex + 1
             end
             value = carryValue
+            if foundEntry then
+                actualTs = foundEntry.ts
+            end
         end
 
         series[#series + 1] = {
-            ts = index == windowSize and now or key,
+            ts = actualTs,
             total = value,
             label = GetRangeBucketLabel(rangeKey, key, index, windowSize),
             bucketKey = key,
@@ -3151,21 +3189,21 @@ end
 
 function mQoL_AccountOverview:BuildOverallArchiveBootstrapEntries(currentTotal, now)
     local bootstrapEntries = NormalizeTimeSeriesEntries(self:BuildOverallCheckpointEntries(currentTotal, now))
-    local currentWeekStart = GetStartOfWeek(now)
-    local weeklyBuckets = {}
+    local currentDayStart = GetStartOfDay(now)
+    local dailyBuckets = {}
 
     for _, entry in ipairs(bootstrapEntries) do
-        local weekStart = GetStartOfWeek(entry.ts)
-        if weekStart < currentWeekStart then
-            weeklyBuckets[weekStart] = {
-                ts = weekStart,
+        local dayStart = GetStartOfDay(entry.ts)
+        if dayStart < currentDayStart then
+            dailyBuckets[dayStart] = {
+                ts = entry.ts,
                 total = entry.total,
             }
         end
     end
 
     local result = {}
-    for _, entry in pairs(weeklyBuckets) do
+    for _, entry in pairs(dailyBuckets) do
         result[#result + 1] = {
             ts = entry.ts,
             total = entry.total,
@@ -3189,7 +3227,7 @@ function mQoL_AccountOverview:StoreOverallArchivePoint(timestamp, total)
     local points = self:GetStoredOverallArchiveEntries()
 
     points[#points + 1] = {
-        ts = GetStartOfWeek(math.floor(tonumber(timestamp) or 0)),
+        ts = math.floor(tonumber(timestamp) or 0),
         total = math.floor(tonumber(total) or 0),
     }
 
@@ -3203,7 +3241,7 @@ function mQoL_AccountOverview:EnsureOverallArchivePoints(currentTotal, now)
 
     self.db.overallArchive = self.db.overallArchive or DeepCopy(mQoL_AccountOverview.defaults.overallArchive)
     local archive = self.db.overallArchive
-    archive.weekly = archive.weekly or {}
+    archive.daily = archive.daily or {}
     archive.points = self:NormalizeOverallArchivePoints(archive.points or {})
 
     if #archive.points > 0 then
@@ -3326,8 +3364,8 @@ function mQoL_AccountOverview:BuildOverallCheckpointEntries(currentTotal, now)
     local earliestObservedTimestamp = GetEarliestObservedGoldTimestamp(self.db)
     local hasOverallArchiveData = self.db
         and self.db.overallArchive
-        and type(self.db.overallArchive.weekly) == "table"
-        and next(self.db.overallArchive.weekly) ~= nil
+        and type(self.db.overallArchive.daily) == "table"
+        and next(self.db.overallArchive.daily) ~= nil
     local archivedEntries = hasOverallArchiveData and self:GetOverallArchiveEntries(currentTotal, now) or {}
     local yearlyEntries = self:GetRangeBucketEntries("yearly", earliestObservedTimestamp)
     local monthlyEntries = self:GetRangeBucketEntries("monthly", earliestObservedTimestamp)
@@ -3408,20 +3446,20 @@ function mQoL_AccountOverview:BuildOverallDisplayEntries(currentTotal, now)
 end
 
 function mQoL_AccountOverview:BuildDerivedOverallEntries(history, currentTotal, now)
-    local currentWeekStart = GetStartOfWeek(now)
+    local currentDayStart = GetStartOfDay(now)
     local buckets = {}
 
     for _, entry in ipairs(history or {}) do
-        local weekStart = GetStartOfWeek(entry.ts)
-        if weekStart < currentWeekStart then
-            local bucket = buckets[weekStart]
+        local dayStart = GetStartOfDay(entry.ts)
+        if dayStart < currentDayStart then
+            local bucket = buckets[dayStart]
             if not bucket then
                 bucket = {
-                    ts = weekStart,
+                    ts = dayStart,
                     sum = 0,
                     count = 0,
                 }
-                buckets[weekStart] = bucket
+                buckets[dayStart] = bucket
             end
 
             bucket.sum = bucket.sum + math.floor(tonumber(entry.total) or 0)
@@ -3442,7 +3480,7 @@ function mQoL_AccountOverview:BuildDerivedOverallEntries(history, currentTotal, 
     end)
 
     entries[#entries + 1] = {
-        ts = currentWeekStart,
+        ts = currentDayStart,
         total = currentTotal,
     }
 
@@ -3726,6 +3764,12 @@ function mQoL_AccountOverview:SetGoldRange(rangeKey)
         self.db.settings.selectedGoldRange = rangeKey
     end
 
+    self.zoomMinTS = nil
+    self.zoomMaxTS = nil
+    if self.goldChartView and self.goldChartView.resetZoomBtn then
+        self.goldChartView.resetZoomBtn:Hide()
+    end
+
     if self.goldRangeButtons then
         for key, button in pairs(self.goldRangeButtons) do
             button:SetActive(key == rangeKey)
@@ -3737,6 +3781,15 @@ function mQoL_AccountOverview:SetGoldRange(rangeKey)
     if self.activeTab == "Gold Chart" then
         self:SetActiveTab("Gold Chart")
     end
+end
+
+function mQoL_AccountOverview:ResetGoldChartZoom()
+    self.zoomMinTS = nil
+    self.zoomMaxTS = nil
+    if self.goldChartView and self.goldChartView.resetZoomBtn then
+        self.goldChartView.resetZoomBtn:Hide()
+    end
+    self:RefreshGoldChartView()
 end
 
 function mQoL_AccountOverview:EnsureGoldChartView()
@@ -3810,6 +3863,109 @@ function mQoL_AccountOverview:EnsureGoldChartView()
     view.chart.emptyText:SetTextColor(0.86, 0.86, 0.86)
     view.chart.emptyText:SetText("Not enough gold history yet. The chart starts filling automatically as you play.")
 
+    view.resetZoomBtn = CreateTabButton(view.rangeButtonsFrame, "Reset Zoom", 110)
+    view.resetZoomBtn:SetPoint("RIGHT", view.rangeButtonsFrame, "RIGHT", 0, 0)
+    view.resetZoomBtn:SetScript("OnClick", function()
+        mQoL_AccountOverview:ResetGoldChartZoom()
+    end)
+    view.resetZoomBtn:Hide()
+
+    view.chart.pointButtons = {}
+    view.chart:EnableMouse(true)
+    
+    view.chart:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            local x, y = GetCursorPosition()
+            local scale = self:GetEffectiveScale()
+            local relativeX = (x / scale) - self:GetLeft()
+            
+            local chartWidth = self:GetWidth() or GOLD_CHART_WIDTH
+            local plotWidth = chartWidth - self.plotLeft - self.plotRight
+            local minPlotX = self.plotLeft
+            local maxPlotX = self.plotLeft + plotWidth
+            
+            if relativeX >= minPlotX and relativeX <= maxPlotX then
+                self.isZoomDragging = true
+                self.dragStartX = relativeX
+                
+                if not self.zoomSelection then
+                    self.zoomSelection = self:CreateTexture(nil, "OVERLAY")
+                    self.zoomSelection:SetColorTexture(1, 0.82, 0, 0.15)
+                end
+                
+                local plotHeight = self:GetHeight() - self.plotBottom - self.plotTop
+                self.zoomSelection:ClearAllPoints()
+                self.zoomSelection:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", relativeX, self.plotBottom)
+                self.zoomSelection:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", relativeX, self.plotBottom + plotHeight)
+                self.zoomSelection:Show()
+            end
+        elseif button == "RightButton" then
+            mQoL_AccountOverview:ResetGoldChartZoom()
+        end
+    end)
+
+    view.chart:SetScript("OnUpdate", function(self, elapsed)
+        if self.isZoomDragging then
+            local x, y = GetCursorPosition()
+            local scale = self:GetEffectiveScale()
+            local currentX = (x / scale) - self:GetLeft()
+            
+            local chartWidth = self:GetWidth() or GOLD_CHART_WIDTH
+            local plotWidth = chartWidth - self.plotLeft - self.plotRight
+            local minPlotX = self.plotLeft
+            local maxPlotX = self.plotLeft + plotWidth
+            
+            currentX = Clamp(currentX, minPlotX, maxPlotX)
+            
+            local minX = math.min(self.dragStartX, currentX)
+            local maxX = math.max(self.dragStartX, currentX)
+            
+            local plotHeight = self:GetHeight() - self.plotBottom - self.plotTop
+            self.zoomSelection:ClearAllPoints()
+            self.zoomSelection:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", minX, self.plotBottom)
+            self.zoomSelection:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", maxX, self.plotBottom + plotHeight)
+        end
+    end)
+
+    view.chart:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" and self.isZoomDragging then
+            self.isZoomDragging = false
+            if self.zoomSelection then
+                self.zoomSelection:Hide()
+            end
+            
+            local x, y = GetCursorPosition()
+            local scale = self:GetEffectiveScale()
+            local relativeX = (x / scale) - self:GetLeft()
+            
+            local chartWidth = self:GetWidth() or GOLD_CHART_WIDTH
+            local plotWidth = chartWidth - self.plotLeft - self.plotRight
+            local minPlotX = self.plotLeft
+            local maxPlotX = self.plotLeft + plotWidth
+            
+            relativeX = Clamp(relativeX, minPlotX, maxPlotX)
+            
+            local minX = math.min(self.dragStartX, relativeX)
+            local maxX = math.max(self.dragStartX, relativeX)
+            
+            if (maxX - minX) > 5 then
+                if self.firstTimestamp and self.lastTimestamp then
+                    local range = self.lastTimestamp - self.firstTimestamp
+                    local pctMin = (minX - minPlotX) / plotWidth
+                    local pctMax = (maxX - minPlotX) / plotWidth
+                    
+                    local zoomMin = self.firstTimestamp + pctMin * range
+                    local zoomMax = self.firstTimestamp + pctMax * range
+                    
+                    mQoL_AccountOverview.zoomMinTS = zoomMin
+                    mQoL_AccountOverview.zoomMaxTS = zoomMax
+                    
+                    mQoL_AccountOverview:RefreshGoldChartView()
+                end
+            end
+        end
+    end)
+
     self.goldChartView = view
     self.views["Gold Chart"] = view
     return view
@@ -3825,6 +3981,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     HidePool(chart.xLabels)
     HidePool(chart.segments)
     HidePool(chart.points)
+    HidePool(chart.pointButtons)
 
     if #samples < 2 then
         chart.emptyText:Show()
@@ -3846,6 +4003,10 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     local plotHeight = math.max(1, RoundChartCoordinate(chartHeight - chart.plotTop - chart.plotBottom))
     local firstTimestamp = samples[1].ts
     local lastTimestamp = samples[#samples].ts
+    
+    chart.firstTimestamp = firstTimestamp
+    chart.lastTimestamp = lastTimestamp
+
     local timeRange = math.max(1, lastTimestamp - firstTimestamp)
     local minValue = samples[1].total
     local maxValue = samples[1].total
@@ -3889,7 +4050,21 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
     end
 
     local activeRange = self:GetSelectedGoldRange()
+    local isZoomed = self.zoomMinTS and self.zoomMaxTS
     local function FormatXAxisLabel(timestamp)
+        if isZoomed then
+            local spanDays = timeRange / SECONDS_PER_DAY
+            if spanDays >= 365 then
+                return date("%b %Y", timestamp)
+            elseif spanDays >= 30 then
+                return date("%d %b", timestamp)
+            elseif spanDays >= 1 then
+                return date("%d %b", timestamp)
+            else
+                return date("%H:%M", timestamp)
+            end
+        end
+
         if activeRange == "daily" then
             return date("%H:%M", timestamp)
         end
@@ -3968,7 +4143,63 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
         point:ClearAllPoints()
         point:SetColorTexture(1, 0.82, 0, index == #samples and 1 or 0.92)
         point:SetSize(index == #samples and 6 or 4, index == #samples and 6 or 4)
-        point:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", x - (point:GetWidth() / 2), y - (point:GetHeight() / 2))
+        point:SetPoint("CENTER", chart, "BOTTOMLEFT", x, y)
+
+        local pointBtn = AcquireFrame(chart.pointButtons, index, chart)
+        pointBtn:ClearAllPoints()
+        pointBtn:SetPoint("CENTER", chart, "BOTTOMLEFT", x, y)
+        pointBtn:SetSize(16, 16)
+        pointBtn:EnableMouse(true)
+        pointBtn.sample = sample
+        pointBtn.index = index
+        pointBtn.pointVisual = point
+        
+        pointBtn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine("Gold Checkpoint", 1, 0.82, 0)
+            GameTooltip:AddLine(" ", 1, 1, 1)
+            GameTooltip:AddDoubleLine("Time:", mQoL_Utils.FormatTimestamp(self.sample.ts), 0.7, 0.7, 0.7, 1, 1, 1)
+            GameTooltip:AddDoubleLine("Total Gold:", FormatMoneyCompact(self.sample.total), 0.7, 0.7, 0.7, 1, 0.82, 0)
+            
+            if self.index > 1 and samples[self.index - 1] then
+                local prev = samples[self.index - 1]
+                local diff = self.sample.total - prev.total
+                local diffStr = FormatMoneyCompact(diff)
+                if diff > 0 then
+                    diffStr = "+" .. diffStr
+                    GameTooltip:AddDoubleLine("Change:", diffStr, 0.7, 0.7, 0.7, 0.1, 1, 0.1)
+                elseif diff < 0 then
+                    GameTooltip:AddDoubleLine("Change:", diffStr, 0.7, 0.7, 0.7, 1, 0.1, 0.1)
+                else
+                    GameTooltip:AddDoubleLine("Change:", "No Change", 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
+                end
+            end
+            GameTooltip:Show()
+            
+            self.pointVisual:SetSize(self.index == #samples and 10 or 8, self.index == #samples and 10 or 8)
+            self.pointVisual:SetColorTexture(1, 1, 1, 1)
+        end)
+        
+        pointBtn:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+            self.pointVisual:SetSize(self.index == #samples and 6 or 4, self.index == #samples and 6 or 4)
+            self.pointVisual:SetColorTexture(1, 0.82, 0, self.index == #samples and 1 or 0.92)
+        end)
+        
+        pointBtn:SetScript("OnMouseDown", function(self, button)
+            local chartScript = chart:GetScript("OnMouseDown")
+            if chartScript then
+                chartScript(chart, button)
+            end
+        end)
+        
+        pointBtn:SetScript("OnMouseUp", function(self, button)
+            local chartScript = chart:GetScript("OnMouseUp")
+            if chartScript then
+                chartScript(chart, button)
+            end
+        end)
 
         if previousX and previousY then
             local dx = x - previousX
@@ -4009,6 +4240,23 @@ function mQoL_AccountOverview:RefreshGoldChartView()
     local rangeKey = self:GetSelectedGoldRange()
     local rangeData = GOLD_RANGE_OPTIONS[rangeKey] or GOLD_RANGE_OPTIONS.overall
     local series, rangeStart, now = self:BuildGoldChartSeries(rangeKey)
+
+    local isZoomed = false
+    if self.zoomMinTS and self.zoomMaxTS then
+        local zoomedSeries = {}
+        for _, entry in ipairs(series) do
+            if entry.ts >= self.zoomMinTS and entry.ts <= self.zoomMaxTS then
+                table.insert(zoomedSeries, { ts = entry.ts, total = entry.total })
+            end
+        end
+        if #zoomedSeries >= 2 then
+            series = zoomedSeries
+            rangeStart = self.zoomMinTS
+            now = self.zoomMaxTS
+            isZoomed = true
+        end
+    end
+
     local samples = DownsampleHistory(series, HISTORY_CHART_POINTS)
     local warbandBankGold = self:GetWarbandBankMoney()
 
@@ -4029,6 +4277,10 @@ function mQoL_AccountOverview:RefreshGoldChartView()
         end
     end
 
+    if view.resetZoomBtn then
+        view.resetZoomBtn:SetShown(isZoomed)
+    end
+
     local firstValue = series[1].total
     local lastValue = series[#series].total
     local highest = series[1].total
@@ -4046,15 +4298,17 @@ function mQoL_AccountOverview:RefreshGoldChartView()
     local delta = lastValue - firstValue
     local deltaPrefix = delta >= 0 and "+" or ""
 
+    local formatStr = isZoomed and "%d %b %Y %H:%M" or "%d %b %Y"
     view.statsText:SetText(string.format(
-        "Range: %s to %s    Window change: %s%s    High: %s    Low: %s    Checkpoints: %d",
-        date("%d %b %Y", rangeStart),
-        date("%d %b %Y", now),
+        "Range: %s to %s    Window change: %s%s    High: %s    Low: %s    Checkpoints: %d%s",
+        date(formatStr, rangeStart),
+        date(formatStr, now),
         deltaPrefix,
         FormatMoneyCompact(delta),
         FormatMoneyCompact(highest),
         FormatMoneyCompact(lowest),
-        math.max(0, #series - 1)
+        math.max(0, #series - 1),
+        isZoomed and " (Zoomed)" or ""
     ))
 
     self:DrawGoldChart(samples)
@@ -4961,7 +5215,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                             self.isHovered = true
                             HighlightClass(hoveredSeg.classFile)
 
-                            GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                            GameTooltip:SetOwner(self, "ANCHOR_TOP")
                             GameTooltip:ClearLines()
                             GameTooltip:AddLine(hoveredSeg.name, 1, 0.82, 0)
                             GameTooltip:AddLine(" ", 1, 1, 1)
@@ -5042,6 +5296,12 @@ function mQoL_AccountOverview:ResetGoldRangeForHubOpen()
 
     if self.db and self.db.settings then
         self.db.settings.selectedGoldRange = "overall"
+    end
+
+    self.zoomMinTS = nil
+    self.zoomMaxTS = nil
+    if self.goldChartView and self.goldChartView.resetZoomBtn then
+        self.goldChartView.resetZoomBtn:Hide()
     end
 
     if self.optionsScrollFrame and self.optionsScrollFrame:IsShown() then
