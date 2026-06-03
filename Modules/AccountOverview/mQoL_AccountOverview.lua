@@ -1790,7 +1790,7 @@ local function AcquireFontString(pool, index, parent, template)
 end
 
 local function HidePool(pool)
-    for _, object in ipairs(pool or {}) do
+    for _, object in pairs(pool or {}) do
         if object and object.Hide then
             object:Hide()
         end
@@ -4566,7 +4566,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         end
 
         local maxTime = 0
-        local numBars = math.min(10, #activeDataList)
+        local numBars = #activeDataList
         for i = 1, numBars do
             local data = activeDataList[i]
             if data.time > maxTime then
@@ -4614,7 +4614,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             bar:SetSize(barWidth, math.max(1, barHeight))
 
             -- Percentage above column
-            local topLabel = AcquireFontString(chart.xLabels, i * 2 - 1, chart, "GameFontNormalSmall")
+            local topLabel = AcquireFontString(chart.xLabels, i, chart, "GameFontNormalSmall")
             topLabel:ClearAllPoints()
             topLabel:SetPoint("BOTTOM", chart, "BOTTOMLEFT", x, chart.plotBottom + barHeight + 4)
             local pct = totalPlayed > 0 and (data.time / totalPlayed * 100) or 0
@@ -4847,41 +4847,102 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             for _, node in ipairs(labels) do
                 local r, g, b = GetClassColor(node.data.classFile)
 
-                -- Outward endpoints using the adjusted y2:
                 local x1, y1 = node.x1, node.y1
-                local x2 = node.x2
-                local y2 = node.y2 -- adjusted y
-                local x3 = node.isRightSide and 185 or -185
-                local y3 = y2
+                local isRightSide = node.isRightSide
+                local y_elbow = node.y2 -- adjusted y
+                local x3 = isRightSide and 185 or -185
+                local y3 = y_elbow
+                
+                local useLShape = false
+                if y1 > 0 and y_elbow > y1 then
+                    useLShape = true
+                elseif y1 < 0 and y_elbow < y1 then
+                    useLShape = true
+                end
 
-                -- Slanted line segment
                 local line1 = AcquireLine(view.distArea.pieLabelLines, labelLineIndex, pieFrame, "ARTWORK")
                 labelLineIndex = labelLineIndex + 1
                 line1.classFile = node.data.classFile
 
-                if pieFrame.CreateLine then
-                    line1:SetColorTexture(r, g, b, 0.5)
-                    line1:SetThickness(1.2)
-                    line1:SetStartPoint("CENTER", x1, y1)
-                    line1:SetEndPoint("CENTER", x2, y2)
-                    line1:Show()
-                else
-                    line1:Hide()
-                end
-
-                -- Horizontal elbow line segment
                 local line2 = AcquireLine(view.distArea.pieLabelLines, labelLineIndex, pieFrame, "ARTWORK")
                 labelLineIndex = labelLineIndex + 1
                 line2.classFile = node.data.classFile
 
-                if pieFrame.CreateLine then
-                    line2:SetColorTexture(r, g, b, 0.5)
-                    line2:SetThickness(1.2)
-                    line2:SetStartPoint("CENTER", x2, y2)
-                    line2:SetEndPoint("CENTER", x3, y3)
-                    line2:Show()
+                local line3 = AcquireLine(view.distArea.pieLabelLines, labelLineIndex, pieFrame, "ARTWORK")
+                labelLineIndex = labelLineIndex + 1
+                line3.classFile = node.data.classFile
+
+                if useLShape then
+                    -- L-Shape routing (2 segments: vertical, then horizontal)
+                    if pieFrame.CreateLine then
+                        -- Line 1: Vertical segment from slice to y_elbow
+                        line1:SetColorTexture(r, g, b, 0.5)
+                        line1:SetThickness(1.2)
+                        line1:SetStartPoint("CENTER", x1, y1)
+                        line1:SetEndPoint("CENTER", x1, y_elbow)
+                        line1:Show()
+
+                        -- Line 2: Horizontal segment from vertical line to text
+                        line2:SetColorTexture(r, g, b, 0.5)
+                        line2:SetThickness(1.2)
+                        line2:SetStartPoint("CENTER", x1, y_elbow)
+                        line2:SetEndPoint("CENTER", x3, y3)
+                        line2:Show()
+
+                        -- Hide Line 3 (unused in L-shape)
+                        line3:Hide()
+                    else
+                        line1:Hide()
+                        line2:Hide()
+                        
+                        -- Fallback dot at the elbow
+                        line3:ClearAllPoints()
+                        line3:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+                        line3:SetVertexColor(r, g, b, 0.85)
+                        line3:SetSize(4, 4)
+                        line3:SetPoint("CENTER", pieFrame, "CENTER", x1, y_elbow)
+                        line3:Show()
+                    end
                 else
-                    line2:Hide()
+                    -- Standard 3-segment slanted routing
+                    local R_radial = R_outer + 12
+                    local x_radial = R_radial * math.cos(node.midRad)
+                    local y_radial = R_radial * math.sin(node.midRad)
+                    local x_elbow = isRightSide and 170 or -170
+
+                    if pieFrame.CreateLine then
+                        -- Line 1: Radial segment
+                        line1:SetColorTexture(r, g, b, 0.5)
+                        line1:SetThickness(1.2)
+                        line1:SetStartPoint("CENTER", x1, y1)
+                        line1:SetEndPoint("CENTER", x_radial, y_radial)
+                        line1:Show()
+
+                        -- Line 2: Slanted segment
+                        line2:SetColorTexture(r, g, b, 0.5)
+                        line2:SetThickness(1.2)
+                        line2:SetStartPoint("CENTER", x_radial, y_radial)
+                        line2:SetEndPoint("CENTER", x_elbow, y_elbow)
+                        line2:Show()
+
+                        -- Line 3: Horizontal segment to text
+                        line3:SetColorTexture(r, g, b, 0.5)
+                        line3:SetThickness(1.2)
+                        line3:SetStartPoint("CENTER", x_elbow, y_elbow)
+                        line3:SetEndPoint("CENTER", x3, y3)
+                        line3:Show()
+                    else
+                        line1:Hide()
+                        line2:Hide()
+                        
+                        -- Fallback dot
+                        line3:ClearAllPoints()
+                        line3:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+                        line3:SetVertexColor(r, g, b, 0.85)
+                        line3:SetSize(4, 4)
+                        line3:SetPoint("CENTER", pieFrame, "CENTER", x_elbow, y_elbow)
+                        line3:Show()
+                    end
                 end
 
                 -- Label text frame (with mouse enabled)
