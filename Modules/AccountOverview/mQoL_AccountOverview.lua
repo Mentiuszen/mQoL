@@ -2431,7 +2431,7 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
     local secondaryCount = type(secondaryEntries) == "table" and math.max(1, #secondaryEntries) or 1
     local secondaryColumnWidth = 180
     local secondaryColumnGap = 12
-    local frameWidth = isSecondaryDetail and math.max(300, 24 + (secondaryCount * secondaryColumnWidth) + ((secondaryCount - 1) * secondaryColumnGap)) or 300
+    local frameWidth = isSecondaryDetail and math.max(288, 24 + (secondaryCount * secondaryColumnWidth) + ((secondaryCount - 1) * secondaryColumnGap)) or 300
     frame:SetWidth(frameWidth)
     frame.separator:SetSize(frameWidth - 24, 1)
 
@@ -2460,7 +2460,8 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
 
     if isSecondaryDetail then
         local maxRows = 1
-        local startX = 12
+        local totalColumnsWidth = (secondaryCount * secondaryColumnWidth) + ((secondaryCount - 1) * secondaryColumnGap)
+        local startX = (frameWidth - totalColumnsWidth) / 2
         for index, entry in ipairs(secondaryEntries or {}) do
             if type(entry) == "table" then
                 local tableFrame = EnsureSecondaryProfessionTable(frame, index)
@@ -2477,7 +2478,7 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
             maxRows = math.max(maxRows, PopulateSecondaryProfessionTable(tableFrame, { name = "Secondary" }, secondaryColumnWidth))
         end
 
-        local frameHeight = math.max(164, 148 + (maxRows * 20))
+        local frameHeight = math.max(200, 148 + (maxRows * 20))
         frame:SetHeight(frameHeight)
         self:PositionProfessionDetailFrame(frame)
 
@@ -3874,6 +3875,9 @@ function mQoL_AccountOverview:EnsureGoldChartView()
     view.chart:EnableMouse(true)
     
     view.chart:SetScript("OnMouseDown", function(self, button)
+        if mQoL_AccountOverview:GetSelectedGoldRange() ~= "overall" then
+            return
+        end
         if button == "LeftButton" then
             local x, y = GetCursorPosition()
             local scale = self:GetEffectiveScale()
@@ -4700,9 +4704,9 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         end
 
         local colGap = 15
-        local barWidth = math.min(50, (plotWidth - (numBars - 1) * colGap) / numBars)
-        local totalColsWidth = (barWidth * numBars) + (colGap * (numBars - 1))
-        local startX = chart.plotLeft + (plotWidth - totalColsWidth) / 2
+        local leftPadding = 15
+        local barWidth = math.min(50, (plotWidth - leftPadding - (numBars - 1) * colGap) / numBars)
+        local startX = chart.plotLeft + leftPadding
 
         for i = 1, numBars do
             local data = activeDataList[i]
