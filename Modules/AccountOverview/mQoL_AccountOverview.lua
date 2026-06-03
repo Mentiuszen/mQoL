@@ -4233,17 +4233,13 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view:SetWidth(770)
     view.chartRows = {}
 
-    -- Summary text
+    -- Summary text (aligned vertically with the dropdown center)
     view.summaryText = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    view.summaryText:SetPoint("TOPLEFT", view, "TOPLEFT", 0, 0)
+    view.summaryText:SetPoint("LEFT", view, "TOPLEFT", 0, -13)
     view.summaryText:SetTextColor(1, 0.82, 0)
 
-    -- Filters toolbar
-    view.toolbar = CreateFrame("Frame", nil, view)
-    view.toolbar:SetPoint("TOPLEFT", view.summaryText, "BOTTOMLEFT", 0, -10)
-    view.toolbar:SetSize(770, 30)
-
-    view.chartTypeDropdown = mQoL_Styles.CreateCustomDropdown(view.toolbar, 180, {
+    -- Chart Type Dropdown (aligned to the top right)
+    view.chartTypeDropdown = mQoL_Styles.CreateCustomDropdown(view, 180, {
         { text = "Horizontal Bars", value = "BAR" },
         { text = "Column Chart", value = "GRAPH" },
         { text = "Pie Chart", value = "DIST" },
@@ -4251,11 +4247,11 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
         self.db.settings.playedTimeFilters.chartType = val
         self:RefreshPlayedTimeView()
     end)
-    view.chartTypeDropdown:SetPoint("LEFT", view.toolbar, "LEFT", 0, 0)
+    view.chartTypeDropdown:SetPoint("RIGHT", view, "TOPRIGHT", 0, -13)
 
     -- Chart Container (holds the horizontal bars)
     view.chartContainer = CreateFrame("Frame", nil, view)
-    view.chartContainer:SetPoint("TOPLEFT", view.toolbar, "BOTTOMLEFT", 0, -15)
+    view.chartContainer:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.chartContainer:SetWidth(770)
 
     -- Empty State
@@ -4266,7 +4262,7 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
 
     -- Graph Area (for COLUMN chart)
     view.graphFrame = CreateFrame("Frame", nil, view)
-    view.graphFrame:SetPoint("TOPLEFT", view.toolbar, "BOTTOMLEFT", 0, -15)
+    view.graphFrame:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.graphFrame:SetSize(770, 360)
     view.graphFrame:Hide()
 
@@ -4290,7 +4286,7 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
 
     -- Distribution Area (for DIST chart)
     view.distArea = CreateFrame("Frame", nil, view)
-    view.distArea:SetPoint("TOPLEFT", view.toolbar, "BOTTOMLEFT", 0, -15)
+    view.distArea:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
     view.distArea:SetWidth(770)
     view.distArea:Hide()
 
@@ -4312,10 +4308,6 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view.distArea.pieLabelLines = {}
     view.distArea.pieLabelTexts = {}
 
-    view.distArea.legendGrid = CreateFrame("Frame", nil, view.distArea)
-    view.distArea.legendGrid:SetPoint("TOPLEFT", view.distArea, "TOPLEFT", 20, -370)
-    view.distArea.legendGrid:SetWidth(730)
-    view.distArea.legendRows = {}
 
     self.playedTimeView = view
     self.views["Played Time"] = view
@@ -4408,39 +4400,22 @@ function mQoL_AccountOverview:EnsureChartRow(index)
     return row
 end
 
-function mQoL_AccountOverview:EnsureLegendRow(index)
-    local view = self:EnsurePlayedTimeView()
-    local container = view.distArea.legendGrid
-    container.rows = container.rows or {}
-    local row = container.rows[index]
-    if row then
-        return row
-    end
-
-    row = CreateFrame("Frame", nil, container)
-    row:SetSize(350, 20)
-    row:EnableMouse(true)
-
-    row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(16, 16)
-    row.icon:SetPoint("LEFT", row, "LEFT", 0, 0)
-
-    row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.text:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
-    row.text:SetJustifyH("LEFT")
-
-    row.value = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.value:SetPoint("RIGHT", row, "RIGHT", -10, 0)
-    row.value:SetJustifyH("RIGHT")
-
-    container.rows[index] = row
-    return row
-end
 
 function mQoL_AccountOverview:RefreshPlayedTimeView()
     local view = self:EnsurePlayedTimeView()
     if not view then
         return
+    end
+
+    -- Reset pieFrame hover states and scripts
+    local pieFrame = view.distArea.pieFrame
+    if pieFrame then
+        pieFrame:SetScript("OnUpdate", nil)
+        pieFrame:SetScript("OnEnter", nil)
+        pieFrame:SetScript("OnLeave", nil)
+        pieFrame:SetScript("OnHide", nil)
+        pieFrame.lastHoveredSeg = nil
+        pieFrame.isHovered = false
     end
 
     local characters = self:GetKnownCharacters()
@@ -4568,7 +4543,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         local listHeight = #activeDataList * rowHeight
         view.chartContainer:SetHeight(math.max(10, listHeight))
 
-        local totalHeight = 22 + 30 + 15 + math.max(10, listHeight) + 20
+        local totalHeight = 45 + math.max(10, listHeight) + 20
         view:SetHeight(totalHeight)
         view.contentHeight = totalHeight
 
@@ -4716,13 +4691,12 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end)
         end
 
-        view.contentHeight = 22 + 30 + 15 + 360 + 20
+        view.contentHeight = 45 + 360 + 20
         view:SetHeight(view.contentHeight)
 
     -- 3. Pie/Donut Chart Mode
     elseif chartType == "DIST" then
         local pieFrame = view.distArea.pieFrame
-        local legendGrid = view.distArea.legendGrid
         local HighlightClass, ResetHighlight
 
         -- Hide old segment elements just in case
@@ -4730,7 +4704,6 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
         HidePool(view.distArea.segmentButtons)
 
         pieFrame:Show()
-        legendGrid:Show()
 
         -- Update center text with total played time
         pieFrame.centerTextValue:SetText(FormatDuration(totalPlayed))
@@ -4742,6 +4715,8 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
 
         -- Calculate slice angle ranges
         local numSegments = #activeDataList
+        local numRows = math.ceil(numSegments / 2)
+        local legendHeight = 0
         local currentAngle = 0
         for index, data in ipairs(activeDataList) do
             local pct = totalPlayed > 0 and (data.time / totalPlayed) or 0
@@ -4927,6 +4902,9 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     labelFrame:SetScript("OnHide", function(self)
                         if self.text then self.text:Hide() end
                     end)
+                    labelFrame:SetScript("OnShow", function(self)
+                        if self.text then self.text:Show() end
+                    end)
                 end
 
                 labelFrame:Show()
@@ -5052,165 +5030,112 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end
         end
 
-        -- Render Legend Grid
-        for i = 1, numSegments do
-            local data = activeDataList[i]
-            local row = self:EnsureLegendRow(i)
-
-            local col = (i - 1) % 2
-            local rowIdx = math.floor((i - 1) / 2)
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", legendGrid, "TOPLEFT", col * 370, -rowIdx * 24)
-
-            -- Icon
-            local texturePath, coords = GetCharacterIcon(data)
-            row.icon:SetTexture(texturePath)
-            if coords then
-                row.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-            else
-                row.icon:SetTexCoord(0, 1, 0, 1)
-            end
-
-            -- Label text
-            local r, g, b = GetClassColor(data.classFile)
-            row.text:SetText(string.format("%s (%d %s)", data.name, data.charCount, data.charCount == 1 and "char" or "chars"))
-            row.text:SetTextColor(r, g, b)
-
-            -- Value text
-            local pct = totalPlayed > 0 and (data.time / totalPlayed * 100) or 0
-            row.value:SetText(string.format("%s (%.1f%%)", FormatDuration(data.time), pct))
-            row.value:SetTextColor(0.85, 0.85, 0.85)
-
-            row:Show()
-
-            -- Mouse scripts on legend row
-            row:SetScript("OnEnter", function(self)
-                HighlightClass(data.classFile)
-                GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:AddLine(data.name, 1, 0.82, 0)
-                GameTooltip:AddLine(" ", 1, 1, 1)
-                GameTooltip:AddDoubleLine("Total Played:", FormatDuration(data.time), 0.7, 0.7, 0.7, 1, 0.82, 0)
-                GameTooltip:AddDoubleLine("Percentage of Total:", string.format("%.1f%%", pct), 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
-                GameTooltip:AddDoubleLine("Characters:", tostring(data.charCount), 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
-                GameTooltip:AddLine(" ", 1, 1, 1)
-
-                GameTooltip:AddLine("Contributing Characters:", 1, 0.82, 0)
-                for _, char in ipairs(data.characters) do
-                    local charPlayed = mQoL_AccountOverview:GetDisplayedPlayedTime(char) or 0
-                    local charColor = _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[char.classFile] or NORMAL_FONT_COLOR
-                    local specStr = char.specName and (" (" .. char.specName .. ")") or ""
-                    GameTooltip:AddDoubleLine(
-                        string.format("%s - %s (Lvl %d%s)", char.name, char.realm, char.level, specStr),
-                        FormatDuration(charPlayed),
-                        charColor.r, charColor.g, charColor.b,
-                        1, 1, 1
-                    )
-                end
-                GameTooltip:Show()
-            end)
-
-            row:SetScript("OnLeave", function()
-                ResetHighlight()
-                GameTooltip:Hide()
-            end)
-        end
-
-        -- Hide unused legend rows
-        for i = numSegments + 1, #(legendGrid.rows or {}) do
-            if legendGrid.rows[i] then legendGrid.rows[i]:Hide() end
-        end
-
         -- Mouse tracking on pieFrame itself
-        pieFrame:SetScript("OnUpdate", function(self, elapsed)
-            if not self:IsMouseOver() then
-                if self.isHovered then
-                    self.isHovered = false
-                    ResetHighlight()
-                    GameTooltip:Hide()
-                end
-                return
-            end
-
-            local x, y = GetCursorPosition()
-            local scale = self:GetEffectiveScale()
-            x, y = x / scale, y / scale
-            local cx, cy = self:GetCenter()
-            local dx = x - cx
-            local dy = y - cy
-            local distance = math.sqrt(dx*dx + dy*dy)
-
-            if distance >= R_inner and distance <= R_outer then
-                local mAngle = math.deg(math.atan2(dy, dx))
-                local deg = 90 - mAngle
-                if deg < 0 then
-                    deg = deg + 360
-                elseif deg >= 360 then
-                    deg = deg - 360
-                end
-
-                -- Find slice
-                local hoveredSeg = nil
-                for _, data in ipairs(activeDataList) do
-                    if deg >= data.startAngle and deg < data.endAngle then
-                        hoveredSeg = data
-                        break
-                    end
-                end
-
-                if hoveredSeg then
-                    self.isHovered = true
-                    HighlightClass(hoveredSeg.classFile)
-
-                    GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                    GameTooltip:ClearLines()
-                    GameTooltip:AddLine(hoveredSeg.name, 1, 0.82, 0)
-                    GameTooltip:AddLine(" ", 1, 1, 1)
-                    local pct = totalPlayed > 0 and (hoveredSeg.time / totalPlayed * 100) or 0
-                    GameTooltip:AddDoubleLine("Total Played:", FormatDuration(hoveredSeg.time), 0.7, 0.7, 0.7, 1, 0.82, 0)
-                    GameTooltip:AddDoubleLine("Percentage of Total:", string.format("%.1f%%", pct), 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
-                    GameTooltip:AddDoubleLine("Characters:", tostring(hoveredSeg.charCount), 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
-                    GameTooltip:AddLine(" ", 1, 1, 1)
-
-                    GameTooltip:AddLine("Contributing Characters:", 1, 0.82, 0)
-                    for _, char in ipairs(hoveredSeg.characters) do
-                        local charPlayed = mQoL_AccountOverview:GetDisplayedPlayedTime(char) or 0
-                        local charColor = _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[char.classFile] or NORMAL_FONT_COLOR
-                        local specStr = char.specName and (" (" .. char.specName .. ")") or ""
-                        GameTooltip:AddDoubleLine(
-                            string.format("%s - %s (Lvl %d%s)", char.name, char.realm, char.level, specStr),
-                            FormatDuration(charPlayed),
-                            charColor.r, charColor.g, charColor.b,
-                            1, 1, 1
-                        )
-                    end
-                    GameTooltip:Show()
-                else
+        pieFrame:SetScript("OnEnter", function(self)
+            self:SetScript("OnUpdate", function(self, elapsed)
+                if not self:IsMouseOver() then
                     if self.isHovered then
+                        self.isHovered = false
+                        self.lastHoveredSeg = nil
+                        ResetHighlight()
+                        GameTooltip:Hide()
+                    end
+                    return
+                end
+
+                local x, y = GetCursorPosition()
+                local scale = self:GetEffectiveScale()
+                x, y = x / scale, y / scale
+                local cx, cy = self:GetCenter()
+                local dx = x - cx
+                local dy = y - cy
+                local distance = math.sqrt(dx*dx + dy*dy)
+
+                if distance >= R_inner and distance <= R_outer then
+                    local mAngle = math.deg(math.atan2(dy, dx))
+                    local deg = 90 - mAngle
+                    if deg < 0 then
+                        deg = deg + 360
+                    elseif deg >= 360 then
+                        deg = deg - 360
+                    end
+
+                    -- Find slice
+                    local hoveredSeg = nil
+                    for _, data in ipairs(activeDataList) do
+                        if deg >= data.startAngle and deg < data.endAngle then
+                            hoveredSeg = data
+                            break
+                        end
+                    end
+
+                    if hoveredSeg ~= self.lastHoveredSeg then
+                        self.lastHoveredSeg = hoveredSeg
+                        if hoveredSeg then
+                            self.isHovered = true
+                            HighlightClass(hoveredSeg.classFile)
+
+                            GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+                            GameTooltip:ClearLines()
+                            GameTooltip:AddLine(hoveredSeg.name, 1, 0.82, 0)
+                            GameTooltip:AddLine(" ", 1, 1, 1)
+                            local pct = totalPlayed > 0 and (hoveredSeg.time / totalPlayed * 100) or 0
+                            GameTooltip:AddDoubleLine("Total Played:", FormatDuration(hoveredSeg.time), 0.7, 0.7, 0.7, 1, 0.82, 0)
+                            GameTooltip:AddDoubleLine("Percentage of Total:", string.format("%.1f%%", pct), 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
+                            GameTooltip:AddDoubleLine("Characters:", tostring(hoveredSeg.charCount), 0.7, 0.7, 0.7, 0.9, 0.9, 0.9)
+                            GameTooltip:AddLine(" ", 1, 1, 1)
+
+                            GameTooltip:AddLine("Contributing Characters:", 1, 0.82, 0)
+                            for _, char in ipairs(hoveredSeg.characters) do
+                                local charPlayed = mQoL_AccountOverview:GetDisplayedPlayedTime(char) or 0
+                                local charColor = _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[char.classFile] or NORMAL_FONT_COLOR
+                                local specStr = char.specName and (" (" .. char.specName .. ")") or ""
+                                GameTooltip:AddDoubleLine(
+                                    string.format("%s - %s (Lvl %d%s)", char.name, char.realm, char.level, specStr),
+                                    FormatDuration(charPlayed),
+                                    charColor.r, charColor.g, charColor.b,
+                                    1, 1, 1
+                                )
+                            end
+                            GameTooltip:Show()
+                        else
+                            self.isHovered = false
+                            ResetHighlight()
+                            GameTooltip:Hide()
+                        end
+                    end
+                else
+                    if self.lastHoveredSeg ~= nil then
+                        self.lastHoveredSeg = nil
                         self.isHovered = false
                         ResetHighlight()
                         GameTooltip:Hide()
                     end
                 end
-            else
-                if self.isHovered then
-                    self.isHovered = false
-                    ResetHighlight()
-                    GameTooltip:Hide()
-                end
+            end)
+        end)
+
+        pieFrame:SetScript("OnLeave", function(self)
+            self:SetScript("OnUpdate", nil)
+            self.lastHoveredSeg = nil
+            if self.isHovered then
+                self.isHovered = false
+                ResetHighlight()
+                GameTooltip:Hide()
             end
         end)
 
         pieFrame:SetScript("OnHide", function(self)
+            self:SetScript("OnUpdate", nil)
+            self.lastHoveredSeg = nil
             self.isHovered = false
             ResetHighlight()
             GameTooltip:Hide()
         end)
 
-        local numRows = math.ceil(numSegments / 2)
-        local legendHeight = numRows * 24
         view.distArea:SetHeight(370 + legendHeight + 10)
 
-        view.contentHeight = 22 + 30 + 15 + (370 + legendHeight + 10) + 10
+        view.contentHeight = 45 + (370 + legendHeight + 10) + 10
         view:SetHeight(view.contentHeight)
     end
 
@@ -5263,6 +5188,9 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
 
     if tabName == "Characters" or tabName == "Played Time" then
         self:RequestCurrentPlayedTime(false)
+    end
+    if tabName == "Played Time" then
+        self:RefreshPlayedTimeView()
     end
 
     local activeView = self.views[tabName]
