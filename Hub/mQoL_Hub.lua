@@ -11,7 +11,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.2.3"
-mQoL_Hub.build = "264"
+mQoL_Hub.build = "266"
 mQoL_Hub.vendor = "release"    --dev / test / release
 
 -- Styles

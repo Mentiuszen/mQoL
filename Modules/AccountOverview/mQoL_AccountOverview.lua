@@ -5454,7 +5454,7 @@ function mQoL_AccountOverview:ResetGoldRangeForHubOpen()
     end
 end
 
-function mQoL_AccountOverview:SetActiveTab(tabName)
+function mQoL_AccountOverview:SetActiveTab(tabName, forceRefresh)
     if not self.views or not self.views[tabName] then
         return
     end
@@ -5464,9 +5464,22 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
         self:HideProfessionDetailFrame()
     end
 
+    local tabChanged = (previousTab ~= tabName)
     self.activeTab = tabName
     if self.db and self.db.settings then
         self.db.settings.selectedTab = tabName
+    end
+
+    if tabChanged or forceRefresh then
+        if tabName == "Characters" then
+            self:RefreshCharactersView()
+        elseif tabName == "Gold Chart" then
+            self:RefreshGoldChartView()
+        elseif tabName == "Played Time" then
+            if self.RefreshPlayedTimeView then
+                self:RefreshPlayedTimeView()
+            end
+        end
     end
 
     for name, view in pairs(self.views) do
@@ -5479,9 +5492,6 @@ function mQoL_AccountOverview:SetActiveTab(tabName)
 
     if tabName == "Characters" or tabName == "Played Time" then
         self:RequestCurrentPlayedTime(false)
-    end
-    if tabName == "Played Time" then
-        self:RefreshPlayedTimeView()
     end
 
     local activeView = self.views[tabName]
@@ -5502,17 +5512,7 @@ function mQoL_AccountOverview:RefreshOverviewPanel()
 
     local activeTab = self.activeTab or (self.db and self.db.settings and self.db.settings.selectedTab) or "Characters"
 
-    if activeTab == "Characters" then
-        self:RefreshCharactersView()
-    elseif activeTab == "Gold Chart" then
-        self:RefreshGoldChartView()
-    elseif activeTab == "Played Time" then
-        if self.RefreshPlayedTimeView then
-            self:RefreshPlayedTimeView()
-        end
-    end
-
-    self:SetActiveTab(activeTab)
+    self:SetActiveTab(activeTab, true)
 end
 
 function mQoL_AccountOverview:CreateOptionsPanel(parent)
