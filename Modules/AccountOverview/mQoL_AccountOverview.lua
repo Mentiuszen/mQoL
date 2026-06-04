@@ -27,8 +27,8 @@ local GetStartOfMonth = mQoL_Utils.GetStartOfMonth
 local AddMonths = mQoL_Utils.AddMonths
 local AddHours = mQoL_Utils.AddHours
 local ResolveMaxPlayerLevel = mQoL_Utils.ResolveMaxPlayerLevel
-local ProfessionUtils = mQoL_ProfessionUtils
-local WeeklyRewardUtils = mQoL_WeeklyRewardUtils
+local ProfessionUtils = mQoL_ProfessionUtils or _G.mQoL_ProfessionUtils
+local WeeklyRewardUtils = mQoL_WeeklyRewardUtils or _G.mQoL_WeeklyRewardUtils
 local SECONDS_PER_MINUTE = 60
 local SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE
 local SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR
@@ -143,13 +143,13 @@ local function IsBootstrapMoneyWindow(session, now)
     return mQoL_Utils.IsBootstrapWindow(session, now, BOOTSTRAP_SYNC_INTERVAL, BOOTSTRAP_SYNC_ATTEMPTS, 5)
 end
 
-local GetProfessionSnapshot = ProfessionUtils.GetSnapshot
-local MergeProfessionSnapshot = ProfessionUtils.MergeSnapshot
-local HasProfessionData = ProfessionUtils.HasData
-local GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
-local GetProfessionSummaryText = ProfessionUtils.GetSummaryText
-local GetProfessionDetailRows = ProfessionUtils.GetDetailRows
-local NormalizeProfessionLabel = ProfessionUtils.NormalizeLabel
+local GetProfessionSnapshot = ProfessionUtils and ProfessionUtils.GetSnapshot
+local MergeProfessionSnapshot = ProfessionUtils and ProfessionUtils.MergeSnapshot
+local HasProfessionData = ProfessionUtils and ProfessionUtils.HasData
+local GetProfessionDisplayEntries = ProfessionUtils and ProfessionUtils.GetDisplayEntries
+local GetProfessionSummaryText = ProfessionUtils and ProfessionUtils.GetSummaryText
+local GetProfessionDetailRows = ProfessionUtils and ProfessionUtils.GetDetailRows
+local NormalizeProfessionLabel = ProfessionUtils and ProfessionUtils.NormalizeLabel
 
 local function NormalizeWeeklyRewardSnapshot(rawValue)
     if WeeklyRewardUtils and type(WeeklyRewardUtils.NormalizeSnapshot) == "function" then
@@ -477,8 +477,37 @@ local function GetAccountDB()
     return accountDB
 end
 
+local function GetHalfDayIntervalStart(timestamp)
+    local info = date("*t", timestamp)
+    info.min = 0
+    info.sec = 0
+    if info.hour >= 12 then
+        info.hour = 12
+    else
+        info.hour = 0
+    end
+    info.isdst = nil
+    return time(info)
+end
+
+local function AdvanceHalfDayIntervalStart(timestamp)
+    local info = date("*t", timestamp)
+    if info.hour >= 12 then
+        info.hour = 0
+        info.day = info.day + 1
+    else
+        info.hour = 12
+    end
+    info.min = 0
+    info.sec = 0
+    info.isdst = nil
+    return time(info)
+end
+
 local function GetLongTermArchiveKey(timestamp)
-    return date("%d.%m.%Y", timestamp)
+    local info = date("*t", timestamp)
+    local suffix = info.hour >= 12 and "PM" or "AM"
+    return date("%d.%m.%Y-", timestamp) .. suffix
 end
 
 local function ParseLongTermArchiveKey(key)
@@ -486,16 +515,21 @@ local function ParseLongTermArchiveKey(key)
         return nil
     end
 
-    local day, month, year = key:match("^(%d%d)%.(%d%d)%.(%d%d%d%d)$")
-    if not day or not month or not year then
-        return nil
+    local day, month, year, suffix = key:match("^(%d%d)%.(%d%d)%.(%d%d%d%d)%-(%a%a)$")
+    if not day or not month or not year or not suffix then
+        day, month, year = key:match("^(%d%d)%.(%d%d)%.(%d%d%d%d)$")
+        if not day or not month or not year then
+            return nil
+        end
+        suffix = "AM"
     end
 
+    local hour = (suffix == "PM") and 12 or 0
     return time({
         day = tonumber(day),
         month = tonumber(month),
         year = tonumber(year),
-        hour = 0,
+        hour = hour,
         min = 0,
         sec = 0,
         isdst = nil,
@@ -780,6 +814,19 @@ local function ComputeRotationAngle(dx, dy)
 end
 
 function mQoL_AccountOverview:InitializeDB()
+    -- Re-evaluate references in case they were loaded after this file
+    ProfessionUtils = mQoL_ProfessionUtils or _G.mQoL_ProfessionUtils
+    WeeklyRewardUtils = mQoL_WeeklyRewardUtils or _G.mQoL_WeeklyRewardUtils
+    if ProfessionUtils then
+        GetProfessionSnapshot = ProfessionUtils.GetSnapshot
+        MergeProfessionSnapshot = ProfessionUtils.MergeSnapshot
+        HasProfessionData = ProfessionUtils.HasData
+        GetProfessionDisplayEntries = ProfessionUtils.GetDisplayEntries
+        GetProfessionSummaryText = ProfessionUtils.GetSummaryText
+        GetProfessionDetailRows = ProfessionUtils.GetDetailRows
+        NormalizeProfessionLabel = ProfessionUtils.NormalizeLabel
+    end
+
     self.db = GetAccountDB()
     self.db.goldSession = NormalizeGoldSession(self.db.goldSession)
     self.currentCharacterKey = select(1, GetCurrentCharacterIdentity())
@@ -882,6 +929,37 @@ function mQoL_AccountOverview:StartBootstrapSync()
             ticker:Cancel()
             mQoL_AccountOverview.bootstrapTicker = nil
         end
+    end)
+end
+
+function mQoL_AccountOverview:StopPeriodicTracker()
+    if self.periodicTicker then
+        self.periodicTicker:Cancel()
+        self.periodicTicker = nil
+    end
+end
+
+function mQoL_AccountOverview:StartPeriodicTracker()
+    if not C_Timer or not C_Timer.NewTicker then
+        return
+    end
+
+    self:StopPeriodicTracker()
+
+    self.periodicTicker = C_Timer.NewTicker(60, function()
+        if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("AccountOverview") then
+            if mQoL_AccountOverview.periodicTicker then
+                mQoL_AccountOverview.periodicTicker:Cancel()
+                mQoL_AccountOverview.periodicTicker = nil
+            end
+            return
+        end
+
+        mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
+            refreshMoney = true,
+            refreshWarbandBank = true,
+            allowCachedWarbandBank = true,
+        })
     end)
 end
 
@@ -1054,23 +1132,51 @@ function mQoL_AccountOverview:FinalizeRangeBuckets(rangeKey, goldData, observedA
 
     if not previousBucketKey then
         meta.currentKey = currentBucketKey
+        store[tostring(currentBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
         return false
     end
 
     if previousBucketKey == currentBucketKey then
+        store[tostring(currentBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
         return false
     end
 
-    local completedBucketKey = RetreatRangeBucketKey(rangeKey, currentBucketKey)
-    meta.currentKey = currentBucketKey
-
-    if completedBucketKey and completedBucketKey >= previousBucketKey then
-        store[tostring(completedBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
-        self:PruneRangeStore(rangeKey)
-        return true
+    if previousBucketKey > currentBucketKey then
+        meta.currentKey = currentBucketKey
+        store[tostring(currentBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        return false
     end
 
-    return false
+    local inheritVal = store[tostring(previousBucketKey)]
+    if not inheritVal then
+        local latestK
+        for rawK, rawV in pairs(store) do
+            local numK = tonumber(rawK)
+            if numK and numK < previousBucketKey then
+                if not latestK or numK > latestK then
+                    latestK = numK
+                    inheritVal = rawV
+                end
+            end
+        end
+    end
+    if not inheritVal then
+        inheritVal = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+    else
+        inheritVal = NormalizeGoldSnapshotData(inheritVal)
+    end
+
+    local k = AdvanceRangeBucketKey(rangeKey, previousBucketKey)
+    while k < currentBucketKey do
+        store[tostring(k)] = BuildGoldSnapshotData(inheritVal.WarboundGold, inheritVal.CharacterGold)
+        k = AdvanceRangeBucketKey(rangeKey, k)
+    end
+
+    store[tostring(currentBucketKey)] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+    meta.currentKey = currentBucketKey
+
+    self:PruneRangeStore(rangeKey)
+    return true
 end
 
 function mQoL_AccountOverview:ProcessChartBuckets(goldData, observedAt)
@@ -1104,32 +1210,62 @@ function mQoL_AccountOverview:ProcessOverallArchive(goldData, observedAt)
 
     self:EnsureOverallArchivePoints(goldData.OverallGold, observedAt)
 
-    local currentDayStart = GetStartOfDay(observedAt)
-    local currentDayKey = GetLongTermArchiveKey(currentDayStart)
+    local currentIntervalStart = GetHalfDayIntervalStart(observedAt)
+    local currentDayKey = GetLongTermArchiveKey(currentIntervalStart)
     local previousDayKey = archive.currentDayKey
 
     if type(previousDayKey) ~= "string" or previousDayKey == "" then
         archive.currentDayKey = currentDayKey
+        archive.daily[currentDayKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        self:StoreOverallArchivePoint(currentIntervalStart, goldData.OverallGold)
         return false
     end
 
     if previousDayKey == currentDayKey then
+        archive.daily[currentDayKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        self:StoreOverallArchivePoint(currentIntervalStart, goldData.OverallGold)
         return false
     end
 
-    local previousDayStart = ParseLongTermArchiveKey(previousDayKey)
-    if not previousDayStart then
+    local previousIntervalStart = ParseLongTermArchiveKey(previousDayKey)
+    if not previousIntervalStart then
         archive.currentDayKey = currentDayKey
+        archive.daily[currentDayKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        self:StoreOverallArchivePoint(currentIntervalStart, goldData.OverallGold)
         return false
     end
 
-    if previousDayStart < currentDayStart then
-        local checkpointTime = observedAt
-        local observedKey = GetLongTermArchiveKey(checkpointTime)
-        archive.daily[observedKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
-        self:StoreOverallArchivePoint(checkpointTime, goldData.OverallGold)
+    if previousIntervalStart < currentIntervalStart then
+        local inheritVal = archive.daily[previousDayKey]
+        if not inheritVal then
+            local latestTS
+            for rawK, rawV in pairs(archive.daily) do
+                local ts = ParseLongTermArchiveKey(rawK)
+                if ts and ts < previousIntervalStart then
+                    if not latestTS or ts > latestTS then
+                        latestTS = ts
+                        inheritVal = rawV
+                    end
+                end
+            end
+        end
+        if not inheritVal then
+            inheritVal = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+        else
+            inheritVal = NormalizeGoldSnapshotData(inheritVal)
+        end
+
+        local k = AdvanceHalfDayIntervalStart(previousIntervalStart)
+        while k < currentIntervalStart do
+            local kKey = GetLongTermArchiveKey(k)
+            archive.daily[kKey] = BuildGoldSnapshotData(inheritVal.WarboundGold, inheritVal.CharacterGold)
+            self:StoreOverallArchivePoint(k, inheritVal.OverallGold)
+            k = AdvanceHalfDayIntervalStart(k)
+        end
     end
 
+    archive.daily[currentDayKey] = BuildGoldSnapshotData(goldData.WarboundGold, goldData.CharacterGold)
+    self:StoreOverallArchivePoint(currentIntervalStart, goldData.OverallGold)
     archive.currentDayKey = currentDayKey
     return true
 end
@@ -3043,10 +3179,10 @@ function mQoL_AccountOverview:GetOverallArchiveEntries(currentTotal, now)
         return a.ts < b.ts
     end)
 
-    local currentDayStart = GetStartOfDay(now)
-    if #entries == 0 or entries[#entries].ts < currentDayStart then
+    local currentIntervalStart = GetHalfDayIntervalStart(now)
+    if #entries == 0 or entries[#entries].ts < currentIntervalStart then
         entries[#entries + 1] = {
-            ts = currentDayStart,
+            ts = currentIntervalStart,
             total = currentTotal,
         }
     else
@@ -3062,8 +3198,8 @@ function mQoL_AccountOverview:NormalizeOverallArchivePoints(points)
     local result = {}
 
     for _, entry in ipairs(normalized) do
-        local dayStart = GetStartOfDay(entry.ts)
-        dailyBuckets[dayStart] = {
+        local halfDayStart = GetHalfDayIntervalStart(entry.ts)
+        dailyBuckets[halfDayStart] = {
             ts = entry.ts,
             total = entry.total,
         }
@@ -3190,13 +3326,13 @@ end
 
 function mQoL_AccountOverview:BuildOverallArchiveBootstrapEntries(currentTotal, now)
     local bootstrapEntries = NormalizeTimeSeriesEntries(self:BuildOverallCheckpointEntries(currentTotal, now))
-    local currentDayStart = GetStartOfDay(now)
+    local currentIntervalStart = GetHalfDayIntervalStart(now)
     local dailyBuckets = {}
 
     for _, entry in ipairs(bootstrapEntries) do
-        local dayStart = GetStartOfDay(entry.ts)
-        if dayStart < currentDayStart then
-            dailyBuckets[dayStart] = {
+        local halfDayStart = GetHalfDayIntervalStart(entry.ts)
+        if halfDayStart < currentIntervalStart then
+            dailyBuckets[halfDayStart] = {
                 ts = entry.ts,
                 total = entry.total,
             }
@@ -4366,15 +4502,18 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
     view.summaryText:SetPoint("LEFT", view, "TOPLEFT", 0, -13)
     view.summaryText:SetTextColor(1, 0.82, 0)
 
-    view.chartTypeDropdown = mQoL_Styles.CreateCustomDropdown(view, 180, {
-        { text = "Horizontal Bars", value = "BAR" },
-        { text = "Column Chart", value = "GRAPH" },
-        { text = "Pie Chart", value = "DIST" },
-    }, "BAR", function(val)
-        self.db.settings.playedTimeFilters.chartType = val
-        self:RefreshPlayedTimeView()
-    end)
-    view.chartTypeDropdown:SetPoint("RIGHT", view, "TOPRIGHT", 0, -13)
+    local CreateCustomDropdown = mQoL_Styles and mQoL_Styles.CreateCustomDropdown
+    if CreateCustomDropdown then
+        view.chartTypeDropdown = CreateCustomDropdown(view, 180, {
+            { text = "Horizontal Bars", value = "BAR" },
+            { text = "Column Chart", value = "GRAPH" },
+            { text = "Pie Chart", value = "DIST" },
+        }, "BAR", function(val)
+            self.db.settings.playedTimeFilters.chartType = val
+            self:RefreshPlayedTimeView()
+        end)
+        view.chartTypeDropdown:SetPoint("RIGHT", view, "TOPRIGHT", 0, -13)
+    end
 
     view.chartContainer = CreateFrame("Frame", nil, view)
     view.chartContainer:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -45)
@@ -4569,7 +4708,9 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
     end
 
     local chartType = self.db.settings.playedTimeFilters.chartType or "BAR"
-    view.chartTypeDropdown:SetValue(chartType)
+    if view.chartTypeDropdown then
+        view.chartTypeDropdown:SetValue(chartType)
+    end
 
     local activeDataList = {}
     for _, data in pairs(classData) do
@@ -5359,12 +5500,19 @@ function mQoL_AccountOverview:RefreshOverviewPanel()
         return
     end
 
-    self:RefreshCharactersView()
-    self:RefreshGoldChartView()
-    if self.RefreshPlayedTimeView then
-        self:RefreshPlayedTimeView()
+    local activeTab = self.activeTab or (self.db and self.db.settings and self.db.settings.selectedTab) or "Characters"
+
+    if activeTab == "Characters" then
+        self:RefreshCharactersView()
+    elseif activeTab == "Gold Chart" then
+        self:RefreshGoldChartView()
+    elseif activeTab == "Played Time" then
+        if self.RefreshPlayedTimeView then
+            self:RefreshPlayedTimeView()
+        end
     end
-    self:SetActiveTab(self.activeTab or (self.db and self.db.settings and self.db.settings.selectedTab) or "Characters")
+
+    self:SetActiveTab(activeTab)
 end
 
 function mQoL_AccountOverview:CreateOptionsPanel(parent)
@@ -5514,6 +5662,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             forceGoldSnapshot = true,
         })
         mQoL_AccountOverview:StartBootstrapSync()
+        mQoL_AccountOverview:StartPeriodicTracker()
         RegisterAccountOverviewPanel()
 
         if C_Timer and C_Timer.After then
@@ -5556,6 +5705,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             forceGoldSnapshot = true,
         })
         mQoL_AccountOverview:StartBootstrapSync()
+        mQoL_AccountOverview:StartPeriodicTracker()
         if C_Timer and C_Timer.After then
             C_Timer.After(3, function()
                 if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("AccountOverview") then
@@ -5639,6 +5789,7 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         mQoL_AccountOverview:TryCaptureLegionEndOfDungeonLoot(message)
     elseif event == "PLAYER_LOGOUT" then
         mQoL_AccountOverview:StopBootstrapSync()
+        mQoL_AccountOverview:StopPeriodicTracker()
         mQoL_AccountOverview:UpdateCurrentCharacterSnapshot({
             refreshStatic = true,
             refreshMoney = true,
