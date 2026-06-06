@@ -1,18 +1,59 @@
 local addonName, L = ...
 mQoL_Hub = mQoL_Hub or {}
 
-local function EaseOutCubic(t)
-    return 1 - (1 - t)^3
-end
+-- ============================================================================
+-- CONFIGURATION
+-- ============================================================================
+local INTRO_CONFIG = {
+    fonts = {
+        main = "Fonts\\FRIZQT__.TTF",
+        style = "OUTLINE",
+        size = 96,
+        versionSize = 18,
+    },
+    colors = {
+        text = {1, 0.82, 0},
+        version = {1, 1, 1, 0.82},
+        line = {0.3, 0.7, 1},
+        lineGlow = {0.30, 0.70, 1, 0},
+    },
+    timings = {
+        letterStep = 0.08,
+        letterDuration = 0.34,
+        lineStart = 0.18,
+        lineDuration = 0.42,
+        versionStart = 0.34,
+        versionDuration = 0.26,
+        holdDuration = 0.42,
+    },
+    letters = {
+        { char = "m", off = -110 },
+        { char = "Q", off = -25 },
+        { char = "o", off = 40 },
+        { char = "L", off = 90 },
+    },
+    dimensions = {
+        logoWidth = 600,
+        logoHeight = 150,
+        lineWidth = 550,
+        lineHeight = 4,
+    }
+}
 
-local function EaseOutQuint(t)
-    return 1 - (1 - t)^5
-end
+-- ============================================================================
+-- UTILITIES
+-- ============================================================================
+local function EaseOutCubic(t) return 1 - (1 - t)^3 end
+local function EaseOutQuint(t) return 1 - (1 - t)^5 end
 
 local function Clamp01(value)
-    if value < 0 then return 0 end
-    if value > 1 then return 1 end
-    return value
+    return math.max(0, math.min(1, value))
+end
+
+-- Helper do obliczania progresu animacji z uwzględnieniem opóźnień (staggering)
+local function GetAnimProgress(elapsed, start, duration, step, index)
+    local adjustedTime = elapsed - ((index - 1) * step)
+    return Clamp01((adjustedTime - start) / duration)
 end
 
 local function CreateLetter(parent, char, fontSize)
@@ -22,11 +63,15 @@ local function CreateLetter(parent, char, fontSize)
     local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     text:SetPoint("CENTER")
     text:SetText(char)
-    text:SetFont("Fonts\\FRIZQT__.TTF", fontSize, "OUTLINE")
-    text:SetTextColor(1, 0.82, 0)
+    text:SetFont(INTRO_CONFIG.fonts.main, fontSize, INTRO_CONFIG.fonts.style)
+    text:SetTextColor(unpack(INTRO_CONFIG.colors.text))
 
     return frame
 end
+
+-- ============================================================================
+-- MAIN LOGIC
+-- ============================================================================
 
 function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     if parent.mQoLActiveIntro then
@@ -38,6 +83,7 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     finalContentFrame:SetAlpha(0)
     finalContentFrame:Hide()
 
+    -- Main Intro Frame
     local intro = CreateFrame("Frame", nil, parent)
     intro:SetAllPoints()
     intro:SetFrameLevel(parent:GetFrameLevel() + 50)
@@ -45,62 +91,48 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     intro:SetScript("OnMouseDown", function() end)
     parent.mQoLActiveIntro = intro
 
+    -- Logo Container
     local logoFrame = CreateFrame("Frame", nil, intro)
-    logoFrame:SetSize(600, 150)
+    logoFrame:SetSize(INTRO_CONFIG.dimensions.logoWidth, INTRO_CONFIG.dimensions.logoHeight)
     logoFrame:SetPoint("CENTER", 0, 20)
 
-    local fontSize = 96
-    local lettersData = {
-        { char = "m", off = -110 },
-        { char = "Q", off = -25 },
-        { char = "o", off = 40 },
-        { char = "L", off = 90 },
-    }
-
+    -- Letters Creation
     local letters = {}
-    for _, data in ipairs(lettersData) do
-        local frame = CreateLetter(logoFrame, data.char, fontSize)
+    for i, data in ipairs(INTRO_CONFIG.letters) do
+        local frame = CreateLetter(logoFrame, data.char, INTRO_CONFIG.fonts.size)
         frame:SetAlpha(0)
         frame:SetScale(0.92)
-        table.insert(letters, {
-            frame = frame,
-            off = data.off,
-        })
+        table.insert(letters, { frame = frame, off = data.off })
     end
 
+    -- Line & Glow
     local lineFrame = CreateFrame("Frame", nil, intro)
-    lineFrame:SetSize(550, 4)
+    lineFrame:SetSize(INTRO_CONFIG.dimensions.lineWidth, INTRO_CONFIG.dimensions.lineHeight)
     lineFrame:SetPoint("TOP", logoFrame, "BOTTOM", 0, 10)
 
     local line = lineFrame:CreateTexture(nil, "ARTWORK")
     line:SetPoint("CENTER")
-    line:SetHeight(4)
+    line:SetHeight(INTRO_CONFIG.dimensions.lineHeight)
     line:SetWidth(1)
-    line:SetColorTexture(0.3, 0.7, 1)
+    line:SetColorTexture(unpack(INTRO_CONFIG.colors.line))
 
     local lineGlow = lineFrame:CreateTexture(nil, "OVERLAY")
     lineGlow:SetPoint("CENTER")
     lineGlow:SetSize(1, 10)
     lineGlow:SetTexture("Interface\\Buttons\\WHITE8X8")
     lineGlow:SetBlendMode("ADD")
-    lineGlow:SetVertexColor(0.30, 0.70, 1, 0)
+    lineGlow:SetVertexColor(unpack(INTRO_CONFIG.colors.lineGlow))
 
+    -- Version Text
     local verText = logoFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     verText:SetPoint("TOPRIGHT", letters[#letters].frame, "BOTTOMRIGHT", 20, 5)
     verText:SetText("v." .. (mQoL_Hub.version or "1.1.0"))
-    verText:SetFont("Fonts\\FRIZQT__.TTF", 18, "OUTLINE")
-    verText:SetTextColor(1, 1, 1, 0.82)
+    verText:SetFont(INTRO_CONFIG.fonts.main, INTRO_CONFIG.fonts.versionSize, INTRO_CONFIG.fonts.style)
+    verText:SetTextColor(unpack(INTRO_CONFIG.colors.version))
     verText:SetAlpha(0)
 
     local startTime = GetTime()
-    local letterStep = 0.08
-    local letterDuration = 0.34
-    local lineStart = 0.18
-    local lineDuration = 0.42
-    local versionStart = 0.34
-    local versionDuration = 0.26
-    local holdDuration = 0.42
-    local exitStart = versionStart + versionDuration + holdDuration
+    local exitStart = INTRO_CONFIG.timings.versionStart + INTRO_CONFIG.timings.versionDuration + INTRO_CONFIG.timings.holdDuration
 
     local function FinishIntro(revealContent)
         intro:SetScript("OnUpdate", nil)
@@ -133,14 +165,13 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
             letter.frame:SetAlpha(1)
         end
 
-        line:SetWidth(550)
+        line:SetWidth(INTRO_CONFIG.dimensions.lineWidth)
         line:SetAlpha(1)
-        lineGlow:SetWidth(550)
+        lineGlow:SetWidth(INTRO_CONFIG.dimensions.lineWidth)
         lineGlow:SetAlpha(0.18)
         verText:SetAlpha(1)
 
         local outroAG = intro:CreateAnimationGroup()
-
         local aExit = outroAG:CreateAnimation("Alpha")
         mQoL_Templates.ApplyAnimation(aExit)
         aExit:SetDuration(0.6)
@@ -150,7 +181,6 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
 
         outroAG:SetScript("OnFinished", function()
             intro:Hide()
-
             finalContentFrame:Show()
             finalContentFrame:SetAlpha(0)
 
@@ -172,9 +202,11 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     intro:SetScript("OnUpdate", function(self)
         local elapsed = GetTime() - startTime
 
+        -- Update Letters
         for index, letter in ipairs(letters) do
-            local reveal = Clamp01((elapsed - ((index - 1) * letterStep)) / letterDuration)
+            local reveal = GetAnimProgress(elapsed, INTRO_CONFIG.timings.letterDuration, INTRO_CONFIG.timings.letterDuration, INTRO_CONFIG.timings.letterStep, index)
             local ease = EaseOutQuint(reveal)
+            
             local yOffset = (1 - ease) * -18
             local scale = 0.92 + (0.08 * ease)
 
@@ -184,14 +216,16 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
             letter.frame:SetAlpha(ease)
         end
 
-        local lineProgress = EaseOutQuint(Clamp01((elapsed - lineStart) / lineDuration))
-        local lineWidth = math.max(1, 550 * lineProgress)
+        -- Update Line
+        local lineProgress = EaseOutQuint(Clamp01((elapsed - INTRO_CONFIG.timings.lineStart) / INTRO_CONFIG.timings.lineDuration))
+        local lineWidth = math.max(1, INTRO_CONFIG.dimensions.lineWidth * lineProgress)
         line:SetWidth(lineWidth)
         lineGlow:SetWidth(lineWidth)
         line:SetAlpha(lineProgress)
         lineGlow:SetAlpha(0.14 * lineProgress)
 
-        local versionProgress = EaseOutCubic(Clamp01((elapsed - versionStart) / versionDuration))
+        -- Update Version
+        local versionProgress = EaseOutCubic(Clamp01((elapsed - INTRO_CONFIG.timings.versionStart) / INTRO_CONFIG.timings.versionDuration))
         verText:SetAlpha(versionProgress)
 
         if elapsed >= exitStart and not intro.exitStarted then
