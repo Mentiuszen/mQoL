@@ -19,6 +19,33 @@ local BASE_FONT_SIZE = 12
 local INFINITE_FONT_SIZE = BASE_FONT_SIZE + 9
 local UPDATE_INTERVAL = 0.5
 
+-- SAFE API WRAPPERS
+local function GetSpellTexture(spellID)
+    if C_Spell and C_Spell.GetSpellTexture then
+        return C_Spell.GetSpellTexture(spellID)
+    elseif _G.GetSpellTexture then
+        return _G.GetSpellTexture(spellID)
+    end
+    return nil
+end
+
+local function GetUnitBuff(unitToken, index)
+    if UnitBuff then
+        return UnitBuff(unitToken, index)
+    elseif C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
+        local auraData = C_UnitAuras.GetBuffDataByIndex(unitToken, index)
+        if auraData then
+            if AuraUtil and AuraUtil.UnpackAuraData then
+                return AuraUtil.UnpackAuraData(auraData)
+            else
+                return auraData.name, auraData.icon, auraData.applications, auraData.dispelName, auraData.duration, auraData.expirationTime, auraData.sourceUnit, auraData.isStealable, auraData.nameplateShowPersonal, auraData.spellId, auraData.canApplyAura, auraData.isBossAura, auraData.castByPlayer, auraData.nameplateShowAll, auraData.timeMod
+            end
+        end
+    end
+    return nil
+end
+
+
 -- BUFF FRAME CREATION
 local function CreateBuffFrame(parent, category, size)
     local frame = CreateFrame("Frame", nil, parent)
@@ -51,7 +78,7 @@ end
 local function GetCategoryBuffInfo(category)
     local i = 1
     while true do
-        local name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, spellId = UnitBuff("player", i)
+        local name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, spellId = GetUnitBuff("player", i)
         if not name then break end
         for _, id in ipairs(category.spells) do
             if spellId == id then
@@ -73,6 +100,7 @@ end
 
 local function InitConsolidatedBuffs()
     if mQoL_DB and mQoL_DB.BlizzardFixes and mQoL_DB.BlizzardFixes.fixConsolidatedBuffs == false then return end
+    local ConsolidatedBuffs = BuffFrame and BuffFrame.ConsolidatedBuffs
     if not ConsolidatedBuffs then return end
 
     local baseIconSize = 32
@@ -198,7 +226,7 @@ local function InitConsolidatedBuffs()
                 local active, _, _, _, auraIndex = GetCategoryBuffInfo(self.category)
                 if active and auraIndex then
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:SetUnitBuff("player", auraIndex)
+                    GameTooltip:SetUnitAura("player", auraIndex, "HELPFUL")
                     GameTooltip:Show()
                 else
                     GameTooltip:Hide()
@@ -302,6 +330,79 @@ local function InitConsolidatedBuffs()
     if ConsolidatedBuffsTooltip then
         ConsolidatedBuffsTooltip:UnregisterAllEvents()
         ConsolidatedBuffsTooltip:Hide()
+    end
+
+    -- Override UpdateAuras on BuffFrame
+    if BuffFrame then
+        local function GetSpellIdForBuffIndex(index)
+            if C_UnitAuras and C_UnitAuras.GetBuffDataByIndex then
+                local auraData = C_UnitAuras.GetBuffDataByIndex("player", index)
+                return auraData and auraData.spellId
+            elseif UnitBuff then
+                local _, _, _, _, _, _, _, _, _, spellId = UnitBuff("player", index)
+                return spellId
+            end
+            return nil
+        end
+
+        local function NewUpdateAuras(self)
+            if AuraFrameEditModeMixin and AuraFrameEditModeMixin.UpdateAuras then
+                AuraFrameEditModeMixin.UpdateAuras(self)
+            end
+
+            self.numHideableBuffs = 0
+            if self.UpdateTemporaryEnchantmentBuffs then
+                self:UpdateTemporaryEnchantmentBuffs(GetWeaponEnchantInfo())
+            end
+            if self.UpdatePlayerBuffs then
+                self:UpdatePlayerBuffs()
+            end
+
+            local numHideable = 0
+            if self.auraInfo then
+                for _, info in ipairs(self.auraInfo) do
+                    local isRaidBuff = false
+                    if info.auraType == "Buff" and info.index then
+                        local spellId = GetSpellIdForBuffIndex(info.index)
+                        if spellId then
+                            for _, category in ipairs(RAID_BUFFS) do
+                                for _, id in ipairs(category.spells) do
+                                    if spellId == id then
+                                        isRaidBuff = true
+                                        break
+                                    end
+                                end
+                                if isRaidBuff then break end
+                            end
+                        end
+                    end
+
+                    if isRaidBuff then
+                        info.hideUnlessExpanded = true
+                        numHideable = numHideable + 1
+                    else
+                        info.hideUnlessExpanded = false
+                    end
+                end
+            end
+            self.numHideableBuffs = numHideable
+
+            if self.SyncToConsolidatedBuffs then
+                self:SyncToConsolidatedBuffs()
+            end
+
+            local onUpdateScript = (self.HasHiddenBuffs and self:HasHiddenBuffs()) and self.OnUpdate or nil
+            self:SetScript("OnUpdate", onUpdateScript)
+            if self.ResetHiddenBuffUpdateTimer then
+                self:ResetHiddenBuffUpdateTimer()
+            end
+        end
+
+        BuffFrame.UpdateAuras = NewUpdateAuras
+
+        if BuffFrame.Update then
+            BuffFrame:Update()
+        end
     end
 end
 

@@ -50,7 +50,7 @@ function mQoL.CreateBlizzardPanel(parent)
     local blizzardOptions = {
         { key = "fixPvPRewards", label = "PvP Rewards Fix", tooltip = "Fixes Honor/Conquest reward display." },
         { key = "fixPandariaMap", label = "Pandaria Map Navigation", tooltip = "Adds navigation arrows and zone levels to Pandaria maps." },
-        { key = "fixConsolidatedBuffs", label = "Consolidated Buffs Improvement", tooltip = "Improves the consolidated buffs display." },
+        { key = "fixConsolidatedBuffs", label = "Consolidated Buffs Fix", tooltip = "Fixes the consolidated buffs display." },
         { key = "fixCorpseMap", label = "Corpse Map Texture Fix", tooltip = "Fixes the corpse texture on the world map." },
         { key = "fixMinimapDifficulty", label = "Minimap Instance Difficulty Fix", tooltip = "Fixes the instance difficulty indicator on the minimap." },
         { key = "fixRaidDifficultyReset", label = "Auto Reset Instance", tooltip = "Automatically resets instances when changing difficulty." },

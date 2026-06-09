@@ -65,7 +65,7 @@ local ExpectedSettingsSchema = {
     Classic = {
         general = {
             "showMyName", "autoLoot", "autoQuestTracking", "showLuaErrors",
-            "showHead", "showCloak"
+            "autoConsolidatedBuffs"
         },
         nameplates = { 
             "showEnemyNameplates", "showEnemyMinions", "separateEnemyMinions",
@@ -143,19 +143,21 @@ local function GetCurrentGameValue(section, key)
         elseif key == "showLuaErrors" then
             return GetCVarBool("scriptErrors")
         elseif key == "showHead" then
-            if clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
+            if clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
                 if ShowingHelm then
                     return ShowingHelm()
                 end
             end
             return GetCVarBool("showHelm")
         elseif key == "showCloak" then
-            if clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
+            if clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
                 if ShowingCloak then
                     return ShowingCloak()
                 end
             end
             return GetCVarBool("showCloak")
+        elseif key == "autoConsolidatedBuffs" then
+            return GetCVarBool("consolidateBuffs")
         end
     end
 
@@ -256,6 +258,7 @@ local function GetFallbackValue(key)
         showLuaErrors = false,
         showHead = true,
         showCloak = true,
+        autoConsolidatedBuffs = true,
 
         -- Nameplates - enemy
         showEnemyNameplates = true,

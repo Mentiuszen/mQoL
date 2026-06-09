@@ -92,14 +92,20 @@ function mQoL_Main:ApplyGeneralSettings(g)
     end
 
     local function apply_showHead(value)
-        if not mQoL_Database:IsDisabled(value) and type(ShowHelm) == "function" and (clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
+        if not mQoL_Database:IsDisabled(value) and type(ShowHelm) == "function" and (clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
             ShowHelm(value == true)
         end
     end
 
     local function apply_showCloak(value)
-        if not mQoL_Database:IsDisabled(value) and type(ShowCloak) == "function" and (clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
+        if not mQoL_Database:IsDisabled(value) and type(ShowCloak) == "function" and (clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
             ShowCloak(value == true)
+        end
+    end
+
+    local function apply_autoConsolidatedBuffs(value)
+        if clientInfo.isClassic then
+            applyCVar("consolidateBuffs", value)
         end
     end
 
@@ -111,6 +117,7 @@ function mQoL_Main:ApplyGeneralSettings(g)
     apply_showMyName(g.showMyName)
     apply_showHead(g.showHead)
     apply_showCloak(g.showCloak)
+    apply_autoConsolidatedBuffs(g.autoConsolidatedBuffs)
 
     -- Export to object for later GUI usage
     self.ApplySetting = self.ApplySetting or {}
@@ -122,7 +129,9 @@ function mQoL_Main:ApplyGeneralSettings(g)
         showMyName = apply_showMyName,
         showHead = apply_showHead,
         showCloak = apply_showCloak,
+        autoConsolidatedBuffs = apply_autoConsolidatedBuffs,
     }
+
 end
 
 function mQoL_Main:ApplyNameplateSettings(np)
@@ -902,6 +911,20 @@ function mQoL_Main:CreateGeneralPanel(parent)
         end
     })
 
+    AddGap(contentContainer, "Standard")
+
+    -- Auto Enable Consolidated Buffs (Classic only)
+    if clientInfo.isClassic then
+        AddOptionRow(contentContainer, "Enable Consolidated Buffs", "checkbox", {
+            value = s.autoConsolidatedBuffs,
+            onValueChanged = function(_, value)
+                s.autoConsolidatedBuffs = value
+                mQoL_Main:ApplyGeneralSettings(s)
+            end
+        })
+        AddGap(contentContainer, "Standard")
+    end
+
     AddGap(contentContainer, "BottomSeparator")
 
     local lootSpeedMin, lootSpeedMax, lootSpeedStep = 0.01, 0.10, 0.01
@@ -954,8 +977,8 @@ function mQoL_Main:CreateGeneralPanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
-    -- Show Head / Show Cloak (Classic/Era/Pandaria/BCC only)
-    if clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
+    -- Show Head / Show Cloak (Pandaria/Era/BCC only)
+    if clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
         -- Show Head
         AddOptionRow(contentContainer, "Show Head", "dropdown", {
             list = {

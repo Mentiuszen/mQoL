@@ -47,7 +47,7 @@ local defaultSettingsMap = {
         actionBars = { alwaysShowActionBars=true, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },
     Classic = {
-        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, showHead=true, showCloak=true },
+        general = { showMyName=true, autoLoot=true, autoQuestTracking=true, showLuaErrors=false, autoConsolidatedBuffs=false },
         nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false,
@@ -87,17 +87,19 @@ function GetCurrentGameSettings()
         autoLoot = GetCVarBool("autoLootDefault"),
         autoQuestTracking = GetCVarBool("autoQuestWatch") or true,
         showLuaErrors = GetCVarBool("scriptErrors"),
-        showHead = GetCVarBool("showHelm"),
-        showCloak = GetCVarBool("showCloak"),
     }
 
-    if clientInfo.isClassic or clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC then
+    if clientInfo.isEra or clientInfo.isBCC then
+        generalSettings.showHead = GetCVarBool("showHelm")
+        generalSettings.showCloak = GetCVarBool("showCloak")
         if ShowingHelm then
             generalSettings.showHead = ShowingHelm()
         end
         if ShowingCloak then
             generalSettings.showCloak = ShowingCloak()
         end
+    elseif clientInfo.isClassic or clientInfo.isPandaria then
+        generalSettings.autoConsolidatedBuffs = GetCVarBool("consolidateBuffs")
     end
 
     local nameplateSettings = {
@@ -176,6 +178,7 @@ local function NormalizeName(key)
     local translations = {
         showHead = "Show Head",
         showCloak = "Show Cloak",
+        autoConsolidatedBuffs = "Auto Enable Consolidated Buffs",
         showMyName = "Show My Name",
         autoLoot = "Auto Loot",
         autoQuestTracking = "Auto Quest Tracking",
@@ -211,7 +214,13 @@ end
 
 -- Category Order
 local categoryOrder = {
-    ["DISPLAY"] = {
+    ["DISPLAY"] = (clientInfo.isClassic or clientInfo.isPandaria) and {
+        "showMyName",
+        "autoLoot",
+        "autoQuestTracking",
+        "showLuaErrors",
+        "autoConsolidatedBuffs",
+    } or {
         "showMyName",
         "autoLoot",
         "autoQuestTracking",
