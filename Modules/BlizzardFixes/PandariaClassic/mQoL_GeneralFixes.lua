@@ -1,5 +1,4 @@
 local addonName = ...
-local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
 
 local function ShouldLoadBlizzardFixes()
     return not (mQoL_Modules and not mQoL_Modules:ShouldLoadModule("BlizzardFixes"))
@@ -713,7 +712,7 @@ local function OnSettingsCheckboxCreated(category, setting)
 end
 
 local function InstallPandariaDisplayOptionsFix()
-    if not (clientInfo and clientInfo.isClassic and clientInfo.tocversion == 50504) or not ShouldLoadBlizzardFixes() then
+    if not ShouldLoadBlizzardFixes() then
         return true
     end
 
