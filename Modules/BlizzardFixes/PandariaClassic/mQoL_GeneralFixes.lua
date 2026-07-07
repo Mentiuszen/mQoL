@@ -1,5 +1,9 @@
 local addonName = ...
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
 
+local function ShouldLoadBlizzardFixes()
+    return not (mQoL_Modules and not mQoL_Modules:ShouldLoadModule("BlizzardFixes"))
+end
 
 -- better consolidated buffs display
 local RAID_BUFFS = {
@@ -618,3 +622,129 @@ hooksecurefunc("ShowUIPanel", function(frame)
         end)
     end
 end)
+
+--Remove obsolete checkboxes in blizzard options ui
+local hiddenDisplayProxySettings = {
+    PROXY_SHOW_HELM = true,
+    PROXY_SHOW_CLOAK = true,
+}
+
+local function GetSettingVariable(setting)
+    if not setting or type(setting.GetVariable) ~= "function" then
+        return nil
+    end
+
+    if type(securecallfunction) == "function" then
+        return securecallfunction(setting.GetVariable, setting)
+    end
+
+    return setting:GetVariable()
+end
+
+local function IsHiddenDisplayProxySetting(setting)
+    local variable = GetSettingVariable(setting)
+    return variable and hiddenDisplayProxySettings[variable] == true
+end
+
+local function RemoveHiddenDisplayInitializersFromLayout(layout)
+    if not layout or type(layout.GetInitializers) ~= "function" then
+        return false
+    end
+
+    local initializers = layout:GetInitializers()
+    if type(initializers) ~= "table" then
+        return false
+    end
+
+    local removed = false
+    for i = #initializers, 1, -1 do
+        local initializer = initializers[i]
+        local setting = initializer and type(initializer.GetSetting) == "function" and initializer:GetSetting()
+        if IsHiddenDisplayProxySetting(setting) then
+            table.remove(initializers, i)
+            removed = true
+        end
+    end
+
+    return removed
+end
+
+local function RemoveExistingHiddenDisplaySettings()
+    if not SettingsPanel or type(SettingsPanel.GetSetting) ~= "function" or type(SettingsPanel.GetLayout) ~= "function" then
+        return false
+    end
+
+    local removed = false
+    local prunedLayouts = {}
+    for variable in pairs(hiddenDisplayProxySettings) do
+        local setting = SettingsPanel:GetSetting(variable)
+        local category = setting and SettingsPanel.settings and SettingsPanel.settings[setting]
+        local layout = category and SettingsPanel:GetLayout(category)
+        if layout and not prunedLayouts[layout] then
+            removed = RemoveHiddenDisplayInitializersFromLayout(layout) or removed
+            prunedLayouts[layout] = true
+        end
+    end
+
+    if removed then
+        if SettingsInbound and type(SettingsInbound.RepairDisplay) == "function" then
+            SettingsInbound.RepairDisplay()
+        elseif type(SettingsPanel.RepairDisplay) == "function" then
+            SettingsPanel:RepairDisplay()
+        end
+    end
+
+    return removed
+end
+
+local function OnSettingsCheckboxCreated(category, setting)
+    if not IsHiddenDisplayProxySetting(setting) then
+        return
+    end
+
+    local layout = SettingsPanel and type(SettingsPanel.GetLayout) == "function" and SettingsPanel:GetLayout(category)
+    if RemoveHiddenDisplayInitializersFromLayout(layout) then
+        if SettingsInbound and type(SettingsInbound.RepairDisplay) == "function" then
+            SettingsInbound.RepairDisplay()
+        elseif SettingsPanel and type(SettingsPanel.RepairDisplay) == "function" then
+            SettingsPanel:RepairDisplay()
+        end
+    end
+end
+
+local function InstallPandariaDisplayOptionsFix()
+    if not (clientInfo and clientInfo.isClassic and clientInfo.tocversion == 50504) or not ShouldLoadBlizzardFixes() then
+        return true
+    end
+
+    if not Settings or type(Settings.CreateCheckbox) ~= "function" or type(Settings.CreateCheckboxWithOptions) ~= "function" then
+        return false
+    end
+
+    if not Settings.__mQoLHiddenDisplayOptionsHooked then
+        hooksecurefunc(Settings, "CreateCheckboxWithOptions", OnSettingsCheckboxCreated)
+        Settings.__mQoLHiddenDisplayOptionsHooked = true
+    end
+
+    RemoveExistingHiddenDisplaySettings()
+    return true
+end
+
+local f_display_options = CreateFrame("Frame")
+f_display_options:RegisterEvent("ADDON_LOADED")
+f_display_options:RegisterEvent("PLAYER_LOGIN")
+f_display_options:SetScript("OnEvent", function(self, event, arg1)
+    if event == "ADDON_LOADED"
+        and arg1 ~= addonName
+        and arg1 ~= "Blizzard_Settings_Shared"
+        and arg1 ~= "Blizzard_SettingsDefinitions_Frame" then
+        return
+    end
+
+    if InstallPandariaDisplayOptionsFix() then
+        self:UnregisterAllEvents()
+    end
+end)
+if InstallPandariaDisplayOptionsFix() then
+    f_display_options:UnregisterAllEvents()
+end
