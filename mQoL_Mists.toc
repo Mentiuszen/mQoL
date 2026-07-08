@@ -36,10 +36,10 @@ Modules/RaidProfiles/mQoL_RaidProfiles.lua
 Modules/DungeonTeleports/DungeonTeleportsTab.lua
 
 #Mists Fixes
-Modules/BlizzardFixes/PandariaClassic/mQol_Blizzard.lua
-Modules/BlizzardFixes/PandariaClassic/mQoL_FixPvPRewards.lua
-Modules/BlizzardFixes/PandariaClassic/mQoL_FixWorldMap.lua
-Modules/BlizzardFixes/PandariaClassic/mQoL_GeneralFixes.lua
+Modules/BlizzardFixes/PandariaClassic/mQoL_BlizzardMoPC.lua
+Modules/BlizzardFixes/PandariaClassic/mQoL_FixPvPRewardsMoPC.lua
+Modules/BlizzardFixes/PandariaClassic/mQoL_FixWorldMapMoPC.lua
+Modules/BlizzardFixes/PandariaClassic/mQoL_GeneralFixesMoPC.lua
 
 #First Setup
 Core/mQoL_FirstSetup.lua
