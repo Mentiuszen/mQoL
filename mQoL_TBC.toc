@@ -34,5 +34,8 @@ Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
 
+#Blizzard fixes
+Modules/BlizzardFixes/BurningCrusadeClassic/mQoL_FixWorldMapBCC.lua
+
 #First Setup
 Core/mQoL_FirstSetup.lua

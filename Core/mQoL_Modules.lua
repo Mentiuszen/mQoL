@@ -70,8 +70,8 @@ mQoL_Modules.AvailableModules = {
         key = "BlizzardFixes",
         label = "Blizzard Fixes",
         description = "Fixes for various Blizzard UI bugs and annoyances.",
-        versions = {"isClassic"},
-        hardlock = {"isRetail", "isPandaria", "isLegion", "isEra", "isBCC"},
+        versions = {"isClassic", "isBCC"},
+        hardlock = {"isRetail", "isPandaria", "isLegion", "isEra"},
         defaultEnabled = true,
     },
     {
