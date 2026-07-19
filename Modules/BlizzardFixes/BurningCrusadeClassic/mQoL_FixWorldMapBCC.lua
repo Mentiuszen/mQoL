@@ -1,6 +1,6 @@
 local addonName = ...
 
-local DEBUG_HITBOXES = true
+local DEBUG_HITBOXES = false
 
 local NAV_INFO = {
 }
