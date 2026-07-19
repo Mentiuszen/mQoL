@@ -2,7 +2,7 @@
 ## Title: mQoL
 ## Notes: mQoL for Vanilla
 ## Author: Mentiuszen
-## Version: 1.2.3
+## Version: 1.2.4
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_AccountOverview_DB
 Libs\Libs_Modern\libs.xml
 
