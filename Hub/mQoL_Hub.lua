@@ -10,9 +10,9 @@ local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
-mQoL_Hub.version = "1.3.0"
+mQoL_Hub.version = "1.2.4"
 mQoL_Hub.build = "301"
-mQoL_Hub.vendor = "dev"    --dev / test / release
+mQoL_Hub.vendor = "release"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -620,7 +620,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- Welcome Title (Centered with Separator)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     title:SetPoint("TOP", 0, currentY)
-    title:SetText("Welcome to mQoL 1.3.0")
+    title:SetText("Welcome to mQoL 1.2.0")
     title:SetTextColor(1, 0.82, 0)
     title:SetJustifyH("CENTER")
     currentY = currentY - 30
@@ -635,7 +635,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- What's New Section
     local newsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     newsTitle:SetPoint("TOPLEFT", 20, currentY)
-    newsTitle:SetText("What's New in v1.3.0?")
+    newsTitle:SetText("What's New in v1.2.0?")
     newsTitle:SetTextColor(0.3, 0.7, 1)
     currentY = currentY - 30
 
@@ -654,14 +654,14 @@ function mQoL_Hub:CreateHomePanel(parent)
         currentY = currentY - textFS:GetStringHeight() - 10
     end
 
-    AddBulletPoint("NEW 1")
-    AddBulletPoint("NEW 2")
-    AddBulletPoint("NEW 3")
-    AddBulletPoint("NEW 4")
-    AddBulletPoint("NEW 5")
-    AddBulletPoint("NEW 6")
-    AddBulletPoint("NEW 7")
-    AddBulletPoint("NEW 8")
+    AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
+    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an Gold Chart.")
+    AddBulletPoint("Great Vault Preview: See Great Vault of your other characters without character switching.")
+    AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
+    AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
+    AddBulletPoint("Fast Auto Loot: Much faster auto loot option.")
+    AddBulletPoint("Edit Mode Backups: Automatically creates and keeps up to 5 backups of your UI profiles upon login.")
+    AddBulletPoint("Edit Mode Backups are only available in config file and not accessible from the UI yet.")
     
     currentY = currentY - 20
 
