@@ -29,7 +29,7 @@ elseif tocversion >= 70000 and tocversion <= 70300 then
     clientInfo.isLegion = true
 elseif tocversion >= 11300 and tocversion <= 11599 then
     clientInfo.isEra = true
-elseif tocversion >= 20500 and tocversion <= 20505 then
+elseif tocversion >= 20500 and tocversion <= 20506 then
 	clientInfo.isBCC = true
 elseif tocversion >= 50001 and tocversion <= 50400 then
     clientInfo.isPandaria = true
