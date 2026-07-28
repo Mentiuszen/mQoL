@@ -60,7 +60,7 @@ local defaultSettingsMap = {
         nameplates = {
             showEnemyNameplates=true, showEnemyMinions=true, showEnemyMinus=true,
             showFriendlyNameplates=false, showFriendlyMinions=false,
-            nameplateMaxDistance=20
+            nameplateMaxDistance=41
         },
         actionBars = { alwaysShowActionBars=true, autoPushSpellToActionBar=false, autoSelfCast=true, showActionBars2=true, showActionBars3=true, showActionBars4=true, showActionBars5=true },
     },

@@ -1628,7 +1628,7 @@ function mQoL_Main:CreateNameplatesPanel(parent)
     local distances = {20, 40, 60}
     if clientInfo.isClassic then distances = {21, 41} end
     if clientInfo.isBCC then distances = {21, 41} end
-    if clientInfo.isEra then distances = {10, 20} end
+    if clientInfo.isEra then distances = {21, 41} end
     if clientInfo.isLegion then distances = {20, 40, 60, 80, 100} end
 
     local distanceItems = {}

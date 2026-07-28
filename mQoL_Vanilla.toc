@@ -1,9 +1,9 @@
-## Interface: 11508
+## Interface: 11509
 ## Title: mQoL
 ## Notes: mQoL for Vanilla
 ## Author: Mentiuszen
-## Version: 1.2.4
-## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_AccountOverview_DB
+## Version: 1.2.5
+## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB, mQoL_AccountOverview_DB
 Libs\Libs_Modern\libs.xml
 
 #Core Func
@@ -29,6 +29,7 @@ Modules/MainQoL/mQoL_Main.lua
 Modules/FastAutoloot/mQoL_FastAutoloot.lua
 Modules/Mailbox/mQoL_Mailbox.lua
 Modules/Graphics/mQoL_Graphics.lua
+Modules/EditMode/mQoL_EditMode.lua
 Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
