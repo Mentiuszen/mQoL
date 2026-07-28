@@ -391,7 +391,7 @@ end
 -- Teleport Data Structure
 local TeleportCategories = {
     { text = "Midnight Season 1", value = "MID_S1" },
-    --{ text = "Midnight Season 2", value = "MID_S2" },
+    { text = "Midnight Season 2", value = "MID_S2" },
     { separator = true },
     { text = "Midnight", value = "Midnight" },
     { text = "The War Within", value = "The War Within" },
@@ -840,6 +840,8 @@ local listedDungeonHighlightState = {
     activeSpellIDs = nil,
     activeInfo = nil,
     groupGUID = nil,
+    pendingJoinedGroupInfo = nil,
+    pendingJoinedGroupInfoExpires = nil,
     joinedGroupInfo = nil,
     joinedGroupInfoExpires = nil,
     suppressedSignature = nil,
@@ -1352,30 +1354,63 @@ local function GetSearchResultListedDungeonInfo(searchResultID)
         return nil
     end
 
-    if C_LFGList.HasSearchResultInfo then
-        local okHasInfo, hasInfo = pcall(C_LFGList.HasSearchResultInfo, searchResultID)
-        if okHasInfo and not hasInfo then
-            return nil
-        end
-    end
-
     local okResult, searchResultInfo = pcall(C_LFGList.GetSearchResultInfo, searchResultID)
     if not okResult or type(searchResultInfo) ~= "table" then
         return nil
     end
 
-    return BuildListedDungeonInfoFromActivityIDs(
+    local info = BuildListedDungeonInfoFromActivityIDs(
         searchResultInfo.activityIDs or searchResultInfo.activityID,
         searchResultInfo.questID,
         searchResultInfo.partyGUID
     )
+    if info then
+        info.searchResultID = searchResultID
+    end
+
+    return info
+end
+
+local function ClearPendingJoinedListedDungeonInfo(searchResultID)
+    local state = listedDungeonHighlightState
+    local pendingInfo = state.pendingJoinedGroupInfo
+    searchResultID = tonumber(searchResultID) or 0
+
+    if type(pendingInfo) ~= "table" or pendingInfo.searchResultID ~= searchResultID then
+        return false
+    end
+
+    state.pendingJoinedGroupInfo = nil
+    state.pendingJoinedGroupInfoExpires = nil
+    return true
+end
+
+local function CapturePendingJoinedListedDungeonInfo(searchResultID)
+    local info = GetSearchResultListedDungeonInfo(searchResultID)
+    if not info then
+        return false
+    end
+
+    listedDungeonHighlightState.pendingJoinedGroupInfo = info
+    listedDungeonHighlightState.pendingJoinedGroupInfoExpires = (GetTime and GetTime() or 0) + 180
+    return true
 end
 
 local function CaptureJoinedListedDungeonInfo(searchResultID)
     local info = GetSearchResultListedDungeonInfo(searchResultID)
+    local state = listedDungeonHighlightState
+    searchResultID = tonumber(searchResultID) or 0
+
+    if not info
+        and type(state.pendingJoinedGroupInfo) == "table"
+        and state.pendingJoinedGroupInfo.searchResultID == searchResultID then
+        info = state.pendingJoinedGroupInfo
+    end
+
     if info then
-        listedDungeonHighlightState.joinedGroupInfo = info
-        listedDungeonHighlightState.joinedGroupInfoExpires = (GetTime and GetTime() or 0) + 180
+        state.joinedGroupInfo = info
+        state.joinedGroupInfoExpires = (GetTime and GetTime() or 0) + 180
+        ClearPendingJoinedListedDungeonInfo(searchResultID)
         return true
     end
 
@@ -1400,6 +1435,7 @@ local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoi
     local hadState = listedDungeonHighlightState.activeSignature ~= nil
         or listedDungeonHighlightState.activeInfo ~= nil
         or listedDungeonHighlightState.groupGUID ~= nil
+        or (not keepJoinedGroupInfo and listedDungeonHighlightState.pendingJoinedGroupInfo ~= nil)
         or (not keepJoinedGroupInfo and listedDungeonHighlightState.joinedGroupInfo ~= nil)
         or (not keepSuppressedSignature and listedDungeonHighlightState.suppressedSignature ~= nil)
 
@@ -1409,6 +1445,8 @@ local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoi
     listedDungeonHighlightState.activeInfo = nil
     listedDungeonHighlightState.groupGUID = nil
     if not keepJoinedGroupInfo then
+        listedDungeonHighlightState.pendingJoinedGroupInfo = nil
+        listedDungeonHighlightState.pendingJoinedGroupInfoExpires = nil
         listedDungeonHighlightState.joinedGroupInfo = nil
         listedDungeonHighlightState.joinedGroupInfoExpires = nil
     end
@@ -1476,6 +1514,11 @@ local function UpdateListedDungeonHighlightState()
     local isInGroup = IsPlayerInAnyGroup()
     local changed = false
     local now = GetTime and GetTime() or 0
+
+    if state.pendingJoinedGroupInfoExpires and now > state.pendingJoinedGroupInfoExpires then
+        state.pendingJoinedGroupInfo = nil
+        state.pendingJoinedGroupInfoExpires = nil
+    end
 
     if state.joinedGroupInfoExpires and now > state.joinedGroupInfoExpires then
         state.joinedGroupInfo = nil
@@ -1615,11 +1658,12 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
         CaptureJoinedListedDungeonInfo(...)
     elseif event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
         local searchResultID, newStatus = ...
-        if joinedApplicationStatuses[newStatus] then
+        if newStatus == "invited" then
+            CapturePendingJoinedListedDungeonInfo(searchResultID)
+        elseif joinedApplicationStatuses[newStatus] then
             CaptureJoinedListedDungeonInfo(searchResultID)
         elseif inactiveApplicationStatuses[newStatus] then
-            listedDungeonHighlightState.joinedGroupInfo = nil
-            listedDungeonHighlightState.joinedGroupInfoExpires = nil
+            ClearPendingJoinedListedDungeonInfo(searchResultID)
         end
     end
 
