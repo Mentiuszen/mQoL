@@ -89,7 +89,7 @@ local LEGION_REWARD_TABLES_BY_SEASON = {
 }
 
 local LEGION_SEASON_ORDER = { "S1", "S2", "S3" }
-local LEGION_DEFAULT_SEASON = "S3"
+local LEGION_DEFAULT_SEASON = "S1"
 
 -- Uses the local client clock on purpose so private-server users can retune this easily.
 local LEGION_WEEKLY_RESET_WEEKDAY = 4 -- 1 = Sunday, 4 = Wednesday
