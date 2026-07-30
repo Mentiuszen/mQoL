@@ -1,4 +1,4 @@
-## Interface: 50503, 50504
+## Interface: 50504
 ## Title: mQoL
 ## Notes: mQoL for Mists of Pandaria Classic
 ## Author: Mentiuszen
