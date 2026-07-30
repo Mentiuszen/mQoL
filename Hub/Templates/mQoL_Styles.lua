@@ -500,7 +500,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 	mouseWatcher = CreateFrame("Frame", nil, dropdown)
     mouseWatcher:Hide()
 	mouseWatcher:SetScript("OnUpdate", function()
-		if list:IsShown() and not MouseIsOver(dropdown) and not MouseIsOver(list) and IsMouseButtonDown() then
+		if list:IsShown() and not dropdown:IsMouseOver() and not list:IsMouseOver() and IsMouseButtonDown() then
 			HideList()
 		end
 	end)
