@@ -187,6 +187,10 @@ local function EnsureTemplatesLoaded()
         return false
     end
 
+    if not WeeklyRewardsFrame and C_AddOns and type(C_AddOns.LoadAddOn) == "function" then
+        pcall(C_AddOns.LoadAddOn, "Blizzard_WeeklyRewards")
+    end
+
     if not WeeklyRewardsFrame and UIParentLoadAddOn then
         pcall(UIParentLoadAddOn, "Blizzard_WeeklyRewards")
     end
