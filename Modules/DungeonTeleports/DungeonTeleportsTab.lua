@@ -486,7 +486,7 @@ local TeleportData = {
         { id = 1862, name = "Waycrest Manor", texture = 2177732, artOffsetY = 0.0, spellID = 424167, achievementID = 19086, requiredLevel = 80, location = "Drustvar", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 2097, name = "Operation: Mechagon", texture = 3025327, artOffsetY = 0.20, spellID = 373274, achievementIDs = { 15693, 40966 }, requiredLevel = 80, location = "Mechagon Island", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 1762, name = "Kings' Rest", texture = 2177723, artOffsetY = 0.0, spellID = 1286831, achievementID = 62444, requiredLevel = 90, location = "Zuldazar", source= "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 1877, name = "Temple of Sethraliss", texture = 2177727, artOffsetY = 0.0, spellID = 1286828, achievementID = 62443, requiredLevel = 90, location = "Zuldazar", source= "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 1877, name = "Temple of Sethraliss", texture = 2177727, artOffsetY = 0.0, spellID = 1286828, achievementID = 62443, requiredLevel = 90, location = "Vol'dun", source= "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Legion"] = {
         { id = 1501, name = "Black Rook Hold", texture = 1411847, artOffsetY = -0.10, spellID = 424153, achievementID = 19084, requiredLevel = 80, location = "Val'sharah", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
