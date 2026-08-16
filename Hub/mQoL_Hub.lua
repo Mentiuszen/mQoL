@@ -10,8 +10,8 @@ local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
-mQoL_Hub.version = "1.2.5"
-mQoL_Hub.build = "272"
+mQoL_Hub.version = "1.2.6"
+mQoL_Hub.build = "273"
 mQoL_Hub.vendor = "release"    --dev / test / release
 
 -- Styles
