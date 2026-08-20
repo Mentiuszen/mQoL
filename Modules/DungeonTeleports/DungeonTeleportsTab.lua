@@ -3492,6 +3492,12 @@ end
 local frame = CreateFrame("Frame")
 local isInitialized = false
 
+local function IsDungeonTeleportsEnabled()
+    return mQoL_Modules
+        and type(mQoL_Modules.ShouldLoadModule) == "function"
+        and mQoL_Modules:ShouldLoadModule("DungeonTeleports")
+end
+
 local function IsGroupFinderLoaded()
     if C_AddOns and C_AddOns.IsAddOnLoaded then
         return C_AddOns.IsAddOnLoaded("Blizzard_GroupFinder")
@@ -3505,6 +3511,9 @@ local function IsGroupFinderLoaded()
 end
 
 local function TryInitialize(self)
+    if not IsDungeonTeleportsEnabled() then
+        return
+    end
     if isInitialized then
         return
     end
@@ -3528,15 +3537,17 @@ local function TryInitialize(self)
     self:UnregisterEvent("ADDON_LOADED")
 end
 
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(self, event, addonName)
-    if event == "ADDON_LOADED" then
-        if addonName == "Blizzard_GroupFinder" then
+if IsDungeonTeleportsEnabled() then
+    frame:RegisterEvent("ADDON_LOADED")
+    frame:SetScript("OnEvent", function(self, event, addonName)
+        if event == "ADDON_LOADED" then
+            if addonName == "Blizzard_GroupFinder" then
+                TryInitialize(self)
+            end
+        elseif event == "PLAYER_REGEN_ENABLED" then
             TryInitialize(self)
         end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        TryInitialize(self)
-    end
-end)
+    end)
 
-TryInitialize(frame)
+    TryInitialize(frame)
+end

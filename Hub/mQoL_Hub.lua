@@ -10,9 +10,9 @@ local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
-mQoL_Hub.version = "1.2.6"
-mQoL_Hub.build = "273"
-mQoL_Hub.vendor = "release"    --dev / test / release
+mQoL_Hub.version = "1.3.0"
+mQoL_Hub.build = "305"
+mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -635,7 +635,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- What's New Section
     local newsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     newsTitle:SetPoint("TOPLEFT", 20, currentY)
-    newsTitle:SetText("What's New in v1.2.0?")
+    newsTitle:SetText("What's New in v1.3.0?")
     newsTitle:SetTextColor(0.3, 0.7, 1)
     currentY = currentY - 30
 
@@ -654,14 +654,14 @@ function mQoL_Hub:CreateHomePanel(parent)
         currentY = currentY - textFS:GetStringHeight() - 10
     end
 
-    AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
-    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an Gold Chart.")
-    AddBulletPoint("Great Vault Preview: See Great Vault of your other characters without character switching.")
-    AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
-    AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
-    AddBulletPoint("Fast Auto Loot: Much faster auto loot option.")
-    AddBulletPoint("Edit Mode Backups: Automatically creates and keeps up to 5 backups of your UI profiles upon login.")
-    AddBulletPoint("Edit Mode Backups are only available in config file and not accessible from the UI yet.")
+    AddBulletPoint("Point 1 - to be filled.")
+    AddBulletPoint("Point 2 - to be filled.")
+    AddBulletPoint("Point 3 - to be filled.")
+    AddBulletPoint("Point 4 - to be filled.")
+    AddBulletPoint("Point 5 - to be filled.")
+    AddBulletPoint("Point 6 - to be filled.")
+    AddBulletPoint("Point 7 - to be filled.")
+    AddBulletPoint("Point 8 - to be filled.")
     
     currentY = currentY - 20
 
@@ -1814,13 +1814,53 @@ function mQoL_Hub:CreateMainPanel()
 
     self.ContentArea = contentArea
 
-	-- Generate Panels
 	local panels = {}
+	self.panelErrors = {}
+
+	local function CreatePanelOrFallback(name, panelFunc)
+		local success, panelOrError = pcall(panelFunc, contentArea)
+		local panel = success and panelOrError or nil
+		local isFrame = panel
+			and type(panel.Show) == "function"
+			and type(panel.Hide) == "function"
+			and type(panel.SetParent) == "function"
+
+		if isFrame then
+			self.panelErrors[name] = nil
+			return panel
+		end
+
+		local errorMessage
+		if not success then
+			errorMessage = tostring(panelOrError)
+		elseif panel == nil then
+			errorMessage = "Panel factory returned no frame."
+		else
+			errorMessage = "Panel factory returned an invalid frame."
+		end
+
+		self.panelErrors[name] = errorMessage
+		print(string.format("|cffff4444[mQoL Hub]|r Failed to create panel [%s]: %s", name, errorMessage))
+
+		panel = CreateFrame("Frame", nil, contentArea)
+		local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		title:SetPoint("TOPLEFT", 24, -24)
+		title:SetText(name .. " is unavailable")
+
+		local details = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		details:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -16)
+		details:SetWidth(760)
+		details:SetJustifyH("LEFT")
+		details:SetText("This module panel could not be created. The rest of mQoL is still available.\n\n" .. errorMessage)
+		return panel
+	end
+
+	-- Generate Panels
 	for categoryName, subcategories in pairs(PANEL_STRUCTURE) do
 		for _, sub in ipairs(subcategories) do
 			local panelFunc = mQoL_Hub.modules[sub]
 			if panelFunc then
-				local panel = panelFunc(contentArea)
+				local panel = CreatePanelOrFallback(sub, panelFunc)
 				if panel.SetAllPoints then
 					panel:SetAllPoints()
 				else
@@ -1900,7 +1940,7 @@ function mQoL_Hub:CreateMainPanel()
 		-- Get the panel creation function and recreate
 		local panelFunc = self.modules[currentName]
 		if panelFunc then
-			local panel = panelFunc(contentArea)
+			local panel = CreatePanelOrFallback(currentName, panelFunc)
 			if panel then
 				if panel.SetAllPoints then
 					panel:SetAllPoints()
@@ -2337,15 +2377,6 @@ local function RegisterMessagePrefix(prefix)
     end
 end
 
-local function SendAddonMessage(prefix, message, channel, target)
-	if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-        C_ChatInfo.SendAddonMessage(prefix, message, channel, target)
-    else
-        -- Old API fallback
-        SendAddonMessage(prefix, message, channel, target)
-    end
-end
-
 -- Event Handler
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
@@ -2401,7 +2432,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
 
         if msg == "!VREQ" or msg == "!MHVREQ" then
             -- Fix: Include vendor in response (was missing before)
-            C_ChatInfo.SendAddonMessage(ADDON_PREFIX,
+            SendAddonMessage(ADDON_PREFIX,
                 "!MHVRESP:" .. (mQoL_Hub.vendor or "unknown") .. ":" .. (mQoL_Hub.version or "unknown") .. ":" .. (mQoL_Hub.build or "unknown"),
                 channel)
             return

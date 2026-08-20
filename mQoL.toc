@@ -2,7 +2,7 @@
 ## Title: mQoL
 ## Notes: mQoL for Legacy Clients (Legion only now)
 ## Author: Mentiuszen
-## Version: 1.2.5
+## Version: 1.3.0
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_AccountOverview_DB
 Libs\Libs_Legacy\libs.xml
 
@@ -14,7 +14,7 @@ Core/mQoL_WeeklyRewardUtils.lua
 Core/mQoL_WeeklyRewardViewer.lua
 Core/mQoL_ProfessionUtils.lua
 Core/mQoL_vreg.lua
-Core/mQoL_DatabaseSafety.lua
+Core/mQoL_CVar.lua
 
 #Hub
 Hub/Templates/mQoL_Templates.lua
@@ -25,6 +25,9 @@ Core/mQoL_Modules.lua
 
 #Modules
 Modules/AccountOverview/mQoL_AccountOverview.lua
+Modules/General/mQoL_General.lua
+Modules/Nameplates/mQoL_Nameplates.lua
+Modules/ActionBars/mQoL_ActionBars.lua
 Modules/MainQoL/mQoL_Main.lua
 Modules/FastAutoloot/mQoL_FastAutoloot.lua
 Modules/Mailbox/mQoL_Mailbox.lua
@@ -33,5 +36,5 @@ Modules/RaidProfiles/mQoL_RaidProfilesAdapters.lua
 Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
 
-#First Setup
-Core/mQoL_FirstSetup.lua
+#Unified Setup
+Core/mQoL_Setup.lua

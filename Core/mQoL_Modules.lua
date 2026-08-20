@@ -1,70 +1,67 @@
 local addonName = ...
 
+-- Module Registry
+--
+-- This file is intentionally limited to module metadata and module state. The
+-- setup flow itself lives in Core/mQoL_Setup.lua, which makes it possible to use
+-- the same wizard for a fresh installation and for modules added in an update.
 mQoL_Modules = mQoL_Modules or {}
 
--- Initialize logic
-function mQoL_Modules:Initialize()
-    mQoL_DB = mQoL_DB or {}
-    mQoL_DB.Modules = mQoL_DB.Modules or {}
+mQoL_Modules.REGISTRY_VERSION = 1
 
-    -- Set defaults if missing
-    for _, module in ipairs(self.AvailableModules) do
-        if mQoL_DB.Modules[module.key] == nil then
-            local isHardlocked = self:IsModuleHardlocked(module)
-            if isHardlocked then
-                mQoL_DB.Modules[module.key] = false
-            elseif module.defaultEnabled ~= nil then
-                mQoL_DB.Modules[module.key] = (module.defaultEnabled == true) and self:IsModuleCompatible(module)
-            else
-                mQoL_DB.Modules[module.key] = self:IsModuleCompatible(module)
-            end
-        end
-    end
-end
-
--- Define available modules and their compatibility
+-- Every optional module starts disabled. Hub is core functionality and is not
+-- represented here, so it is always available.
 mQoL_Modules.AvailableModules = {
     {
         key = "AccountOverview",
         label = "Account Overview",
         description = "Account-wide overview with tracked characters, professions, played time, and gold history.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 10,
     },
     {
         key = "GeneralQoL",
         label = "General QoL",
-        description = "General quality of life improvements (Auto Loot, Quest Tracking, etc).",
+        description = "General quality of life improvements, including Auto Loot and Quest Tracking.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        controller = "mQoL_General",
+        setupVersion = 1,
+        order = 20,
     },
     {
         key = "NameplatesQoL",
         label = "Nameplates QoL",
         description = "Nameplate settings and improvements.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        controller = "mQoL_Nameplates",
+        setupVersion = 1,
+        order = 30,
     },
     {
         key = "ActionBarsQoL",
         label = "Action Bars QoL",
         description = "Action bar visibility and settings.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        controller = "mQoL_ActionBars",
+        setupVersion = 1,
+        order = 40,
     },
     {
         key = "Mailbox",
         label = "Mailbox Improvements",
         description = "Enhancements for the mailbox UI and functionality.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 50,
     },
     {
         key = "Graphics",
         label = "Graphics Settings",
         description = "Additional graphics tweaks and options.",
         versions = {"isClassic", "isEra", "isBCC"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 60,
     },
     {
         key = "BlizzardFixes",
@@ -72,7 +69,8 @@ mQoL_Modules.AvailableModules = {
         description = "Fixes for various Blizzard UI bugs and annoyances.",
         versions = {"isClassic", "isBCC"},
         hardlock = {"isRetail", "isPandaria", "isLegion", "isEra"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 70,
     },
     {
         key = "EditMode",
@@ -80,14 +78,25 @@ mQoL_Modules.AvailableModules = {
         description = "Manage Edit Mode profiles and settings.",
         versions = {"isRetail", "isBCC", "isClassic", "isEra"},
         hardlock = {"isPandaria", "isLegion"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 80,
     },
     {
         key = "RaidProfiles",
         label = "Raid Profiles",
         description = "Automatic transfer of raid profiles between characters.",
         versions = {"isRetail", "isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
+        setupVersion = 1,
+        order = 90,
+    },
+    {
+        key = "DungeonTeleports",
+        label = "Dungeon Teleports",
+        description = "Adds dungeon teleport navigation to the Group Finder interface.",
+        versions = {"isRetail", "isClassic"},
+        hardlock = {"isPandaria", "isLegion", "isEra", "isBCC"},
+        setupVersion = 1,
+        order = 100,
     },
     {
         key = "MythicPlusListing",
@@ -95,70 +104,206 @@ mQoL_Modules.AvailableModules = {
         description = "Adds a Retail-only helper to the Premade Groups Mythic+ listing panel that shows party keystones.",
         versions = {"isRetail"},
         hardlock = {"isClassic", "isPandaria", "isLegion", "isEra", "isBCC"},
-        defaultEnabled = true,
-    }
+        setupVersion = 1,
+        order = 110,
+    },
 }
 
--- Check if a module is compatible with the current running client
+local function HasLegacySetup()
+    if not mQoL_DB then return false end
+
+    return mQoL_DB.firstSetupDone == true
+        or type(mQoL_DB.MainQoL) == "table"
+        or type(mQoL_DB.Modules) == "table"
+end
+
+local function GetSetupState()
+    mQoL_DB = mQoL_DB or {}
+    mQoL_DB.Setup = mQoL_DB.Setup or {}
+
+    local setup = mQoL_DB.Setup
+    setup.seenModules = setup.seenModules or {}
+    return setup
+end
+
+function mQoL_Modules:GetModule(key)
+    for _, module in ipairs(self.AvailableModules) do
+        if module.key == key then
+            return module
+        end
+    end
+    return nil
+end
+
 function mQoL_Modules:IsModuleCompatible(moduleData)
     local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
-    if not clientInfo then return false end
+    if not moduleData or not clientInfo then return false end
 
-    for _, vKey in ipairs(moduleData.versions) do
-        if clientInfo[vKey] then
+    for _, versionKey in ipairs(moduleData.versions or {}) do
+        if clientInfo[versionKey] then
             return true
         end
     end
     return false
 end
 
--- Check if a module is strictly hardlocked for the current client (versions that it cannot be enabled on)
 function mQoL_Modules:IsModuleHardlocked(moduleData)
     local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
-    if not clientInfo then return false end
+    if not moduleData or not clientInfo or not moduleData.hardlock then return false end
 
-    if moduleData.hardlock then
-        for _, vKey in ipairs(moduleData.hardlock) do
-            if clientInfo[vKey] then
-                return true
-            end
+    for _, versionKey in ipairs(moduleData.hardlock) do
+        if clientInfo[versionKey] then
+            return true
         end
     end
     return false
 end
 
--- Check if a module is enabled in Database
-function mQoL_Modules:IsModuleEnabled(key)
-    if not mQoL_DB or not mQoL_DB.Modules then return true end -- Default to enabled if DB not loaded
-    return mQoL_DB.Modules[key]
+function mQoL_Modules:IsModuleAvailable(moduleData)
+    return moduleData
+        and not self:IsModuleHardlocked(moduleData)
+        and self:IsModuleCompatible(moduleData)
 end
 
--- Strict check for Module loading: Must be Compatible and Enabled
-function mQoL_Modules:ShouldLoadModule(key)
-    local moduleData = nil
-    for _, m in ipairs(self.AvailableModules) do
-        if m.key == key then
-            moduleData = m
-            break
+function mQoL_Modules:GetCompatibleModules()
+    local modules = {}
+
+    for _, module in ipairs(self.AvailableModules) do
+        if self:IsModuleAvailable(module) then
+            table.insert(modules, module)
         end
     end
 
-    if not moduleData then return false end -- Unknown module
+    table.sort(modules, function(a, b)
+        if a.order == b.order then
+            return a.label < b.label
+        end
+        return (a.order or 0) < (b.order or 0)
+    end)
 
-    -- If Hardlocked don't load
-    if self:IsModuleHardlocked(moduleData) then
+    return modules
+end
+
+function mQoL_Modules:GetModuleSetupVersion(moduleData)
+    return tonumber(moduleData and moduleData.setupVersion) or 1
+end
+
+function mQoL_Modules:MarkModuleSeen(key)
+    local moduleData = self:GetModule(key)
+    if not moduleData then return end
+
+    local setup = GetSetupState()
+    setup.seenModules[key] = self:GetModuleSetupVersion(moduleData)
+end
+
+function mQoL_Modules:GetUnseenCompatibleModules()
+    local setup = GetSetupState()
+    local modules = {}
+
+    for _, module in ipairs(self:GetCompatibleModules()) do
+        local seenVersion = tonumber(setup.seenModules[module.key]) or 0
+        if seenVersion < self:GetModuleSetupVersion(module) then
+            table.insert(modules, module)
+        end
+    end
+
+    return modules
+end
+
+function mQoL_Modules:IsModuleEnabled(key)
+    return mQoL_DB
+        and mQoL_DB.Modules
+        and mQoL_DB.Modules[key] == true
+end
+
+function mQoL_Modules:PrepareModuleSettings(key)
+    local moduleData = self:GetModule(key)
+    if not moduleData or not moduleData.controller then
+        return true
+    end
+
+    local controller = _G[moduleData.controller]
+    if not controller or type(controller.CaptureCurrentSettings) ~= "function" then
+        print(string.format("|cffff4444[mQoL]|r Cannot initialize settings for [%s].", key))
         return false
     end
 
-    if mQoL_DB and mQoL_DB.Modules and mQoL_DB.Modules[key] ~= nil then
-        return mQoL_DB.Modules[key]
+    local success, errorMessage = pcall(controller.CaptureCurrentSettings, controller)
+    if not success then
+        print(string.format("|cffff4444[mQoL]|r Failed to initialize settings for [%s]: %s", key, tostring(errorMessage)))
+        return false
+    end
+    return true
+end
+
+function mQoL_Modules:SetModuleEnabled(key, enabled, allowUnsupported)
+    local moduleData = self:GetModule(key)
+    if not moduleData or self:IsModuleHardlocked(moduleData) then
+        return false
     end
 
-    if moduleData.defaultEnabled ~= nil then
-        return (moduleData.defaultEnabled == true) and self:IsModuleCompatible(moduleData)
+    if enabled and not allowUnsupported and not self:IsModuleCompatible(moduleData) then
+        return false
     end
 
-    return self:IsModuleCompatible(moduleData)
+    if enabled and not self:PrepareModuleSettings(key) then
+        return false
+    end
+
+    mQoL_DB = mQoL_DB or {}
+    mQoL_DB.Modules = mQoL_DB.Modules or {}
+    mQoL_DB.Modules[key] = enabled == true
+    return true
+end
+
+-- Strict runtime check. Until a player enables a module, only Hub remains active.
+function mQoL_Modules:ShouldLoadModule(key)
+    local moduleData = self:GetModule(key)
+    if not moduleData or self:IsModuleHardlocked(moduleData) then
+        return false
+    end
+
+    return self:IsModuleEnabled(key)
+end
+
+function mQoL_Modules:Initialize()
+    mQoL_DB = mQoL_DB or {}
+    local hasLegacySetup = HasLegacySetup()
+    local hadModuleSelections = type(mQoL_DB.Modules) == "table"
+    mQoL_DB.Modules = mQoL_DB.Modules or {}
+
+    local setup = GetSetupState()
+    setup.pendingReload = false
+    if not setup.initialized then
+        setup.initialized = true
+        setup.registryVersion = self.REGISTRY_VERSION
+
+        -- Existing installations retain their selections and are not forced
+        -- through the new welcome wizard. Future modules will still be shown.
+        if hasLegacySetup then
+            setup.completed = true
+            setup.migratedFromLegacy = true
+            setup.migratedWithoutRegistry = not hadModuleSelections
+            for _, module in ipairs(self.AvailableModules) do
+                if not hadModuleSelections or mQoL_DB.Modules[module.key] ~= nil then
+                    setup.seenModules[module.key] = self:GetModuleSetupVersion(module)
+                end
+            end
+        else
+            setup.completed = false
+        end
+    end
+
+    for _, module in ipairs(self.AvailableModules) do
+        if mQoL_DB.Modules[module.key] == nil then
+            -- Before the registry existed, compatible modules were enabled by
+            -- default. Preserve that behavior once, while fresh installs and
+            -- genuinely new modules remain opt-in.
+            mQoL_DB.Modules[module.key] = setup.migratedWithoutRegistry == true
+                and self:IsModuleAvailable(module)
+                or false
+        end
+    end
 end
 
 function mQoL_Modules:ShowReloadPopup()
@@ -166,100 +311,46 @@ function mQoL_Modules:ShowReloadPopup()
     if not ShowCustomPopup then return end
 
     ShowCustomPopup({
-        text = "Module settings have changed.\n\nA UI reload is required to apply changes to enabled/disabled modules.\n\nReload now?",
+        text = "Module settings have changed.\n\nA UI reload is required to apply changes to enabled and disabled modules.\n\nReload now?",
         acceptText = "Reload UI",
         cancelText = "Later",
         onAccept = function()
             ReloadUI()
         end,
-        onCancel = function() end,
         width = 450,
-        height = 220
+        height = 220,
     })
 end
 
 function mQoL_Modules:CreateModulesPanel(parent)
     local mQoL_Hub = _G["mQoL_Hub"]
-    if not mQoL_Hub then return end
+    if not mQoL_Hub or not mQoL_Templates then return end
 
-    local AddGap = mQoL_Templates and mQoL_Templates.AddGap
+    local AddGap = mQoL_Templates.AddGap
     if not AddGap then return end
 
-    local scrollFrame, panel, contentContainer, infoButton, explanationFrame = mQoL_Templates.CreateStandardOptionsPanel(parent, "Module Manager", {
+    local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "Module Manager", {
         text = "How Modules Management Works?",
-        textColor = { 1, 0.82, 0 },
-        explanation = "Manage the active components of the addon.\n\n• Enable or disable modules to customize addon functionality.\n• Unsupported modules for your current game version are below |cffff0000RED WARNING|r (use them at your own risk).",
-        explanationColor = { 1, 1, 1 },
+        textColor = {1, 0.82, 0},
+        explanation = "Only the mQoL Hub is active by default. Enable the modules you want to use; a reload applies the new selection.",
+        explanationColor = {1, 1, 1},
         width = 770,
         icon = "Interface\\Icons\\INV_Misc_Gear_01",
         animDuration = 0.25,
     }, "MainSeparator")
 
-    -- Sort modules into two groups
-    local compatibleModules = {}
-    local incompatibleModules = {}
-
-    for _, module in ipairs(self.AvailableModules) do
-        -- Skip hardlocked modules
-        if not self:IsModuleHardlocked(module) then
-            if self:IsModuleCompatible(module) then
-                table.insert(compatibleModules, module)
-            else
-                table.insert(incompatibleModules, module)
-            end
-        end
-    end
-
-    local function SortByName(a, b) return a.key < b.key end
-    table.sort(compatibleModules, SortByName)
-    table.sort(incompatibleModules, SortByName)
-
-    -- Helper to render a module row
-    local function RenderModuleRow(module, isCompatible)
-        local labelText = module.label
-        local description = module.description
-
-        if not isCompatible then
-            labelText = "|cff808080" .. labelText .. " (Unsupported)|r"
-            description = description .. "\n|cffff0000Warning: This module is not designed for your game version.|r"
-        end
-
-        -- Initialize DB value if missing
-        if mQoL_DB.Modules[module.key] == nil then
-            if self:IsModuleHardlocked(module) then
-                mQoL_DB.Modules[module.key] = false
-            elseif module.defaultEnabled ~= nil then
-                mQoL_DB.Modules[module.key] = (module.defaultEnabled == true) and self:IsModuleCompatible(module)
-            else
-                mQoL_DB.Modules[module.key] = self:IsModuleCompatible(module)
-            end
-        end
-
-        mQoL_Hub:AddOptionRow(contentContainer, labelText, "checkbox", {
-            value = mQoL_DB.Modules[module.key],
-            tooltip = description,
-            onValueChanged = function(self, value)
-                mQoL_DB.Modules[module.key] = value
-                mQoL_Modules:ShowReloadPopup()
+    for _, module in ipairs(self:GetCompatibleModules()) do
+        mQoL_Hub:AddOptionRow(contentContainer, module.label, "checkbox", {
+            value = self:IsModuleEnabled(module.key),
+            tooltip = module.description,
+            onValueChanged = function(_, value)
+                if self:SetModuleEnabled(module.key, value) then
+                    self:MarkModuleSeen(module.key)
+                    self:ShowReloadPopup()
+                end
             end,
         })
         AddGap(contentContainer, "Standard")
-    end
-
-    for _, module in ipairs(compatibleModules) do
-        RenderModuleRow(module, true)
-    end
-
-    if #incompatibleModules > 0 then
-        AddGap(contentContainer, "WarningSeparator", {
-            text = "Unsupported by this version of game, but you can still enable them at your own risk.",
-            textColor = { 1, 0, 0, 1 },
-            lineColor = { 1, 0, 0, 0.3 },
-        })
-
-        for _, module in ipairs(incompatibleModules) do
-            RenderModuleRow(module, false)
-        end
     end
 
     panel.UpdateScrollChildHeight = function()
@@ -286,9 +377,14 @@ end
 
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
-f:SetScript("OnEvent", function(_, event, arg1)
-    if event == "ADDON_LOADED" and arg1 == addonName then
+f:SetScript("OnEvent", function(_, _, loadedAddonName)
+    if loadedAddonName == addonName then
         mQoL_Modules:Initialize()
         RegisterModulesPanel()
     end
 end)
+
+-- SavedVariables are available before addon Lua files execute. Initialize the
+-- registry here so every module loaded later in the TOC can gate all top-level
+-- initialization consistently.
+mQoL_Modules:Initialize()

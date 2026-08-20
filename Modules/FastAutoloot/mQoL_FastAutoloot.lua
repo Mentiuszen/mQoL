@@ -20,10 +20,19 @@ FastAutoloot.defaults = {
 
 local function GetGeneralSettings()
     mQoL_DB = mQoL_DB or {}
-    mQoL_DB["MainQoL"] = mQoL_DB["MainQoL"] or {}
-    mQoL_DB["MainQoL"].settings = mQoL_DB["MainQoL"].settings or {}
-    mQoL_DB["MainQoL"].settings.general = mQoL_DB["MainQoL"].settings.general or {}
-    return mQoL_DB["MainQoL"].settings.general
+    mQoL_DB.GeneralQoL = mQoL_DB.GeneralQoL or {}
+
+    if type(mQoL_DB.GeneralQoL.settings) ~= "table" then
+        mQoL_DB.GeneralQoL.settings = {}
+        local legacyGeneral = mQoL_DB.MainQoL
+            and mQoL_DB.MainQoL.settings
+            and mQoL_DB.MainQoL.settings.general
+        for key, value in pairs(legacyGeneral or {}) do
+            mQoL_DB.GeneralQoL.settings[key] = value
+        end
+    end
+
+    return mQoL_DB.GeneralQoL.settings
 end
 
 local function IsGeneralQoLModuleEnabled()
