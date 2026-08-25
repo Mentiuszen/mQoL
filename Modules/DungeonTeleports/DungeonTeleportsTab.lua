@@ -1,4 +1,5 @@
-local addonName, _ = ...
+local MODULE_KEY = "DungeonTeleportsTab"
+local GROUP_FINDER_ADDON_NAME = "Blizzard_GroupFinder"
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local utils = mQoL_Utils
 local IsInCombat = utils.IsInCombat
@@ -1679,10 +1680,17 @@ end)
 UpdateListedDungeonHighlightState()
 SuppressListedDungeonHighlightForCurrentInstance()
 
+local classicInitializationComplete = false
+local retailInitializationComplete = false
+
 local function InitDungeonTeleportsTabClassic()
     local config = GetDungeonTeleportsTabConfig()
-    if _G[config.tabName] then return end
-    if not PVEFrame or not PVEFrameTab3 then return end
+    if _G[config.tabName] then
+        return classicInitializationComplete
+    end
+    if not PVEFrame or not PVEFrameTab3 then
+        return false
+    end
 
     local tabName = config.tabName
     local isClassicLayout = config.isClassicLayout
@@ -2695,11 +2703,17 @@ local function InitDungeonTeleportsTabClassic()
     tabStateFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     tabStateFrame:SetScript("OnEvent", UpdateDungeonTeleportsTabState)
     UpdateDungeonTeleportsTabState()
+    classicInitializationComplete = true
+    return true
 end
 
 local function InitDungeonTeleportsTabRetail()
-    if _G["PVEFrameTab4"] then return end
-    if not PVEFrame or not PVEFrameTab3 then return end
+    if _G.PVEFrameTab4 then
+        return retailInitializationComplete
+    end
+    if not PVEFrame or not PVEFrameTab3 then
+        return false
+    end
 
     local pendingCategoryValue
     local pendingCategoryText
@@ -3487,67 +3501,69 @@ local function InitDungeonTeleportsTabRetail()
     tabStateFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     tabStateFrame:SetScript("OnEvent", UpdateDungeonTeleportsTabState)
     UpdateDungeonTeleportsTabState()
+    retailInitializationComplete = true
+    return true
 end
 
-local frame = CreateFrame("Frame")
-local isInitialized = false
-
-local function IsDungeonTeleportsEnabled()
-    return mQoL_Modules
-        and type(mQoL_Modules.ShouldLoadModule) == "function"
-        and mQoL_Modules:ShouldLoadModule("DungeonTeleports")
-end
+local initializerFrame = CreateFrame("Frame")
+local bootstrapComplete = false
+local IsAddOnLoadedCompat = C_AddOns and C_AddOns.IsAddOnLoaded or _G.IsAddOnLoaded
 
 local function IsGroupFinderLoaded()
-    if C_AddOns and C_AddOns.IsAddOnLoaded then
-        return C_AddOns.IsAddOnLoaded("Blizzard_GroupFinder")
+    if not IsAddOnLoadedCompat then
+        return false
     end
 
-    if _G.IsAddOnLoaded then
-        return _G.IsAddOnLoaded("Blizzard_GroupFinder")
+    -- The first result also becomes true while the addon is still loading;
+    -- only the second result guarantees that its PVE frames are ready.
+    local isLoadedOrLoading, isLoaded = IsAddOnLoadedCompat(GROUP_FINDER_ADDON_NAME)
+    if isLoaded ~= nil then
+        return isLoaded
     end
-
-    return false
+    return isLoadedOrLoading
 end
 
-local function TryInitialize(self)
-    if not IsDungeonTeleportsEnabled() then
+local InitializeDungeonTeleportsTab = clientInfo.isClassic
+    and InitDungeonTeleportsTabClassic
+    or InitDungeonTeleportsTabRetail
+
+local function TryInitializeDungeonTeleportsTab(eventFrame)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then
         return
     end
-    if isInitialized then
+    if bootstrapComplete then
         return
     end
     if not IsGroupFinderLoaded() then
         return
     end
     if IsInCombat() then
-        self:RegisterEvent("PLAYER_REGEN_ENABLED")
+        eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
         return
     end
 
-    if clientInfo.isClassic then
-        InitDungeonTeleportsTabClassic()
-    else
-        InitDungeonTeleportsTabRetail()
+    if not InitializeDungeonTeleportsTab() then
+        return
     end
+
     UpdateListedDungeonHighlightState()
     SuppressListedDungeonHighlightForCurrentInstance()
-    isInitialized = true
-    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-    self:UnregisterEvent("ADDON_LOADED")
+    bootstrapComplete = true
+    eventFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    eventFrame:UnregisterEvent("PLAYER_LOGIN")
+    eventFrame:UnregisterEvent("ADDON_LOADED")
 end
 
-if IsDungeonTeleportsEnabled() then
-    frame:RegisterEvent("ADDON_LOADED")
-    frame:SetScript("OnEvent", function(self, event, addonName)
-        if event == "ADDON_LOADED" then
-            if addonName == "Blizzard_GroupFinder" then
-                TryInitialize(self)
-            end
-        elseif event == "PLAYER_REGEN_ENABLED" then
-            TryInitialize(self)
+initializerFrame:RegisterEvent("ADDON_LOADED")
+initializerFrame:RegisterEvent("PLAYER_LOGIN")
+initializerFrame:SetScript("OnEvent", function(self, event, loadedAddonName)
+    if event == "ADDON_LOADED" then
+        if loadedAddonName == GROUP_FINDER_ADDON_NAME then
+            TryInitializeDungeonTeleportsTab(self)
         end
-    end)
+    elseif event == "PLAYER_LOGIN" or event == "PLAYER_REGEN_ENABLED" then
+        TryInitializeDungeonTeleportsTab(self)
+    end
+end)
 
-    TryInitialize(frame)
-end
+TryInitializeDungeonTeleportsTab(initializerFrame)

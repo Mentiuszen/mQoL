@@ -9,6 +9,9 @@ mQoL_Modules = mQoL_Modules or {}
 
 mQoL_Modules.REGISTRY_VERSION = 1
 
+local DUNGEON_TELEPORTS_TAB_MODULE_KEY = "DungeonTeleportsTab"
+local LEGACY_DUNGEON_TELEPORTS_MODULE_KEY = "DungeonTeleports"
+
 -- Every optional module starts disabled. Hub is core functionality and is not
 -- represented here, so it is always available.
 mQoL_Modules.AvailableModules = {
@@ -90,8 +93,8 @@ mQoL_Modules.AvailableModules = {
         order = 90,
     },
     {
-        key = "DungeonTeleports",
-        label = "Dungeon Teleports",
+        key = DUNGEON_TELEPORTS_TAB_MODULE_KEY,
+        label = "Dungeon Teleports Tab",
         description = "Adds dungeon teleport navigation to the Group Finder interface.",
         versions = {"isRetail", "isClassic"},
         hardlock = {"isPandaria", "isLegion", "isEra", "isBCC"},
@@ -124,6 +127,13 @@ local function GetSetupState()
     local setup = mQoL_DB.Setup
     setup.seenModules = setup.seenModules or {}
     return setup
+end
+
+local function MigrateDungeonTeleportsModuleState(state)
+    if state[DUNGEON_TELEPORTS_TAB_MODULE_KEY] == nil then
+        state[DUNGEON_TELEPORTS_TAB_MODULE_KEY] = state[LEGACY_DUNGEON_TELEPORTS_MODULE_KEY]
+    end
+    state[LEGACY_DUNGEON_TELEPORTS_MODULE_KEY] = nil
 end
 
 function mQoL_Modules:GetModule(key)
@@ -256,13 +266,9 @@ function mQoL_Modules:SetModuleEnabled(key, enabled, allowUnsupported)
     return true
 end
 
--- Strict runtime check. Until a player enables a module, only Hub remains active.
+-- Runtime loading follows persisted module state; compatibility and hardlocks
+-- only control availability and selection.
 function mQoL_Modules:ShouldLoadModule(key)
-    local moduleData = self:GetModule(key)
-    if not moduleData or self:IsModuleHardlocked(moduleData) then
-        return false
-    end
-
     return self:IsModuleEnabled(key)
 end
 
@@ -273,6 +279,8 @@ function mQoL_Modules:Initialize()
     mQoL_DB.Modules = mQoL_DB.Modules or {}
 
     local setup = GetSetupState()
+    MigrateDungeonTeleportsModuleState(mQoL_DB.Modules)
+    MigrateDungeonTeleportsModuleState(setup.seenModules)
     setup.pendingReload = false
     if not setup.initialized then
         setup.initialized = true
