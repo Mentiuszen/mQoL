@@ -380,6 +380,20 @@ function mQoL_Styles.CreateCustomButton(parent, text, width, height)
     return btn
 end
 
+local function IsFrameMouseOver(frame)
+    if not frame then return false end
+
+    if type(frame.IsMouseOver) == "function" then
+        return frame:IsMouseOver()
+    end
+
+    if type(_G.MouseIsOver) == "function" then
+        return _G.MouseIsOver(frame)
+    end
+
+    return false
+end
+
 -- Dropdown - Custom dropdown menu with modern style
 mQoL_Styles.dropdownCounter = 0
 function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, onSelect)
@@ -500,7 +514,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 	mouseWatcher = CreateFrame("Frame", nil, dropdown)
     mouseWatcher:Hide()
 	mouseWatcher:SetScript("OnUpdate", function()
-		if list:IsShown() and not dropdown:IsMouseOver() and not list:IsMouseOver() and IsMouseButtonDown() then
+		if list:IsShown() and not IsFrameMouseOver(dropdown) and not IsFrameMouseOver(list) and IsMouseButtonDown() then
 			HideList()
 		end
 	end)
