@@ -122,7 +122,7 @@ local function SafeCall(func, ...)
 end
 
 function mQoL_RaidProfiles:ShouldHandleUseCompactPartyFrames()
-    return clientInfo.isClassicToT or clientInfo.isEra or clientInfo.isLegion
+    return clientInfo.isEra or clientInfo.isVanilla or clientInfo.isLegion
 end
 
 function mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
@@ -429,9 +429,9 @@ VersionAdapters.Legion = {
 
 -- Get adapter for current client version
 function VersionAdapters:GetCurrent()
-    if clientInfo.isBCC or (clientInfo.isClassic and not clientInfo.isClassicToT) then
+    if clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP then
         return self.ModernClassic
-    elseif clientInfo.isClassic or clientInfo.isEra then
+    elseif clientInfo.isEra or clientInfo.isVanilla then
         return self.Classic
     elseif clientInfo.isLegion then
         return self.Legion

@@ -5,13 +5,9 @@ local mQoL_Hub = _G["mQoL_Hub"]
 if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isClassic) then return end
+if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP or (clientInfo.isAuto and clientInfo.tests and clientInfo.tests.hasEditMode)) then return end
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
-
-local function IsClassicEditModePending()
-    return clientInfo.isClassicToT
-end
 
 local SITUATIONAL_MODE_KEY = "Use Situational Instead"
 
@@ -102,10 +98,6 @@ function mQoL_EditMode:InitializeDB()
 end
 
 function mQoL_EditMode:GetEditModeProfiles()
-    if IsClassicEditModePending() then
-        return {}
-    end
-
     if not EditModeManagerFrame or not EditModeManagerFrame.GetLayouts then
         return {}
     end
@@ -193,10 +185,6 @@ local function ExportLayoutString(layout, fallbackIndex)
 end
 
 function mQoL_EditMode:BackupPlayerProfiles(force)
-    if IsClassicEditModePending() then
-        return
-    end
-
     if self._backupDoneThisSession and not force then return end
     if not force then
         self._backupDoneThisSession = true
@@ -289,10 +277,6 @@ local function SetupCombatEventFrame()
 end
 
 function mQoL_EditMode:ForceEditModeProfile(profileName)
-    if IsClassicEditModePending() then
-        return false
-    end
-
     if not profileName or profileName == "" then return false end
 
     if InCombatLockdown and InCombatLockdown() then
@@ -358,10 +342,6 @@ function mQoL_EditMode:IsSituationalModeEnabled()
 end
 
 function mQoL_EditMode:UpdateCurrentProfile(immediate)
-    if IsClassicEditModePending() then
-        return
-    end
-
     if self.updateTimer then self.updateTimer:Cancel() end
 
     local function Update()
@@ -951,36 +931,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
     return panel
 end
 
-function mQoL_EditMode:CreateClassicEditModeNoticePanel(parent)
-    local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "Edit Mode Settings", nil, "TopSeparator")
-    local currentVersion = clientInfo.version or "unknown"
-    local currentTocVersion = tonumber(clientInfo.tocversion) or 0
-
-    local message = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    message:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-    message:SetWidth(770)
-    message:SetJustifyH("LEFT")
-    message:SetText(string.format(
-        "|cffffd100Edit Mode will be available in Mists of Pandaria Classic version 5.5.4.|r\n\nCurrent Mists of Pandaria Classic version: %s (%d).",
-        currentVersion,
-        currentTocVersion
-    ))
-
-    contentContainer.currentY = contentContainer.currentY - ((message.GetStringHeight and message:GetStringHeight()) or 42) - 24
-
-    panel.UpdateScrollChildHeight = function()
-        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
-    end
-    panel.UpdateScrollChildHeight()
-
-    return scrollFrame
-end
-
 function mQoL_EditMode:CreateEditModePanel(parent)
-    if IsClassicEditModePending() then
-        return self:CreateClassicEditModeNoticePanel(parent)
-    end
-
     local module = self
     local s = self.db.settings
 
@@ -1227,10 +1178,6 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             end)
         end
 
-        if IsClassicEditModePending() then
-            return
-        end
-
         lastSituation = mQoL_EditMode:GetCurrentSituation()
         lastSpecID = GetPlayerSpecID()
 
@@ -1238,10 +1185,6 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             mQoL_EditMode:BackupPlayerProfiles()
             mQoL_EditMode:UpdateCurrentProfile(true)
         end)
-        return
-    end
-
-    if IsClassicEditModePending() then
         return
     end
 

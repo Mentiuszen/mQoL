@@ -1,5 +1,8 @@
 local addonName = ...
 
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+if not (clientInfo and (clientInfo.isBCC or clientInfo.isTBC)) then return end
+
 local DEBUG_HITBOXES = false
 
 local NAV_INFO = {

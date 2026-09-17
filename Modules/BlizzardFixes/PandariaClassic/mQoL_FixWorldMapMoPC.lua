@@ -1,5 +1,8 @@
 local addonName = ...
 
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+if not (clientInfo and (clientInfo.isClassic or clientInfo.isMoP)) then return end
+
 local NAV_INFO = {
     [371] = { name = "The Jade Forest",           levels = "85–86" },
     [376] = { name = "Valley of the Four Winds",  levels = "86–87" },

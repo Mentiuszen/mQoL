@@ -535,11 +535,11 @@ end
 function mQoL_RaidProfiles:HookSettingsPanel()
     if clientInfo.isRetail then
         self:HookSettingsPanelRetail()
-    elseif clientInfo.isBCC then
+    elseif clientInfo.isBCC or clientInfo.isTBC then
         self:HookSettingsPanelBCC()
-    elseif clientInfo.isClassic and not clientInfo.isClassicToT then    --New Raid Profiles Hook for 5.5.4
+    elseif clientInfo.isClassic or clientInfo.isMoP then
         self:HookSettingsPanelBCC()
-    elseif clientInfo.isClassic or clientInfo.isEra then
+    elseif clientInfo.isEra or clientInfo.isVanilla then
         self:HookSettingsPanelClassic()
     elseif clientInfo.isLegion then
         self:HookSettingsPanelLegion()

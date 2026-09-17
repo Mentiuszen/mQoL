@@ -1,5 +1,8 @@
 local addonName = ...
 
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+if not (clientInfo and (clientInfo.isClassic or clientInfo.isMoP)) then return end
+
 local function ShouldLoadBlizzardFixes()
     return not (mQoL_Modules and not mQoL_Modules:ShouldLoadModule("BlizzardFixes"))
 end
