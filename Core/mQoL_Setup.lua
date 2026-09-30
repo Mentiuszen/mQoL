@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
 
 mQoL_Setup = mQoL_Setup or {}
 
@@ -65,7 +66,7 @@ local function CreateSetupFrame()
     else
         frame.background = frame:CreateTexture(nil, "BACKGROUND")
         frame.background:SetAllPoints()
-        frame.background:SetColorTexture(0.04, 0.04, 0.04, 0.95)
+        mQoL_Compat.SetSolidColor(frame.background, 0.04, 0.04, 0.04, 0.95)
     end
 
     frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")

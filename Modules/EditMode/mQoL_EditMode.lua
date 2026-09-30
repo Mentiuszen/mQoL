@@ -1,11 +1,14 @@
 local addonName, _ = ...
+local C_Timer = mQoL_Compat.Timer
+local SetSolidColor = mQoL_Compat.SetSolidColor
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
 mQoL_EditMode = mQoL_EditMode or {}
 
 local mQoL_Hub = _G["mQoL_Hub"]
 if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP or ((clientInfo.isAuto or clientInfo.isForever) and clientInfo.tests and clientInfo.tests.hasEditMode)) then return end
+if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP or clientInfo.isAuto or clientInfo.isForever) then return end
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
 
@@ -98,6 +101,12 @@ function mQoL_EditMode:InitializeDB()
 end
 
 function mQoL_EditMode:GetEditModeProfiles()
+    if mQoL_Auto then
+        local result=mQoL_Auto.ReadLayouts()
+        local names={}
+        if result.state=='ready' then for _,layout in ipairs(result.data.layouts) do names[#names+1]=layout.layoutName end end
+        table.sort(names);return names
+    end
     if not EditModeManagerFrame or not EditModeManagerFrame.GetLayouts then
         return {}
     end
@@ -185,6 +194,7 @@ local function ExportLayoutString(layout, fallbackIndex)
 end
 
 function mQoL_EditMode:BackupPlayerProfiles(force)
+    if mQoL_Auto and not mQoL_Auto:CanUse('EditMode','export') then return end
     if self._backupDoneThisSession and not force then return end
     if not force then
         self._backupDoneThisSession = true
@@ -278,6 +288,22 @@ end
 
 function mQoL_EditMode:ForceEditModeProfile(profileName)
     if not profileName or profileName == "" then return false end
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule('EditMode') then return false end
+    if mQoL_Auto then
+        local allowed,reason,r=mQoL_Auto:CanUse('EditMode','apply',true)
+        if not allowed then return false,reason end
+        if mQoL_Compat.InCombat() then self.pendingProfileLoad=profileName;SetupCombatEventFrame();return false end
+        for index,layout in ipairs(r.data.layouts) do
+            if layout.layoutName==profileName then
+                local ok,err=mQoL_Compat.Write('C_EditMode.SetActiveLayout',index)
+                if not ok then mQoL_Compat.Report('EditMode apply',err);return false,err end
+                local actual=mQoL_Auto.ReadLayouts()
+                if actual.state~='ready' or actual.data.activeLayout~=index then return false,'Layout readback did not confirm application' end
+                return true
+            end
+        end
+        return false,'Layout not found'
+    end
 
     if InCombatLockdown and InCombatLockdown() then
         self.pendingProfileLoad = profileName
@@ -515,7 +541,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
         dragCursor:EnableMouse(false)
         local bg = dragCursor:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0.2, 0.5, 0.2, 0.9)
+        SetSolidColor(bg, 0.2, 0.5, 0.2, 0.9)
         if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
             mQoL_Templates.CreateFrameBorder(dragCursor, 1, {0.4, 0.8, 0.4, 1})
         end
@@ -624,7 +650,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
             local bg = btn:CreateTexture(nil, "BACKGROUND")
             bg:SetAllPoints()
-            bg:SetColorTexture(1, 1, 1, 0.03)
+            SetSolidColor(bg, 1, 1, 1, 0.03)
 
             local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             text:SetPoint("LEFT", 4, 0)
@@ -635,7 +661,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
             btn:SetScript("OnEnter", function(self)
                 if not currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.08)
+                    SetSolidColor(bg, 1, 1, 1, 0.08)
                 end
                 if text:IsTruncated() then
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -645,7 +671,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             end)
             btn:SetScript("OnLeave", function()
                 if not currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.03)
+                    SetSolidColor(bg, 1, 1, 1, 0.03)
                 end
                 GameTooltip:Hide()
             end)
@@ -654,14 +680,14 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                 if button == "LeftButton" then
                     currentDrag = name
                     currentHoverTarget = nil
-                    bg:SetColorTexture(0.2, 0.5, 0.2, 0.5)
+                    SetSolidColor(bg, 0.2, 0.5, 0.2, 0.5)
                     CreateDragCursor(name)
                 end
             end)
 
             btn:SetScript("OnMouseUp", function(self, button)
                 if button == "LeftButton" and currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.03)
+                    SetSolidColor(bg, 1, 1, 1, 0.03)
                     if not CheckDropTargets() then
                         HideDragCursor()
                     end
@@ -746,7 +772,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             bg:SetAllPoints()
             local c = item.color or {r=0.5, g=0.5, b=0.5}
             local origR, origG, origB, origA = c.r*0.15, c.g*0.15, c.b*0.15, 0.5
-            bg:SetColorTexture(origR, origG, origB, origA)
+            SetSolidColor(bg, origR, origG, origB, origA)
 
             local expander = CreateFrame("Button", nil, row)
             expander:SetSize(16, 16)
@@ -805,16 +831,16 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             row:SetScript("OnEnter", function(self)
                 if currentDrag then
                     if hasSituational then
-                        bg:SetColorTexture(0.7, 0.2, 0.2, 0.8)
+                        SetSolidColor(bg, 0.7, 0.2, 0.2, 0.8)
                     else
-                        bg:SetColorTexture(0.2, 0.7, 0.2, 0.8)
+                        SetSolidColor(bg, 0.2, 0.7, 0.2, 0.8)
                     end
                 else
-                    bg:SetColorTexture(c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
+                    SetSolidColor(bg, c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
                 end
             end)
             row:SetScript("OnLeave", function(self)
-                bg:SetColorTexture(origR, origG, origB, origA)
+                SetSolidColor(bg, origR, origG, origB, origA)
             end)
 
             row:SetScript("OnMouseUp", function(self, button)
@@ -843,7 +869,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
                     local subBg = subRow:CreateTexture(nil, "BACKGROUND")
                     subBg:SetAllPoints()
-                    subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3)
+                    SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3)
 
                     local subLabel = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                     subLabel:SetPoint("LEFT", 4, 0)
@@ -885,15 +911,15 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                     subRow:SetScript("OnEnter", function()
                         if currentDrag then
                             if mainAssigned then
-                                subBg:SetColorTexture(0.7, 0.2, 0.2, 0.6)
+                                SetSolidColor(subBg, 0.7, 0.2, 0.2, 0.6)
                             else
-                                subBg:SetColorTexture(0.2, 0.7, 0.2, 0.6)
+                                SetSolidColor(subBg, 0.2, 0.7, 0.2, 0.6)
                             end
                         else
-                            subBg:SetColorTexture(0.2, 0.2, 0.2, 0.5)
+                            SetSolidColor(subBg, 0.2, 0.2, 0.2, 0.5)
                         end
                     end)
-                    subRow:SetScript("OnLeave", function() subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3) end)
+                    subRow:SetScript("OnLeave", function() SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3) end)
 
                     subRow:SetScript("OnMouseUp", function(self, button)
                         if button == "RightButton" then
@@ -1160,14 +1186,25 @@ local lastSpecID = nil
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_LOGOUT")
-eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+mQoL_Compat.RegisterEvent(eventFrame,"PLAYER_SPECIALIZATION_CHANGED")
+mQoL_Compat.RegisterEvent(eventFrame,"GROUP_ROSTER_UPDATE")
+mQoL_Compat.RegisterEvent(eventFrame,"EDIT_MODE_LAYOUTS_UPDATED")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("EditMode") then return end
 
     if event == "ADDON_LOADED" and arg1 == addonName then
         mQoL_EditMode:InitializeDB()
+        return
+    end
+
+    if event=='ADDON_LOADED' or event=='EDIT_MODE_LAYOUTS_UPDATED' then
+        if mQoL_Auto then
+            if not mQoL_EditMode.db then mQoL_EditMode:InitializeDB() end
+            if mQoL_Auto:CanUse('EditMode','layouts') then
+                mQoL_Hub:RegisterModuleOptions('mQoL_EditMode','Edit Mode',function(parent) return mQoL_EditMode:CreateEditModePanel(parent) end)
+            end
+        end
         return
     end
 

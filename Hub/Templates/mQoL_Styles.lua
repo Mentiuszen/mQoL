@@ -1,5 +1,7 @@
 local addonName, mQoL = ...
 mQoL_Styles = mQoL_Styles or {}
+local C_Timer = mQoL_Compat and mQoL_Compat.Timer or C_Timer
+local SetSolidColor = mQoL_Compat and mQoL_Compat.SetSolidColor or function(texture,...) texture:SetColorTexture(...) end
 
 local addonFolder = tostring(addonName or "DungeonTeleportsTab")
 local textureBasePath = "Interface\\AddOns\\" .. addonFolder .. "\\Media\\Textures\\"
@@ -22,12 +24,12 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
         if enabled then
             btn:SetAlpha(1)
             btn:EnableMouse(true)
-            btn.bg:SetColorTexture(0.12, 0.12, 0.12, 0.95)
+            SetSolidColor(btn.bg, 0.12, 0.12, 0.12, 0.95)
             btn.arrow:SetVertexColor(0.9, 0.9, 0.9, 1)
         else
             btn:SetAlpha(0.35)
             btn:EnableMouse(false)
-            btn.bg:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+            SetSolidColor(btn.bg, 0.08, 0.08, 0.08, 0.9)
             btn.arrow:SetVertexColor(0.55, 0.55, 0.55, 0.7)
         end
     end
@@ -40,12 +42,12 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
 
         btn.bg = btn:CreateTexture(nil, "BACKGROUND")
         btn.bg:SetAllPoints()
-        btn.bg:SetColorTexture(0.12, 0.12, 0.12, 0.95)
+        SetSolidColor(btn.bg, 0.12, 0.12, 0.12, 0.95)
 
         btn.border = btn:CreateTexture(nil, "BORDER")
         btn.border:SetPoint("TOPLEFT", 0, 0)
         btn.border:SetPoint("BOTTOMRIGHT", 0, 0)
-        btn.border:SetColorTexture(0.25, 0.25, 0.25, 1)
+        SetSolidColor(btn.border, 0.25, 0.25, 0.25, 1)
 
         btn.arrow = btn:CreateTexture(nil, "OVERLAY")
         btn.arrow:SetSize(buttonSize - 6, buttonSize - 6)
@@ -55,10 +57,10 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
 
         btn:SetScript("OnEnter", function(self)
             if self:GetAlpha() < 1 then return end
-            self.bg:SetColorTexture(0.18, 0.18, 0.18, 1)
+            SetSolidColor(self.bg, 0.18, 0.18, 0.18, 1)
         end)
         btn:SetScript("OnLeave", function(self)
-            self.bg:SetColorTexture(0.12, 0.12, 0.12, 0.95)
+            SetSolidColor(self.bg, 0.12, 0.12, 0.12, 0.95)
         end)
 
         return btn
@@ -83,12 +85,12 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
     -- Set scrollbar background color
     scrollbar.bg = scrollbar:CreateTexture(nil, "BACKGROUND")
     scrollbar.bg:SetAllPoints()
-    scrollbar.bg:SetColorTexture(unpack(activeBg))
+    SetSolidColor(scrollbar.bg, unpack(activeBg))
 
     -- Set scrollbar thumb textures
     scrollbar.thumb = scrollbar:CreateTexture(nil, "OVERLAY")
     scrollbar.thumb:SetSize(trackWidth - 2, 30)
-    scrollbar.thumb:SetColorTexture(0.6, 0.6, 0.6, 0.9)
+    SetSolidColor(scrollbar.thumb, 0.6, 0.6, 0.6, 0.9)
 
     scrollbar.thumb:SetPoint("TOPLEFT", scrollbar, "TOPLEFT", 0, 0)
     scrollbar.thumb:SetPoint("TOPRIGHT", scrollbar, "TOPRIGHT", 0, 0)
@@ -120,7 +122,7 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
 
     local function SetThumbActive(active)
         if active then
-            scrollbar.thumb:SetColorTexture(0.65, 0.65, 0.65, 0.9)
+            SetSolidColor(scrollbar.thumb, 0.65, 0.65, 0.65, 0.9)
             scrollbar.thumb:SetAlpha(1)
         else
             scrollbar.thumb:SetAlpha(0)
@@ -183,7 +185,7 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
     thumbFrame:SetScript("OnMouseDown", function()
         if scrollbar.noScroll then return end
         scrollbar.isDragging = true
-        scrollbar.thumb:SetColorTexture(0.9, 0.9, 0.9, 1)
+        SetSolidColor(scrollbar.thumb, 0.9, 0.9, 0.9, 1)
 
         -- Calculate drag offset relative to thumb top
         local _, cursorY = GetCursorPosition()
@@ -205,19 +207,19 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
             return
         end
         scrollbar.isDragging = false
-        scrollbar.thumb:SetColorTexture(0.7, 0.7, 0.7, 0.8)
+        SetSolidColor(scrollbar.thumb, 0.7, 0.7, 0.7, 0.8)
         scrollbar:SetScript("OnUpdate", nil) -- Stop drag update
     end)
 
     thumbFrame:SetScript("OnEnter", function()
         if scrollbar.noScroll then return end
-        scrollbar.thumb:SetColorTexture(0.85, 0.85, 0.85, 1.0)
+        SetSolidColor(scrollbar.thumb, 0.85, 0.85, 0.85, 1.0)
     end)
     thumbFrame:SetScript("OnLeave", function()
         if scrollbar.noScroll then
             SetThumbActive(false)
         elseif not scrollbar.isDragging then
-            scrollbar.thumb:SetColorTexture(0.7, 0.7, 0.7, 0.8)
+        SetSolidColor(scrollbar.thumb, 0.7, 0.7, 0.7, 0.8)
         end
     end)
 
@@ -307,7 +309,7 @@ function mQoL_Styles.CreateCustomScrollbar(scrollFrame, scrollChild, opts)
             SetButtonEnabled(downBtn, true)
             scrollbar:EnableMouse(true)
 
-            scrollbar.bg:SetColorTexture(unpack(activeBg))
+            SetSolidColor(scrollbar.bg, unpack(activeBg))
             scrollbar.noScroll = false
             
             scrollbar:SetMinMaxValues(0, scrollMax)
@@ -346,7 +348,7 @@ function mQoL_Styles.CreateCustomButton(parent, text, width, height)
     -- Background texture
     btn.bg = btn:CreateTexture(nil, "BACKGROUND")
     btn.bg:SetAllPoints()
-    btn.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(btn.bg, 0.15, 0.15, 0.15, 1)
 
     -- Border frame
     btn.border = CreateFrame("Frame", nil, btn)
@@ -368,12 +370,12 @@ function mQoL_Styles.CreateCustomButton(parent, text, width, height)
 
     -- Button hover effects
     btn:SetScript("OnEnter", function(self)
-        self.bg:SetColorTexture(0.20, 0.20, 0.20, 1)
+        SetSolidColor(self.bg, 0.20, 0.20, 0.20, 1)
         self.text:SetTextColor(1, 1, 1)
     end)
 
     btn:SetScript("OnLeave", function(self)
-        self.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(self.bg, 0.15, 0.15, 0.15, 1)
         self.text:SetTextColor(0.9, 0.9, 0.9)
     end)
 
@@ -406,7 +408,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
     -- Background texture
     dropdown.bg = dropdown:CreateTexture(nil, "BACKGROUND")
     dropdown.bg:SetAllPoints()
-    dropdown.bg:SetColorTexture(0.2, 0.2, 0.2, 0.9)
+    SetSolidColor(dropdown.bg, 0.2, 0.2, 0.2, 0.9)
 
     -- Text of selected option
     dropdown.text = dropdown:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -446,13 +448,13 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 
     list.bg = list:CreateTexture(nil, "BACKGROUND")
     list.bg:SetAllPoints()
-    list.bg:SetColorTexture(0, 0, 0, 0.9)
+    SetSolidColor(list.bg, 0, 0, 0, 0.9)
 
     list.border = CreateFrame("Frame", nil, list)
     list.border:SetAllPoints()
     list.border.tex = list.border:CreateTexture(nil, "BORDER")
     list.border.tex:SetAllPoints()
-    list.border.tex:SetColorTexture(0.4, 0.4, 0.4, 1)
+    SetSolidColor(list.border.tex, 0.4, 0.4, 0.4, 1)
 
     list:SetScript("OnShow", function()
         mQoL_Styles._openDropdownLists[list] = true
@@ -590,7 +592,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
                 sep:SetFrameLevel(list:GetFrameLevel() + 2)
 
                 local line = sep:CreateTexture(nil, "ARTWORK")
-                line:SetColorTexture(1, 1, 1, 0.50)
+                SetSolidColor(line, 1, 1, 1, 0.50)
                 line:SetHeight(1)
                 line:SetPoint("LEFT", sep, "LEFT", 8, 0)
                 line:SetPoint("RIGHT", sep, "RIGHT", -8, 0)
@@ -606,7 +608,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 
                 btn.bg = btn:CreateTexture(nil, "BACKGROUND")
                 btn.bg:SetAllPoints()
-                btn.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+                SetSolidColor(btn.bg, 0.1, 0.1, 0.1, 1)
 
                 btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
                 btn.text:SetPoint("LEFT", 8, 0)
@@ -617,7 +619,7 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
 
                 if type(item) == "table" and item.underline == true then
                     local underline = btn:CreateTexture(nil, "OVERLAY")
-                    underline:SetColorTexture(1, 1, 1, 0.55)
+                    SetSolidColor(underline, 1, 1, 1, 0.55)
                     underline:SetPoint("TOPLEFT", btn.text, "BOTTOMLEFT", 0, -1)
                     underline:SetPoint("TOPRIGHT", btn.text, "BOTTOMRIGHT", 0, -1)
                     underline:SetHeight(1)
@@ -723,7 +725,7 @@ function mQoL_Styles.CreateCustomSlider(parent, labelText, minValue, maxValue, s
     slider:SetSize(width or 200, sliderHeight)
     slider:SetMinMaxValues(minValue, maxValue)
     slider:SetValueStep(step or 1)
-    slider:SetObeyStepOnDrag(true)
+    if type(slider.SetObeyStepOnDrag)=="function" then slider:SetObeyStepOnDrag(true) end
     slider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
     slider:GetThumbTexture():SetAlpha(0)
 
@@ -734,12 +736,12 @@ function mQoL_Styles.CreateCustomSlider(parent, labelText, minValue, maxValue, s
 
     -- BgBar
     slider.bgBar = slider:CreateTexture(nil, "BACKGROUND")
-    slider.bgBar:SetColorTexture(0.15,0.15,0.15,1)
+    SetSolidColor(slider.bgBar, 0.15,0.15,0.15,1)
 
     -- Thumb
     slider.thumb = slider:CreateTexture(nil, "OVERLAY")
     slider.thumb:SetTexture("Interface\\Buttons\\WHITE8x8")
-    slider.thumb:SetColorTexture(0.6,0.6,0.6,1)
+    SetSolidColor(slider.thumb, 0.6,0.6,0.6,1)
     slider.thumb:SetSize(thumbWidth, thumbHeight)
 
     -- Label
@@ -816,7 +818,7 @@ function mQoL_Styles.CreateCustomSlider(parent, labelText, minValue, maxValue, s
 
             local line = self.markerContainer:CreateTexture(nil,"OVERLAY")
             line:SetSize(mark.CustomWidth or 3,12)
-            line:SetColorTexture(unpack(mark.color or {1,0.82,0}))
+            SetSolidColor(line, unpack(mark.color or {1,0.82,0}))
             line:SetPoint("CENTER", self.markerContainer, "LEFT", x, -2)
             table.insert(self.markerLabels,line)
 
@@ -848,32 +850,32 @@ function mQoL_Styles.CreateCustomInputBox(parent, width, height, onEnterCallback
     -- Background
     editBox.bg = editBox:CreateTexture(nil, "BACKGROUND")
     editBox.bg:SetAllPoints()
-    editBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(editBox.bg, 0.15, 0.15, 0.15, 1)
 
     -- Pixel-perfect border 1px
     local borderColor = {0.25, 0.25, 0.25, 1}
     local thickness = 1
 
     editBox.borderTop = editBox:CreateTexture(nil, "BORDER")
-    editBox.borderTop:SetColorTexture(unpack(borderColor))
+    SetSolidColor(editBox.borderTop, unpack(borderColor))
     editBox.borderTop:SetPoint("TOPLEFT", editBox, "TOPLEFT", 0, 0)
     editBox.borderTop:SetPoint("TOPRIGHT", editBox, "TOPRIGHT", 0, 0)
     editBox.borderTop:SetHeight(thickness)
 
     editBox.borderBottom = editBox:CreateTexture(nil, "BORDER")
-    editBox.borderBottom:SetColorTexture(unpack(borderColor))
+    SetSolidColor(editBox.borderBottom, unpack(borderColor))
     editBox.borderBottom:SetPoint("BOTTOMLEFT", editBox, "BOTTOMLEFT", 0, 0)
     editBox.borderBottom:SetPoint("BOTTOMRIGHT", editBox, "BOTTOMRIGHT", 0, 0)
     editBox.borderBottom:SetHeight(thickness)
 
     editBox.borderLeft = editBox:CreateTexture(nil, "BORDER")
-    editBox.borderLeft:SetColorTexture(unpack(borderColor))
+    SetSolidColor(editBox.borderLeft, unpack(borderColor))
     editBox.borderLeft:SetPoint("TOPLEFT", editBox, "TOPLEFT", 0, -thickness)
     editBox.borderLeft:SetPoint("BOTTOMLEFT", editBox, "BOTTOMLEFT", 0, thickness)
     editBox.borderLeft:SetWidth(thickness)
 
     editBox.borderRight = editBox:CreateTexture(nil, "BORDER")
-    editBox.borderRight:SetColorTexture(unpack(borderColor))
+    SetSolidColor(editBox.borderRight, unpack(borderColor))
     editBox.borderRight:SetPoint("TOPRIGHT", editBox, "TOPRIGHT", 0, -thickness)
     editBox.borderRight:SetPoint("BOTTOMRIGHT", editBox, "BOTTOMRIGHT", 0, thickness)
     editBox.borderRight:SetWidth(thickness)
@@ -904,7 +906,7 @@ function mQoL_Styles.CreateCustomCheckbox(parent, labelText)
     -- checkbox background
     wrapper.bg = wrapper:CreateTexture(nil, "BACKGROUND")
     wrapper.bg:SetAllPoints()
-    wrapper.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(wrapper.bg, 0.15, 0.15, 0.15, 1)
 
     -- checkbox border
     local borderThickness = 1
@@ -997,7 +999,7 @@ function mQoL_Styles.ShowCustomPopup(opts)
         -- Popup background
         f.bg = f:CreateTexture(nil, "BACKGROUND")
         f.bg:SetAllPoints()
-        f.bg:SetColorTexture(0.08, 0.08, 0.08, 0.95)
+        SetSolidColor(f.bg, 0.08, 0.08, 0.08, 0.95)
 
         -- Popup border
         f.border = CreateFrame("Frame", nil, f)

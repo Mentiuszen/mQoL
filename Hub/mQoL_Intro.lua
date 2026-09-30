@@ -114,7 +114,7 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     line:SetPoint("CENTER")
     line:SetHeight(INTRO_CONFIG.dimensions.lineHeight)
     line:SetWidth(1)
-    line:SetColorTexture(unpack(INTRO_CONFIG.colors.line))
+    mQoL_Compat.SetSolidColor(line, unpack(INTRO_CONFIG.colors.line))
 
     local lineGlow = lineFrame:CreateTexture(nil, "OVERLAY")
     lineGlow:SetPoint("CENTER")
@@ -155,6 +155,7 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
     end
 
     local function PlayExitSequence()
+        if type(intro.CreateAnimationGroup)~="function" then FinishIntro(true);return end
         intro.exitStarted = true
         intro:SetScript("OnUpdate", nil)
 
@@ -177,7 +178,7 @@ function mQoL_Hub:RunHomeIntro(parent, finalContentFrame)
         aExit:SetDuration(0.6)
         aExit:SetFromAlpha(1)
         aExit:SetToAlpha(0)
-        aExit:SetTarget(intro)
+        if type(aExit.SetTarget)=="function" then aExit:SetTarget(intro) end
 
         outroAG:SetScript("OnFinished", function()
             intro:Hide()

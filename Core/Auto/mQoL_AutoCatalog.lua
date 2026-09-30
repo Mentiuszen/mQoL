@@ -1,4 +1,7 @@
-if not mQoL_Auto then return end
+-- The catalog owns Auto/Forever state. Shared helpers and libraries have no
+-- dependency on this state and have already loaded on every client.
+if not (mQoL_VersionDetection and mQoL_VersionDetection:UsesCapabilityChecks()) then return end
+mQoL_Auto = {errors=mQoL_Compat.errors,catalog={},byKey={},scanCount=0}
 local A=mQoL_Auto
 local function Module(key,label)
     local m={key=key,label=label,description=label,versions={"isAuto","isForever"},setupVersion=1,order=(#A.catalog+1)*10,features={},byFeature={}}
@@ -88,11 +91,12 @@ Feature(m,"pveTab","Group Finder tab","pve",{provider="Blizzard_GroupFinder",eve
 Feature(m,"popup","Group Finder popup","pve",{provider="Blizzard_GroupFinder",events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
 m=Module("MythicPlusListing","Mythic+ Listing Helper")
 Feature(m,"ownKey","Own keystone","keystone",{events={PLAYER_LOGIN=true,CHALLENGE_MODE_MAPS_UPDATE=true}})
-Feature(m,"group","Party members","functions",{requires={"GetNumGroupMembers","UnitName"}})
+Feature(m,"group","Party members","functions",{requires={"GetNumGroupMembers","UnitName","UnitClass","GetRealmName","IsInGroup","IsInRaid","UnitExists"}})
 Feature(m,"rating","Player rating","functions",{requires={"C_PlayerInfo.GetPlayerMythicPlusRatingSummary"}})
 Feature(m,"communication","Party keystone exchange","communication")
 Feature(m,"listingRead","Current listing","listingRead",{events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
-Feature(m,"listingWrite","Create / edit LFG listing","functions",{requires={"C_LFGList.CreateListing","C_LFGList.UpdateListing"}})
+Feature(m,"integration","Existing LFG entry controller","mythicUI",{provider="Blizzard_GroupFinder",events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
+Feature(m,"listingWrite","Fill existing LFG entry form","mythicUI",{provider="Blizzard_GroupFinder",protected=true,events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
 -- These probes describe APIs; they do not replace the shared controllers/UI.
 -- This is a SPELL CATALOG, not proof of client content or an assumed season.
 -- Only records for known spells with a valid localized spell name are displayed.

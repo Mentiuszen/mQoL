@@ -1,7 +1,9 @@
 local MODULE_KEY = "DungeonTeleportsTab"
 local GROUP_FINDER_ADDON_NAME = "Blizzard_GroupFinder"
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
+local SetSolidColor = mQoL_Compat and mQoL_Compat.SetSolidColor or function(texture,...) texture:SetColorTexture(...) end
 local utils = mQoL_Utils
+local GetServerTime = GetServerTime or (utils and utils.GetNow) or time
 local IsInCombat = utils.IsInCombat
 local ShallowCopyTable = utils.ShallowCopy
 local GetSecondsUntilWeeklyReset = utils.GetSecondsUntilWeeklyReset
@@ -721,6 +723,7 @@ local function ResolveTeleportEntry(categoryValue, entry, seasonMeta)
         return nil
     end
 
+    if mQoL_Auto then return ApplyClientEntryOverrides(resolved) end
     local effectiveSeasonMeta = seasonMeta
     if effectiveSeasonMeta == nil then
         effectiveSeasonMeta = GetSeasonMetaForTeleportId(teleportID or resolved.id)
@@ -730,7 +733,7 @@ local function ResolveTeleportEntry(categoryValue, entry, seasonMeta)
 end
 
 local function GetDungeonTeleportsTabConfig()
-    local isClassicLayout = clientInfo.isClassic and true or false
+    local isClassicLayout = (clientInfo.isClassic or mQoL_Auto) and true or false
 
     return {
         isClassicLayout = isClassicLayout,
@@ -739,8 +742,8 @@ local function GetDungeonTeleportsTabConfig()
         tabTemplate = isClassicLayout and (_G.PVEFrameTabTemplate and "PVEFrameTabTemplate" or "CharacterFrameTabButtonTemplate") or "PanelTabButtonTemplate",
         tabID = isClassicLayout and 0 or 4,
         tabOffsetX = isClassicLayout and -16 or 6,
-        selectedCategoryValue = isClassicLayout and "Mists of Pandaria" or "MID_S1",
-        selectedCategoryText = isClassicLayout and "Mists of Pandaria" or "Midnight Season 1",
+        selectedCategoryValue = mQoL_Auto and 'Known' or (isClassicLayout and "Mists of Pandaria" or "MID_S1"),
+        selectedCategoryText = mQoL_Auto and 'Known teleport spells' or (isClassicLayout and "Mists of Pandaria" or "Midnight Season 1"),
     }
 end
 
@@ -1060,7 +1063,7 @@ local function CreateTeleportPopupButton(parent, text, isSecure)
 
     button.bg = button:CreateTexture(nil, "BACKGROUND")
     button.bg:SetAllPoints()
-    button.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(button.bg, 0.15, 0.15, 0.15, 1)
 
     button.border = CreateFrame("Frame", nil, button, "BackdropTemplate")
     button.border:SetAllPoints()
@@ -1076,11 +1079,11 @@ local function CreateTeleportPopupButton(parent, text, isSecure)
     SetTeleportPopupButtonText(button, text)
 
     button:SetScript("OnEnter", function(self)
-        self.bg:SetColorTexture(0.22, 0.22, 0.22, 1)
+        SetSolidColor(self.bg, 0.22, 0.22, 0.22, 1)
         self.border:SetBackdropBorderColor(1, 0.82, 0, 1)
     end)
     button:SetScript("OnLeave", function(self)
-        self.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(self.bg, 0.15, 0.15, 0.15, 1)
         self.border:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
     end)
 
@@ -1122,7 +1125,7 @@ local function EnsureListedDungeonTeleportPopup()
 
     frame.imageBg = frame.imageContainer:CreateTexture(nil, "BACKGROUND")
     frame.imageBg:SetAllPoints()
-    frame.imageBg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(frame.imageBg, 0.05, 0.05, 0.05, 1)
 
     frame.imageArea = frame.imageContainer:CreateTexture(nil, "ARTWORK")
     frame.imageArea:SetAllPoints(frame.imageContainer)
@@ -1131,7 +1134,7 @@ local function EnsureListedDungeonTeleportPopup()
     frame.infoBg:SetPoint("TOPLEFT", frame.imageContainer, "BOTTOMLEFT", 0, 0)
     frame.infoBg:SetPoint("TOPRIGHT", frame.imageContainer, "BOTTOMRIGHT", 0, 0)
     frame.infoBg:SetHeight(38)
-    frame.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.86)
+    SetSolidColor(frame.infoBg, 0.15, 0.15, 0.15, 0.86)
 
     frame.nameText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     frame.nameText:SetPoint("TOPLEFT", frame.infoBg, "TOPLEFT", 8, -5)
@@ -1216,6 +1219,8 @@ local function ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKe
 end
 
 local function MaybeShowListedDungeonTeleportPopup()
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'popup') then return end
     local state = listedDungeonHighlightState
     local PopupInfo = state.joinedGroupInfo or state.activeInfo
     local signature = state.activeSignature
@@ -1645,6 +1650,7 @@ RegisterListedDungeonHighlightEvent("UNIT_SPELLCAST_SUCCEEDED")
 RegisterListedDungeonHighlightEvent("PLAYER_REGEN_ENABLED")
 
 listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit = ...
         if unit == "player" then
@@ -1677,8 +1683,32 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
     MaybeShowListedDungeonTeleportPopup()
 end)
 
-UpdateListedDungeonHighlightState()
-SuppressListedDungeonHighlightForCurrentInstance()
+if not mQoL_Modules or mQoL_Modules:ShouldLoadModule(MODULE_KEY) then
+    UpdateListedDungeonHighlightState()
+    SuppressListedDungeonHighlightForCurrentInstance()
+end
+
+-- Populate the existing card controller from spells actually known by this
+-- client, without selecting a Retail season or changing its client identity.
+local function RefreshAutoTeleportData()
+    local result=mQoL_Auto.ReadTeleports();local names={};local entries={};local seen={}
+    if result.state=='ready' then for _,spell in ipairs(result.data) do names[spell.id]=spell.name end end
+    for category,data in pairs(TeleportData) do
+        if category~='Known' then
+            for _,entry in ipairs(data.ids or data) do
+                if type(entry)=='table' then
+                    local spell=GetTeleportSpellIDForPlayer(entry)
+                    if names[spell] and not seen[entry.id] then
+                        local copy=ShallowCopyTable(entry);copy.name=names[spell]
+                        copy.starts,copy.ends,copy.postEnds,copy.obtainable=nil,nil,nil,nil
+                        entries[#entries+1]=copy;seen[entry.id]=true
+                    end
+                end
+            end
+        end
+    end
+    TeleportData.Known=entries
+end
 
 local classicInitializationComplete = false
 local retailInitializationComplete = false
@@ -1790,6 +1820,7 @@ local function InitDungeonTeleportsTabClassic()
     end
 
     local function BuildVisibleCategories()
+        if mQoL_Auto then RefreshAutoTeleportData();return {{text='Known teleport spells',dynamicText='Known teleport spells',value='Known'}} end
         if isClassicLayout then
             return {
                 { text = "Mists of Pandaria", dynamicText = "Mists of Pandaria", value = "Mists of Pandaria" },
@@ -2076,7 +2107,7 @@ local function InitDungeonTeleportsTabClassic()
                 -- Card Background
                 btn.bg = btn:CreateTexture(nil, "BACKGROUND")
                 btn.bg:SetAllPoints()
-                btn.bg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+                SetSolidColor(btn.bg, 0.1, 0.1, 0.1, 0.5)
 
                 -- Border
                 btn.border = CreateFrame("Frame", nil, btn, "BackdropTemplate")
@@ -2093,7 +2124,7 @@ local function InitDungeonTeleportsTabClassic()
                 btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
                 btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
                 btn.imageContainer:SetHeight(imageHeight)
-                btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
+                SetSolidColor(btn.imageContainer, 0.05, 0.05, 0.05, 1)
 
                 btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
                 btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
@@ -2104,7 +2135,7 @@ local function InitDungeonTeleportsTabClassic()
                 btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
                 btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
                 btn.infoBg:SetPoint("BOTTOMRIGHT", 0, 0)
-                btn.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
+                SetSolidColor(btn.infoBg, 0.15, 0.15, 0.15, 0.8)
 
                 -- Name
                 btn.nameText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -3066,7 +3097,7 @@ local function InitDungeonTeleportsTabRetail()
 
                 btn.bg = btn:CreateTexture(nil, "BACKGROUND")
                 btn.bg:SetAllPoints()
-                btn.bg:SetColorTexture(0.1, 0.1, 0.1, 0.5)
+                SetSolidColor(btn.bg, 0.1, 0.1, 0.1, 0.5)
 
                 btn.border = CreateFrame("Frame", nil, btn, "BackdropTemplate")
                 btn.border:SetAllPoints()
@@ -3081,7 +3112,7 @@ local function InitDungeonTeleportsTabRetail()
                 btn.imageContainer:SetPoint("TOPLEFT", 0, 0)
                 btn.imageContainer:SetPoint("TOPRIGHT", 0, 0)
                 btn.imageContainer:SetHeight(imageHeight)
-                btn.imageContainer:SetColorTexture(0.05, 0.05, 0.05, 1)
+                SetSolidColor(btn.imageContainer, 0.05, 0.05, 0.05, 1)
 
                 btn.imageArea = btn:CreateTexture(nil, "ARTWORK")
                 btn.imageArea:SetPoint("CENTER", btn.imageContainer, "CENTER")
@@ -3091,7 +3122,7 @@ local function InitDungeonTeleportsTabRetail()
                 btn.infoBg = btn:CreateTexture(nil, "ARTWORK")
                 btn.infoBg:SetPoint("TOPLEFT", 0, -imageHeight)
                 btn.infoBg:SetPoint("BOTTOMRIGHT", 0, 0)
-                btn.infoBg:SetColorTexture(0.15, 0.15, 0.15, 0.8)
+                SetSolidColor(btn.infoBg, 0.15, 0.15, 0.15, 0.8)
 
                 btn.nameText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
                 btn.nameText:SetPoint("TOPLEFT", btn.infoBg, "TOPLEFT", 5, -5)
@@ -3510,20 +3541,21 @@ local bootstrapComplete = false
 local IsAddOnLoadedCompat = C_AddOns and C_AddOns.IsAddOnLoaded or _G.IsAddOnLoaded
 
 local function IsGroupFinderLoaded()
-    if not IsAddOnLoadedCompat then
+    local loaded=(C_AddOns and type(C_AddOns.IsAddOnLoaded)=='function' and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
+    if type(loaded)~='function' then
         return false
     end
 
     -- The first result also becomes true while the addon is still loading;
     -- only the second result guarantees that its PVE frames are ready.
-    local isLoadedOrLoading, isLoaded = IsAddOnLoadedCompat(GROUP_FINDER_ADDON_NAME)
+    local isLoadedOrLoading, isLoaded = loaded(GROUP_FINDER_ADDON_NAME)
     if isLoaded ~= nil then
         return isLoaded
     end
     return isLoadedOrLoading
 end
 
-local InitializeDungeonTeleportsTab = clientInfo.isClassic
+local InitializeDungeonTeleportsTab = (clientInfo.isClassic or mQoL_Auto)
     and InitDungeonTeleportsTabClassic
     or InitDungeonTeleportsTabRetail
 
@@ -3534,17 +3566,28 @@ local function TryInitializeDungeonTeleportsTab(eventFrame)
     if bootstrapComplete then
         return
     end
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'pveTab') then return end
     if not IsGroupFinderLoaded() then
         return
     end
-    if IsInCombat() then
+    local combat
+    if mQoL_Auto then combat=mQoL_Compat.InCombat() else combat=IsInCombat() end
+    if combat then
         eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
         return
     end
 
-    if not InitializeDungeonTeleportsTab() then
-        return
-    end
+    if mQoL_Auto then
+        local config=GetDungeonTeleportsTabConfig()
+        local previousTab,previousFrame=_G[config.tabName],_G.DungeonTeleportsFrame
+        local ok,result=pcall(InitializeDungeonTeleportsTab)
+        if not ok then
+            if not previousTab and _G[config.tabName] then mQoL_Compat.CleanupFrame(_G[config.tabName]);_G[config.tabName]=nil end
+            if not previousFrame and _G.DungeonTeleportsFrame then mQoL_Compat.CleanupFrame(_G.DungeonTeleportsFrame);_G.DungeonTeleportsFrame=nil end
+            mQoL_Compat.Report('PVE teleport tab',result);return
+        end
+        if not result then return end
+    elseif not InitializeDungeonTeleportsTab() then return end
 
     UpdateListedDungeonHighlightState()
     SuppressListedDungeonHighlightForCurrentInstance()
@@ -3554,9 +3597,41 @@ local function TryInitializeDungeonTeleportsTab(eventFrame)
     eventFrame:UnregisterEvent("ADDON_LOADED")
 end
 
+-- This panel belongs to the original module and the shared Hub. The original
+-- PVE card controller is still used whenever its actual frame contract fits.
+local function RegisterKnownTeleportsPanel()
+    if not mQoL_Auto or not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    mQoL_Hub:RegisterModuleOptions('mQoL_DungeonTeleports','Dungeon Teleports',function(parent)
+        local scroll,panel,content=mQoL_Templates.CreateStandardOptionsPanel(parent,'Known Dungeon Teleports')
+        local result=mQoL_Auto:GetFeature(MODULE_KEY,'spells')
+        local spells=result and result.state=='ready' and result.data or {}
+        local cast=mQoL_Auto:GetFeature(MODULE_KEY,'cast')
+        local canCast=cast and cast.state=='ready' and not mQoL_Compat.InCombat()
+        if #spells==0 then
+            local label=content:CreateFontString(nil,'OVERLAY','GameFontNormal')
+            label:SetPoint('TOPLEFT',20,content.currentY);label:SetText('No known spells from the teleport catalog in this client.')
+            content.currentY=content.currentY-30
+        end
+        for _,spell in ipairs(spells) do
+            local label=content:CreateFontString(nil,'OVERLAY','GameFontNormal')
+            label:SetPoint('TOPLEFT',20,content.currentY-8);label:SetText(spell.name)
+            if canCast then
+                local ok,button=pcall(CreateTeleportPopupButton,content,'Teleport',true)
+                if ok then
+                    button:SetPoint('TOPLEFT',500,content.currentY)
+                    ConfigureTeleportButtonClicks(button);SetTeleportButtonSpellAction(button,spell.id)
+                else mQoL_Compat.Report('Teleport button',button) end
+            end
+            content.currentY=content.currentY-38
+        end
+        mQoL_Templates.UpdateScrollChildHeight(scroll,panel,content)
+        return scroll
+    end)
+end
 initializerFrame:RegisterEvent("ADDON_LOADED")
 initializerFrame:RegisterEvent("PLAYER_LOGIN")
 initializerFrame:SetScript("OnEvent", function(self, event, loadedAddonName)
+    RegisterKnownTeleportsPanel()
     if event == "ADDON_LOADED" then
         if loadedAddonName == GROUP_FINDER_ADDON_NAME then
             TryInitializeDungeonTeleportsTab(self)

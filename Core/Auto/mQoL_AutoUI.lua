@@ -1,5 +1,4 @@
--- Availability annotations on the shared Hub's existing option rows.
--- This file creates no Hub, sidebar, replacement module panel, or slash menu.
+-- Availability annotations and operation guards for the shared Hub's controls.
 if not mQoL_Auto then return end
 local A,C,H=mQoL_Auto,mQoL_Compat,mQoL_Hub
 A.optionRows={}
@@ -10,6 +9,9 @@ local rows={
     ['Fast Auto Loot Speed']={'GeneralQoL','fastAutoLoot'},
     ['Enable Auto Quest Tracking']={'GeneralQoL','autoQuestTracking'},
     ['My Name']={'GeneralQoL','showMyName'},
+    ['Enable Consolidated Buffs']={'GeneralQoL','autoConsolidatedBuffs'},
+    ['Show Head']={'GeneralQoL','showHead'},
+    ['Show Cloak']={'GeneralQoL','showCloak'},
     ['Enemy Nameplates']={'NameplatesQoL','enemyNameplates'},
     ['Friendly Nameplates']={'NameplatesQoL','friendlyNameplates'},
     ['Max Nameplate Distance']={'NameplatesQoL','maxDistance'},
@@ -18,6 +20,10 @@ local rows={
     ['Auto Self Cast']={'ActionBarsQoL','autoSelfCast'},
     ['View Distance']={'Graphics','ViewDistance'},
     ['Fog Distance']={'Graphics','FogDistance'},
+    ['Edit Mode Profile Mode']={'EditMode','apply'},
+    ['Force Edit Mode Profile']={'EditMode','apply'},
+    ['Forced Raid Profile Mode']={'RaidProfiles','apply'},
+    ['Force Raid Profile']={'RaidProfiles','apply'},
 }
 for bar=2,8 do rows['Action Bar '..bar]={'ActionBarsQoL','showActionBars'..bar} end
 local moduleLabels={}
@@ -45,8 +51,8 @@ local function tooltip(entry)
     GameTooltip:SetOwner(entry.row,'ANCHOR_RIGHT')
     GameTooltip:SetText(entry.name)
     if C.HasMethods(GameTooltip,'AddLine') then
-        if entry.allowed then GameTooltip:AddLine('API available. This is not a native-client compatibility certificate.',1,1,1,true)
-        else GameTooltip:AddLine('Auto: '..tostring(entry.reason)..'\nOnly this operation is unavailable. Other options and the standard Hub remain usable.',1,0.8,0.3,true) end
+        if entry.allowed then GameTooltip:AddLine('Setting available.',1,1,1,true)
+        else GameTooltip:AddLine(tostring(entry.reason),1,0.8,0.3,true) end
     end
     GameTooltip:Show()
 end
@@ -65,6 +71,7 @@ function A:GuardOption(entry,fn,explicitValue,hasExplicitValue)
         local value=explicitValue
         if not hasExplicitValue then value=select(2,...);if value==nil then value=select(1,...) end end
         local allowed,reason=evaluate(entry,true)
+        if entry.feature and not mQoL_Modules:ShouldLoadModule(entry.feature[1]) then allowed=false;reason='Module disabled' end
         -- Users must always be able to stop managing a setting or turn a
         -- selected module off even when an API has disappeared.
         if value=='disable' or (entry.module and value==false) then allowed=true end

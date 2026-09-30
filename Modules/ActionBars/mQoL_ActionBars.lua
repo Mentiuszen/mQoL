@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
 
 mQoL_ActionBars = mQoL_ActionBars or mQoL_ActionBarsQoL or {}
 mQoL_ActionBarsQoL = mQoL_ActionBars -- Legacy API alias

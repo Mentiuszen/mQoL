@@ -8,6 +8,7 @@ if not mQoL_Hub then
 end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
+local SetSolidColor = mQoL_Compat.SetSolidColor
 local GetClassColor = mQoL_Utils.GetClassColor
 
 -- Styles
@@ -697,7 +698,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
 
         local bg = dragCursor:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0.2, 0.5, 0.2, 0.9)
+        SetSolidColor(bg, 0.2, 0.5, 0.2, 0.9)
 
         if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
             mQoL_Templates.CreateFrameBorder(dragCursor, 1, {0.4, 0.8, 0.4, 1})
@@ -827,7 +828,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
 
             local bg = btn:CreateTexture(nil, "BACKGROUND")
             bg:SetAllPoints()
-            bg:SetColorTexture(1,1,1,0.03)
+            SetSolidColor(bg, 1,1,1,0.03)
 
             local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             text:SetPoint("LEFT", 4, 0)
@@ -838,7 +839,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
 
             btn:SetScript("OnEnter", function(self)
                 if not currentDrag then
-                    bg:SetColorTexture(1,1,1,0.08)
+                    SetSolidColor(bg, 1,1,1,0.08)
                 end
                 if text:IsTruncated() then
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -848,7 +849,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
             end)
             btn:SetScript("OnLeave", function() 
                 if not currentDrag then
-                    bg:SetColorTexture(1,1,1,0.03) 
+                    SetSolidColor(bg, 1,1,1,0.03)
                 end
                 GameTooltip:Hide() 
             end)
@@ -857,14 +858,14 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
                 if button == "LeftButton" then
                     currentDrag = name
                     currentHoverTarget = nil
-                    bg:SetColorTexture(0.2, 0.5, 0.2, 0.5)
+                    SetSolidColor(bg, 0.2, 0.5, 0.2, 0.5)
                     CreateDragCursor(name)
                 end
             end)
 
             btn:SetScript("OnMouseUp", function(self, button)
                 if button == "LeftButton" and currentDrag then
-                    bg:SetColorTexture(1,1,1,0.03)
+                    SetSolidColor(bg, 1,1,1,0.03)
                     if not CheckDropTargets() then
                         HideDragCursor()
                     end
@@ -992,7 +993,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
             bg:SetAllPoints()
             local c = item.color or {r=0.5,g=0.5,b=0.5}
             local origR, origG, origB, origA = c.r*0.15, c.g*0.15, c.b*0.15, 0.5
-            bg:SetColorTexture(origR, origG, origB, origA)
+            SetSolidColor(bg, origR, origG, origB, origA)
             bg.origR, bg.origG, bg.origB, bg.origA = origR, origG, origB, origA
 
             -- Expander
@@ -1065,17 +1066,17 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
                 if currentDrag then
                     -- Show red if situational profiles are set (can't drop to main slot)
                     if hasSituational then
-                        bg:SetColorTexture(0.7, 0.2, 0.2, 0.8)
+                        SetSolidColor(bg, 0.7, 0.2, 0.2, 0.8)
                     else
-                        bg:SetColorTexture(0.2, 0.7, 0.2, 0.8)
+                        SetSolidColor(bg, 0.2, 0.7, 0.2, 0.8)
                     end
                 else
-                    bg:SetColorTexture(c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
+                    SetSolidColor(bg, c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
                 end
             end)
 
             row:SetScript("OnLeave", function(self)
-                 bg:SetColorTexture(origR, origG, origB, origA)
+                 SetSolidColor(bg, origR, origG, origB, origA)
             end)
 
             row:SetScript("OnMouseUp", function(self, button)
@@ -1107,7 +1108,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
 
                      local subBg = subRow:CreateTexture(nil, "BACKGROUND")
                      subBg:SetAllPoints()
-                     subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3)
+                     SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3)
 
                      local subLabel = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                      subLabel:SetPoint("LEFT", 4, 0)
@@ -1156,15 +1157,15 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
                      subRow:SetScript("OnEnter", function()
                          if currentDrag then
                              if mainAssigned then
-                                 subBg:SetColorTexture(0.7, 0.2, 0.2, 0.6)
+                                 SetSolidColor(subBg, 0.7, 0.2, 0.2, 0.6)
                              else
-                                 subBg:SetColorTexture(0.2, 0.7, 0.2, 0.6)
+                                 SetSolidColor(subBg, 0.2, 0.7, 0.2, 0.6)
                              end
                          else
-                             subBg:SetColorTexture(0.2, 0.2, 0.2, 0.5)
+                             SetSolidColor(subBg, 0.2, 0.2, 0.2, 0.5)
                          end
                      end)
-                     subRow:SetScript("OnLeave", function() subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3) end)
+                     subRow:SetScript("OnLeave", function() SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3) end)
 
                      subRow:SetScript("OnMouseUp", function(self, button)
                         if button == "RightButton" then
@@ -1231,7 +1232,7 @@ function mQoL_RaidProfiles:CreateProfileManagerPopup()
 
     popup.bg = popup:CreateTexture(nil, "BACKGROUND")
     popup.bg:SetAllPoints()
-    popup.bg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(popup.bg, 0.05, 0.05, 0.05, 1)
 
     if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
         mQoL_Templates.CreateFrameBorder(popup, 1, {0.25, 0.25, 0.25, 1})
@@ -1250,7 +1251,7 @@ function mQoL_RaidProfiles:CreateProfileManagerPopup()
 
     local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
     titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    SetSolidColor(titleBg, 0.1, 0.1, 0.1, 1)
 
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
@@ -1338,17 +1339,17 @@ function mQoL_RaidProfiles:CreateProfileManagerPopup()
             local bg = row:CreateTexture(nil, "BACKGROUND")
             bg:SetAllPoints()
             if i % 2 == 0 then
-                bg:SetColorTexture(1, 1, 1, 0.03)
+                SetSolidColor(bg, 1, 1, 1, 0.03)
             else
-                bg:SetColorTexture(1, 1, 1, 0)
+                SetSolidColor(bg, 1, 1, 1, 0)
             end
 
-            row:SetScript("OnEnter", function() bg:SetColorTexture(1, 1, 1, 0.08) end)
+            row:SetScript("OnEnter", function() SetSolidColor(bg, 1, 1, 1, 0.08) end)
             row:SetScript("OnLeave", function() 
                 if i % 2 == 0 then
-                    bg:SetColorTexture(1, 1, 1, 0.03)
+                    SetSolidColor(bg, 1, 1, 1, 0.03)
                 else
-                    bg:SetColorTexture(0, 0, 0, 0)
+                    SetSolidColor(bg, 0, 0, 0, 0)
                 end
             end)
 
@@ -1813,8 +1814,8 @@ local lastSpecID = nil     -- Track spec ID to detect real spec changes (not lev
 
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")  -- Detects Party/Raid/Arena/BG changes
+mQoL_Compat.RegisterEvent(eventFrame,"PLAYER_SPECIALIZATION_CHANGED")
+mQoL_Compat.RegisterEvent(eventFrame,"GROUP_ROSTER_UPDATE")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     -- Skip if module disabled

@@ -1,5 +1,6 @@
 local addonName, mQoL = ...
 mQoL_Templates = mQoL_Templates or {}
+local SetSolidColor = mQoL_Compat.SetSolidColor
 
 -- Frame border - Creates a border around a frame
 function mQoL_Templates.CreateFrameBorder(parent, thickness, color)
@@ -11,25 +12,25 @@ function mQoL_Templates.CreateFrameBorder(parent, thickness, color)
     border:SetFrameLevel(parent:GetFrameLevel() + 1)
 
     border.top = border:CreateTexture(nil, "OVERLAY")
-    border.top:SetColorTexture(unpack(color))
+    SetSolidColor(border.top, unpack(color))
     border.top:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     border.top:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     border.top:SetHeight(thickness)
 
     border.bottom = border:CreateTexture(nil, "OVERLAY")
-    border.bottom:SetColorTexture(unpack(color))
+    SetSolidColor(border.bottom, unpack(color))
     border.bottom:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
     border.bottom:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
     border.bottom:SetHeight(thickness)
 
     border.left = border:CreateTexture(nil, "OVERLAY")
-    border.left:SetColorTexture(unpack(color))
+    SetSolidColor(border.left, unpack(color))
     border.left:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
     border.left:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 0, 0)
     border.left:SetWidth(thickness)
 
     border.right = border:CreateTexture(nil, "OVERLAY")
-    border.right:SetColorTexture(unpack(color))
+    SetSolidColor(border.right, unpack(color))
     border.right:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
     border.right:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 0)
     border.right:SetWidth(thickness)
@@ -153,9 +154,9 @@ function mQoL_Templates.SetBackdrop(frame, backdrop, bgColor, borderColor)
     else
         -- Solid color background if no bgFile
         if bgColor then
-            frame.mQoL_bg:SetColorTexture(unpack(bgColor))
+            SetSolidColor(frame.mQoL_bg, unpack(bgColor))
         else
-            frame.mQoL_bg:SetColorTexture(0,0,0,0) -- Transparent
+            SetSolidColor(frame.mQoL_bg, 0,0,0,0) -- Transparent
         end
     end
 
@@ -179,10 +180,10 @@ function mQoL_Templates.SetBackdrop(frame, backdrop, bgColor, borderColor)
              bf.left:SetWidth(thickness)
              bf.right:SetWidth(thickness)
              
-             bf.top:SetColorTexture(unpack(bColor))
-             bf.bottom:SetColorTexture(unpack(bColor))
-             bf.left:SetColorTexture(unpack(bColor))
-             bf.right:SetColorTexture(unpack(bColor))
+             SetSolidColor(bf.top, unpack(bColor))
+             SetSolidColor(bf.bottom, unpack(bColor))
+             SetSolidColor(bf.left, unpack(bColor))
+             SetSolidColor(bf.right, unpack(bColor))
         end
         frame.mQoL_borderFrame:Show()
     else
@@ -210,7 +211,7 @@ function mQoL_Templates.CreateButton(parent, text, width, height)
     -- Background
     btn.bg = btn:CreateTexture(nil, "BACKGROUND")
     btn.bg:SetAllPoints()
-    btn.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(btn.bg, 0.15, 0.15, 0.15, 1)
 
     -- Border using our own SetBackdrop if available
     if mQoL_Templates.SetBackdrop then
@@ -228,12 +229,12 @@ function mQoL_Templates.CreateButton(parent, text, width, height)
     -- Scripts
     btn:SetScript("OnEnter", function(self)
         if self:IsEnabled() then
-            self.bg:SetColorTexture(0.25, 0.25, 0.25, 1)
+            SetSolidColor(self.bg, 0.25, 0.25, 0.25, 1)
             self.text:SetTextColor(1, 1, 1)
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        self.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(self.bg, 0.15, 0.15, 0.15, 1)
         self.text:SetTextColor(1, 0.82, 0)
     end)
     btn:SetScript("OnDisable", function(self)
@@ -284,7 +285,7 @@ function mQoL_Templates.CreateSimpleDropdown(parent, width, onSelect)
     -- Background
     f.btn.bg = f.btn:CreateTexture(nil, "BACKGROUND")
     f.btn.bg:SetAllPoints()
-    f.btn.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    SetSolidColor(f.btn.bg, 0.1, 0.1, 0.1, 1)
 
     -- Border
     if mQoL_Templates.SetBackdrop then
@@ -309,8 +310,8 @@ function mQoL_Templates.CreateSimpleDropdown(parent, width, onSelect)
     f.text:SetText("")
 
     -- Scripts
-    f.btn:SetScript("OnEnter", function(self) self.bg:SetColorTexture(0.2, 0.2, 0.2, 1) end)
-    f.btn:SetScript("OnLeave", function(self) self.bg:SetColorTexture(0.1, 0.1, 0.1, 1) end)
+    f.btn:SetScript("OnEnter", function(self) SetSolidColor(self.bg, 0.2, 0.2, 0.2, 1) end)
+    f.btn:SetScript("OnLeave", function(self) SetSolidColor(self.bg, 0.1, 0.1, 0.1, 1) end)
 
     -- Dropdown List (The popup)
     f.list = CreateFrame("Frame", nil, f)
@@ -350,7 +351,7 @@ function mQoL_Templates.CreateSimpleDropdown(parent, width, onSelect)
 
                 btn.hl = btn:CreateTexture(nil, "HIGHLIGHT")
                 btn.hl:SetAllPoints()
-                btn.hl:SetColorTexture(1, 0.82, 0, 0.2)
+                SetSolidColor(btn.hl, 1, 0.82, 0, 0.2)
 
                 btn.txt = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 btn.txt:SetPoint("LEFT", 6, 0)
@@ -476,7 +477,7 @@ function mQoL_Templates.AddGap(container, gapType, customSize)
 
         local sep = container:CreateTexture(nil, "ARTWORK")
         local color = (opts and opts.color) or { 1, 1, 1, 0.15 }
-        sep:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 0.15)
+        SetSolidColor(sep, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 0.15)
         sep:SetPoint("TOPLEFT", 20, container.currentY)
         sep:SetSize((opts and opts.width) or 770, thickness)
 
@@ -522,7 +523,7 @@ function mQoL_Templates.AddGap(container, gapType, customSize)
 
         local sep = container:CreateTexture(nil, "ARTWORK")
         local lineColor = opts.lineColor or { 1, 1, 1, 0.15 }
-        sep:SetColorTexture(lineColor[1] or 1, lineColor[2] or 1, lineColor[3] or 1, lineColor[4] or 0.15)
+        SetSolidColor(sep, lineColor[1] or 1, lineColor[2] or 1, lineColor[3] or 1, lineColor[4] or 0.15)
         sep:SetPoint("TOPLEFT", 20, container.currentY)
         sep:SetSize(opts.width or 770, thickness)
 
@@ -550,7 +551,7 @@ function mQoL_Templates.AddGap(container, gapType, customSize)
         container.currentY = container.currentY + (sign * padBefore)
 
         local sep = container:CreateTexture(nil, "ARTWORK")
-        sep:SetColorTexture(1, 1, 1, 0.3)
+        SetSolidColor(sep, 1, 1, 1, 0.3)
         sep:SetPoint("TOPLEFT", 20, container.currentY)
         sep:SetSize(770, thickness)
 

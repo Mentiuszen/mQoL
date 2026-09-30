@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat and mQoL_Compat.Timer or C_Timer
 
 -- Module Registry
 --
@@ -149,8 +150,8 @@ function mQoL_Modules:IsModuleCompatible(moduleData)
     local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
     if not moduleData or not clientInfo then return false end
 
-    if clientInfo.isAuto and mQoL_ClientTest and mQoL_ClientTest.IsModuleCompatible then
-        return mQoL_ClientTest:IsModuleCompatible(moduleData)
+    if clientInfo.isAuto and mQoL_AutoCapabilities and mQoL_AutoCapabilities.IsModuleCompatible then
+        return mQoL_AutoCapabilities:IsModuleCompatible(moduleData)
     end
 
     for _, versionKey in ipairs(moduleData.versions or {}) do
@@ -165,8 +166,8 @@ function mQoL_Modules:IsModuleHardlocked(moduleData)
     local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
     if not moduleData or not clientInfo then return false end
 
-    if clientInfo.isAuto and mQoL_ClientTest and mQoL_ClientTest.IsModuleHardlocked then
-        return mQoL_ClientTest:IsModuleHardlocked(moduleData)
+    if clientInfo.isAuto and mQoL_AutoCapabilities and mQoL_AutoCapabilities.IsModuleHardlocked then
+        return mQoL_AutoCapabilities:IsModuleHardlocked(moduleData)
     end
 
     if not moduleData.hardlock then return false end

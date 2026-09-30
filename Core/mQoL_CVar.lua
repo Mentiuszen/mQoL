@@ -20,14 +20,16 @@ function mQoL_CVar:ReadBoolean(cvar, fallback)
         end
         return fallback
     end)
-    return success and value or fallback
+    if success then return value end
+    return fallback
 end
 
 function mQoL_CVar:ReadNumber(cvar, fallback)
     local success, value = pcall(function()
         return type(GetCVar) == "function" and tonumber(GetCVar(cvar)) or nil
     end)
-    return success and value or fallback
+    if success then return value end
+    return fallback
 end
 
 function mQoL_CVar:ReadSettingBoolean(settingKey, fallback)
@@ -37,7 +39,8 @@ function mQoL_CVar:ReadSettingBoolean(settingKey, fallback)
         end
         return fallback
     end)
-    return success and value or fallback
+    if success then return value end
+    return fallback
 end
 
 function mQoL_CVar:Apply(cvar, value)

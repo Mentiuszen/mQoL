@@ -6,12 +6,11 @@
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB, mQoL_AccountOverview_DB, mQoL_AutoDB
 # Identity first; availability checks never choose a different Hub.
 Core/mQoL_VersionDetection.lua
-Core/Auto/mQoL_AutoCompat.lua
-Libs\Libs_Modern\libs.xml
+Core/mQoL_Compat.lua
+Libs\Libs_Unified\libs.xml
 
 #Core Func
 Core/mQoL_Database.lua
-Core/mQoL_ClientTest.lua
 Core/mQoL_Utils.lua
 Core/mQoL_WeeklyRewardUtils.lua
 Core/mQoL_WeeklyRewardViewer.lua
@@ -60,4 +59,3 @@ Core/mQoL_Setup.lua
 # Additive compatibility for original controllers; no alternate Hub/runtime.
 Core/Auto/mQoL_AutoAdapters.lua
 Core/Auto/mQoL_AutoUI.lua
-Core/mQoL_BuildDiagnostics.lua

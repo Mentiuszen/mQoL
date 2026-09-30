@@ -1,4 +1,6 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
+local SetSolidColor = mQoL_Compat.SetSolidColor
 mQoL_MythicPlusListing = mQoL_MythicPlusListing or {}
 
 local mQoL_Hub = _G["mQoL_Hub"]
@@ -7,7 +9,7 @@ if not mQoL_Hub then
 end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not clientInfo.isRetail then
+if not clientInfo.isRetail and not mQoL_Auto then
     return
 end
 
@@ -172,9 +174,9 @@ local function SetButtonInteractionState(button, enabled, text)
 
     if button.bg then
         if enabled then
-            button.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+            SetSolidColor(button.bg, 0.15, 0.15, 0.15, 1)
         else
-            button.bg:SetColorTexture(0.08, 0.08, 0.08, 1)
+            SetSolidColor(button.bg, 0.08, 0.08, 0.08, 1)
         end
     end
 
@@ -865,6 +867,7 @@ function mQoL_MythicPlusListing:GetQuickFillActivity(mapID)
 end
 
 function mQoL_MythicPlusListing:GetQuickFillState(rowData)
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'listingWrite',true) then return false,'LFG unavailable' end
     if type(rowData) ~= "table" then
         return false, "Use Key"
     end
@@ -890,6 +893,8 @@ function mQoL_MythicPlusListing:GetQuickFillState(rowData)
 end
 
 function mQoL_MythicPlusListing:QuickFillListing(rowData)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    if mQoL_Auto and (not mQoL_Auto:CanUse(MODULE_KEY,'listingWrite',true) or mQoL_Compat.InCombat()) then return false,'LFG form unavailable or in combat' end
     local canQuickFill, reason, activity = self:GetQuickFillState(rowData)
     if not canQuickFill or not activity then
         if UIErrorsFrame and UIErrorsFrame.AddMessage then
@@ -1017,9 +1022,9 @@ function mQoL_MythicPlusListing:CreateRow(parent, anchorTo, index)
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
     if index % 2 == 0 then
-        row.bg:SetColorTexture(0.10, 0.10, 0.10, 0.90)
+        SetSolidColor(row.bg, 0.10, 0.10, 0.10, 0.90)
     else
-        row.bg:SetColorTexture(0.07, 0.07, 0.07, 0.90)
+        SetSolidColor(row.bg, 0.07, 0.07, 0.07, 0.90)
     end
 
     if CreateFrameBorder then
@@ -1160,7 +1165,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
     else
         frame.bg = frame:CreateTexture(nil, "BACKGROUND")
         frame.bg:SetAllPoints()
-        frame.bg:SetColorTexture(0.03, 0.03, 0.03, 0.96)
+        SetSolidColor(frame.bg, 0.03, 0.03, 0.03, 0.96)
     end
 
     if CreateFrameBorder then
@@ -1195,7 +1200,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
     else
         frame.titleBar.bg = frame.titleBar:CreateTexture(nil, "BACKGROUND")
         frame.titleBar.bg:SetAllPoints()
-        frame.titleBar.bg:SetColorTexture(0.08, 0.08, 0.08, 1)
+        SetSolidColor(frame.titleBar.bg, 0.08, 0.08, 0.08, 1)
     end
 
     frame.titleText = frame.titleBar:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -1218,7 +1223,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
     else
         frame.listInset.bg = frame.listInset:CreateTexture(nil, "BACKGROUND")
         frame.listInset.bg:SetAllPoints()
-        frame.listInset.bg:SetColorTexture(0.02, 0.02, 0.02, 0.94)
+        SetSolidColor(frame.listInset.bg, 0.02, 0.02, 0.02, 0.94)
     end
 
     frame.toolbar = CreateFrame("Frame", nil, frame.listInset)
@@ -1259,7 +1264,7 @@ function mQoL_MythicPlusListing:EnsureWindow()
     else
         frame.headerBar.bg = frame.headerBar:CreateTexture(nil, "BACKGROUND")
         frame.headerBar.bg:SetAllPoints()
-        frame.headerBar.bg:SetColorTexture(0.09, 0.09, 0.09, 1)
+        SetSolidColor(frame.headerBar.bg, 0.09, 0.09, 0.09, 1)
     end
 
     local headers = frame.headerBar:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -1340,6 +1345,8 @@ function mQoL_MythicPlusListing:UpdateWindow()
 end
 
 function mQoL_MythicPlusListing:ToggleWindow()
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    if mQoL_Auto and not mQoL_Modules:IsModuleCompatible(mQoL_Modules:GetModule(MODULE_KEY)) then return end
     local frame = self:EnsureWindow()
     if frame:IsShown() then
         self.wantsWindowShown = false
@@ -1409,6 +1416,7 @@ function mQoL_MythicPlusListing:UpdateEntryButton(entryCreation)
 end
 
 function mQoL_MythicPlusListing:TryHookGroupFinder()
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'integration') then return end
     if self.groupFinderHooked or not IsAddonLoadedSafe(BLIZZARD_GROUPFINDER_ADDON) or not LFGListFrame or not LFGListFrame.EntryCreation then
         return
     end
@@ -1467,6 +1475,8 @@ function mQoL_MythicPlusListing:BuildOwnKeyPayload()
 end
 
 function mQoL_MythicPlusListing:BroadcastOwnKey(force)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'communication',true) then return end
     local payload = self:BuildOwnKeyPayload()
     if not payload then
         return
@@ -1501,6 +1511,8 @@ function mQoL_MythicPlusListing:ScheduleOwnBroadcast(delay, force)
 end
 
 function mQoL_MythicPlusListing:RequestMqoLPartyData(force)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'communication',true) then return end
     local distribution = GetCommDistribution()
     if not distribution or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then
         return false
@@ -1572,6 +1584,7 @@ function mQoL_MythicPlusListing:RefreshData(force)
 end
 
 function mQoL_MythicPlusListing:ScheduleRefresh(delay, force)
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
     if self.refreshTimer then
         self.refreshTimer:Cancel()
     end
@@ -1647,13 +1660,26 @@ function mQoL_MythicPlusListing:OnDetailsKeystoneWipe()
 end
 
 function mQoL_MythicPlusListing:OnEvent(event, ...)
-    if event == "PLAYER_LOGIN" then
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
+    if mQoL_Auto and not mQoL_Modules:IsModuleCompatible(mQoL_Modules:GetModule(MODULE_KEY)) then return end
+    if event == "PLAYER_LOGIN" or (mQoL_Auto and event=='ADDON_LOADED' and not self.enabled and IsLoggedIn()) then
         if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then
             return
         end
 
         self.enabled = true
         self:InitializeDB()
+        if mQoL_Auto then
+            mQoL_Hub:RegisterModuleOptions('mQoL_MythicPlusListing','Mythic+ Listing',function(parent)
+                local scroll,panel,content=mQoL_Templates.CreateStandardOptionsPanel(parent,'Mythic+ Listing Helper')
+                local button=CreateCustomButton(content,'Open Party Keys',180,28)
+                button:SetPoint('TOPLEFT',20,content.currentY)
+                button:SetScript('OnClick',function() self:ToggleWindow() end)
+                content.currentY=content.currentY-40
+                mQoL_Templates.UpdateScrollChildHeight(scroll,panel,content)
+                return scroll
+            end)
+        end
 
         if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
             C_ChatInfo.RegisterAddonMessagePrefix(COMM_PREFIX)
@@ -1701,10 +1727,10 @@ end
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+mQoL_Compat.RegisterEvent(eventFrame,"GROUP_ROSTER_UPDATE")
+mQoL_Compat.RegisterEvent(eventFrame,"BAG_UPDATE_DELAYED")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
-eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+mQoL_Compat.RegisterEvent(eventFrame,"CHALLENGE_MODE_COMPLETED")
 eventFrame:SetScript("OnEvent", function(_, event, ...)
     mQoL_MythicPlusListing:OnEvent(event, ...)
 end)

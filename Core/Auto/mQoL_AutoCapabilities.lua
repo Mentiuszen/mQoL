@@ -80,13 +80,14 @@ local function Layouts()
     if not get then return Missing("C_EditMode.GetLayouts") end
     local ok,info=pcall(get)
     if not ok then return Error(info) end
-    if info==nil then return Result("pending","Layout data not ready","editmode-v1") end
+    if info==nil then return Result("pending","Layout data not ready","editmode-index-v1") end
     -- Do not infer index-based Retail structures from an arbitrary array.
     if type(info)~="table" or type(info.layouts)~="table" or type(info.activeLayout)~="number" then return Error("Expected EditModeLayouts { layouts, activeLayout }") end
+    if not C.Number(info.activeLayout) or info.activeLayout<1 or info.activeLayout%1~=0 then return Error('Invalid active layout index') end
     for _,layout in ipairs(info.layouts) do
         if type(layout)~="table" or type(layout.layoutName)~="string" or type(layout.layoutType)~="number" then return Error("Malformed EditMode layout record") end
     end
-    return Ready("editmode-v1",info)
+    return Ready("editmode-index-v1",info)
 end
 A.ReadLayouts=Layouts
 A.raidCVars={"raidFramesDisplayIncomingHeals","raidFramesDisplayPowerBars","raidFramesDisplayAggroHighlight","raidFramesDisplayClassColor","raidOptionDisplayPets","raidOptionDisplayMainTankAndAssist","raidFramesDisplayOnlyDispellableDebuffs","raidFramesHealthText","raidOptionShowBorders","raidFramesHeight","raidFramesWidth"}
@@ -193,16 +194,21 @@ probes.bank=function()
     return Ready("account-bank",{bankType=Enum.BankType.Account})
 end
 probes.appearance=function(f)
-    if F(f.getter) and F(f.setter) then
+    if F(f.getter) then
         local ok,v=C.Read(f.getter); if not ok then return Error(v) end
         local b=Bool(v); if b==nil then return Error("Invalid appearance state") end
-        local r=Ready("appearance",b); r.canWrite=true; return r
+        local r=Ready("appearance",b); r.canWrite=F(f.setter)~=nil
+        if not r.canWrite then r.reason='Appearance setter unavailable' end
+        return r
     end
     return ProbeCVar(f)
 end
 probes.fastloot=function()
     local r=Functions({"GetNumLootItems","LootSlot","CloseLoot","IsModifiedClick"}); if r.state~="ready" then return r end
     if V:ReadBoolean("autoLootDefault")==nil then return Missing("autoLootDefault boolean") end
+    local ok,count=C.Read('GetNumLootItems')
+    if not ok then return Error(count) end
+    if not C.Number(count) or count<0 or count%1~=0 then return Error('Invalid loot item count') end
     return Ready("bounded-loot",false)
 end
 probes.actionbar=function(f)
@@ -236,7 +242,8 @@ probes.layouts=Layouts
 probes.layoutApply=function()
     local r=Layouts(); if r.state~="ready" then return r end
     if not F("C_EditMode.SetActiveLayout") then return Missing("C_EditMode.SetActiveLayout") end
-    for _,layout in ipairs(r.data.layouts) do if not C.Number(layout.layoutIdentifier) then return Missing("explicit layoutIdentifier for layout application") end end
+    -- Forever 1.60.1 and modern Classic/Retail explicitly take a luaIndex.
+    -- This adapter is selected only after validating the GetLayouts structure.
     return r
 end
 probes.layoutExport=function()
@@ -253,7 +260,7 @@ probes.raidRead=RaidRead
 probes.raidWrite=function()
     local r=RaidRead(); if r.state~="ready" then return r end
     if r.adapter=="raid-options-v1" then
-        local funcs=Functions({"SetRaidProfileOption","SetActiveRaidProfile","CompactUnitFrameProfiles_ApplyCurrentSettings"}); if funcs.state~="ready" then return funcs end
+        local funcs=Functions({"SetRaidProfileOption","SetActiveRaidProfile","CompactUnitFrameProfiles_ApplyCurrentSettings","RaidProfileExists","CreateNewRaidProfile","GetNumRaidProfiles","GetMaxNumRaidProfiles"}); if funcs.state~="ready" then return funcs end
     elseif not (F("C_CVar.SetCVar") or F("SetCVar")) then return Missing("CVar setter") end
     return r
 end
@@ -268,6 +275,8 @@ end
 probes.pve=function()
     if not C.HasMethods(PVEFrame,"HookScript","GetWidth") then return Missing("PVEFrame") end
     if not C.HasMethods(PVEFrameTab3,"GetID","GetPoint") then return Missing("PVEFrameTab3") end
+    local required=Functions({'PanelTemplates_SetNumTabs','PanelTemplates_SetTab','PanelTemplates_TabResize','PanelTemplates_SelectTab','PanelTemplates_DeselectTab'})
+    if required.state~='ready' then return required end
     return Ready("shared-pve-frame")
 end
 probes.teleports=Teleports
@@ -299,10 +308,13 @@ probes.listingRead=function()
     if data~=nil and type(data)~="table" then return Error("Invalid active LFG listing") end
     return Ready("active-entry",data)
 end
-mQoL_ClientTest=mQoL_ClientTest or {}
-mQoL_ClientTest.results={modules={}}
-mQoL_ClientTest.generation=0
-local T=mQoL_ClientTest
+probes.mythicUI=function()
+    local entry=LFGListFrame and LFGListFrame.EntryCreation
+    if not C.HasMethods(LFGListFrame,'IsShown','HookScript') or not C.HasMethods(entry,'IsShown','HookScript','GetWidth') then return Missing('LFGListFrame.EntryCreation methods') end
+    return Functions({'hooksecurefunc','LFGListEntryCreation_Show','LFGListEntryCreation_Select','LFGListEntryCreation_SetEditMode','C_LFGList.GetAvailableActivities','C_LFGList.GetActivityInfoTable'})
+end
+mQoL_AutoCapabilities={results={modules={}},generation=0}
+local T=mQoL_AutoCapabilities
 function T:Probe(f,phase)
     local fn=probes[f.kind]
     local ok,r=pcall(fn or function() return Missing("unimplemented probe "..f.kind) end,f)

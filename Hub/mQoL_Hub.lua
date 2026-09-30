@@ -1,4 +1,7 @@
 local addonName, L = ...
+local C_Timer = mQoL_Compat.Timer
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
+local SetSolidColor = mQoL_Compat.SetSolidColor
 mQoL_Hub = mQoL_Hub or {}
 mQoL_Hub.name = addonName
 mQoL_Hub.modules = {}
@@ -142,7 +145,8 @@ function mQoL_Hub:InitializeMinimap()
         mQoL_Auto.minimapUnavailable = "Minimap launcher library unavailable; the standard Hub remains accessible with /mqol."
         return
     end
-    LDBIcon:Register("mQoL_Hub", hubLauncher, self.db.minimap)
+    if LDBIcon:IsRegistered("mQoL_Hub") then LDBIcon:Refresh("mQoL_Hub", self.db.minimap)
+    else LDBIcon:Register("mQoL_Hub", hubLauncher, self.db.minimap) end
 
     if self.db.minimap and self.db.minimap.hide then
         LDBIcon:Hide("mQoL_Hub")
@@ -437,7 +441,7 @@ function mQoL_Hub:AddOptionRow(parent, name, controlType, controlParams, extra, 
 
         control.bg = control:CreateTexture(nil, "BACKGROUND")
         control.bg:SetAllPoints()
-        control.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(control.bg, 0.15, 0.15, 0.15, 1)
 
         if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
             control.border = mQoL_Templates.CreateFrameBorder(control, 1, {0.25, 0.25, 0.25, 1})
@@ -640,7 +644,7 @@ function mQoL_Hub:CreateHomePanel(parent)
 
     -- Separator under title
     local titleSeparator = panel:CreateTexture(nil, "ARTWORK")
-    titleSeparator:SetColorTexture(1, 1, 1, 0.3)
+    SetSolidColor(titleSeparator, 1, 1, 1, 0.3)
     titleSeparator:SetPoint("TOPLEFT", 20, currentY)
     titleSeparator:SetSize(770, 1)
     currentY = currentY - 30
@@ -662,7 +666,7 @@ function mQoL_Hub:CreateHomePanel(parent)
         local bullet = panel:CreateTexture(nil, "ARTWORK")
         bullet:SetSize(6, 6)
         bullet:SetPoint("RIGHT", textFS, "LEFT", -6, 0)
-        bullet:SetColorTexture(1, 1, 1, 0.8)
+        SetSolidColor(bullet, 1, 1, 1, 0.8)
         
         currentY = currentY - textFS:GetStringHeight() - 10
     end
@@ -720,7 +724,7 @@ function mQoL_Hub:CreateHomePanel(parent)
         local bullet = panel:CreateTexture(nil, "ARTWORK")
         bullet:SetSize(4, 4)
         bullet:SetPoint("RIGHT", textFS, "LEFT", -6, 0)
-        bullet:SetColorTexture(1, 0.82, 0, 0.8)
+        SetSolidColor(bullet, 1, 0.82, 0, 0.8)
         
         currentY = currentY - textFS:GetStringHeight() - 8
     end
@@ -737,7 +741,7 @@ function mQoL_Hub:CreateHomePanel(parent)
 
     -- Separator
     local separator = panel:CreateTexture(nil, "ARTWORK")
-    separator:SetColorTexture(1, 1, 1, 0.15)
+    SetSolidColor(separator, 1, 1, 1, 0.15)
     separator:SetPoint("BOTTOMLEFT", 20, 80)
     separator:SetSize(770, 1)
 
@@ -829,7 +833,7 @@ function mQoL_Hub:CreateAboutPanel(parent)
     panel:SetHeight(totalHeight)
 
     local separator = panel:CreateTexture(nil, "ARTWORK")
-    separator:SetColorTexture(1, 1, 1, 0.15)
+    SetSolidColor(separator, 1, 1, 1, 0.15)
     separator:SetPoint("BOTTOMLEFT", 20, 80)
     separator:SetSize(770, 1)
 
@@ -892,7 +896,7 @@ function mQoL_Hub:CreateDisplayPanel(parent)
 	scaleEditBox:SetSize(60, 24)
 	scaleEditBox.bg = scaleEditBox:CreateTexture(nil, "BACKGROUND")
 	scaleEditBox.bg:SetAllPoints()
-	scaleEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+	SetSolidColor(scaleEditBox.bg, 0.15, 0.15, 0.15, 1)
 	scaleEditBox.border = mQoL_Templates.CreateFrameBorder(scaleEditBox, 1, {0.25, 0.25, 0.25, 1})
 
 	-- Slider + row
@@ -931,7 +935,7 @@ function mQoL_Hub:CreateDisplayPanel(parent)
 	opacityEditBox:SetSize(60, 24)
 	opacityEditBox.bg = opacityEditBox:CreateTexture(nil, "BACKGROUND")
 	opacityEditBox.bg:SetAllPoints()
-	opacityEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+	SetSolidColor(opacityEditBox.bg, 0.15, 0.15, 0.15, 1)
 	opacityEditBox.border = mQoL_Templates.CreateFrameBorder(opacityEditBox, 1, {0.25, 0.25, 0.25, 1})
 
 	local defaultOpacity = (self.db.display and self.db.display.opacity) or self.defaults.display.opacity
@@ -1028,6 +1032,8 @@ local PANEL_STRUCTURE = {
     },
     ["Custom Features"] = {
         "Graphics",
+		"Dungeon Teleports",
+		"Mythic+ Listing",
 		"Blizzard Fixes",
     },
 }
@@ -1070,7 +1076,7 @@ function mQoL_Hub.CreateInfoSection(parent, yOffset, opts)
     explanationFrame:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -4)
     explanationFrame:SetSize(width, 0) -- start hidden
     explanationFrame:Hide()
-    if not mQoL_Auto or type(explanationFrame.SetClipsChildren) == "function" then explanationFrame:SetClipsChildren(true) end
+    if type(explanationFrame.SetClipsChildren) == "function" then explanationFrame:SetClipsChildren(true) end
 
     -- FontString inside explanationFrame
     local explanationFS = explanationFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -1220,7 +1226,7 @@ function mQoL_Hub:CreateSidePanel(parent)
 
     sidebar.bg = sidebar:CreateTexture(nil, "BACKGROUND")
     sidebar.bg:SetAllPoints()
-    sidebar.bg:SetColorTexture(0.10, 0.10, 0.10, 1.0)
+    SetSolidColor(sidebar.bg, 0.10, 0.10, 0.10, 1.0)
 	sidebar.bg.mQoL_baseAlpha = 1.0
 
     -- Smooth Height Animation
@@ -1264,7 +1270,7 @@ function mQoL_Hub:CreateSidePanel(parent)
 
     searchFrame.bg = searchFrame:CreateTexture(nil, "BACKGROUND")
     searchFrame.bg:SetAllPoints()
-    searchFrame.bg:SetColorTexture(0, 0, 0, 0.75)
+    SetSolidColor(searchFrame.bg, 0, 0, 0, 0.75)
 	searchFrame.bg.mQoL_baseAlpha = 0.75
 
     local searchBox = CreateFrame("EditBox", nil, searchFrame)
@@ -1292,13 +1298,13 @@ function mQoL_Hub:CreateSidePanel(parent)
     resultsFrame:SetPoint("TOPRIGHT", searchFrame, "BOTTOMRIGHT", 0, -2)
     resultsFrame:SetHeight(50)
     resultsFrame:EnableMouse(true)
-    if not mQoL_Auto or type(resultsFrame.SetMouseMotionEnabled) == "function" then resultsFrame:SetMouseMotionEnabled(true) end
+    if type(resultsFrame.SetMouseMotionEnabled) == "function" then resultsFrame:SetMouseMotionEnabled(true) end
     resultsFrame:SetFrameStrata("DIALOG")
     resultsFrame:SetFrameLevel(sidebar:GetFrameLevel() + 10)
     
 	local bg = resultsFrame:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0, 0, 0, 0.85)
+	SetSolidColor(bg, 0, 0, 0, 0.85)
 	resultsFrame.bg = bg
 	resultsFrame.bg.mQoL_baseAlpha = 0.85
 	sidebar.resultsFrame = resultsFrame
@@ -1599,7 +1605,7 @@ function mQoL_Hub:CreateSidePanel(parent)
         buttonsFrame:SetPoint("TOPLEFT", 10, 0)
         buttonsFrame:SetPoint("TOPRIGHT", -10, 0)
         buttonsFrame:SetHeight(24 * (#block.buttons))
-        if not mQoL_Auto or type(buttonsFrame.SetClipsChildren) == "function" then buttonsFrame:SetClipsChildren(true) end
+        if type(buttonsFrame.SetClipsChildren) == "function" then buttonsFrame:SetClipsChildren(true) end
 
         block.container = container
         block.arrow = arrow
@@ -1753,7 +1759,7 @@ function mQoL_Hub:CreateMainPanel()
 
     -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(f.bg, 0.05, 0.05, 0.05, 1)
 	f.bg.mQoL_baseAlpha = 1.0
 
     -- Border
@@ -1794,7 +1800,7 @@ function mQoL_Hub:CreateMainPanel()
     local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
     titleBar.bg = titleBg
     titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.08, 0.08, 0.08, 1.0)
+    SetSolidColor(titleBg, 0.08, 0.08, 0.08, 1.0)
 	titleBg.mQoL_baseAlpha = 1.2
 
     titleBar:EnableMouse(true)
@@ -1986,6 +1992,25 @@ function mQoL_Hub:CreateMainPanel()
 	self:SetActiveSidebarButton(defaultPanel)
 end
 
+-- The original constructor remains the UI owner. Cache only successful builds.
+local ConstructMainPanel = mQoL_Hub.CreateMainPanel
+function mQoL_Hub:CreateMainPanel()
+    if self.mainPanelReady then return true end
+    if self.buildingMainPanel then return false end
+    self.buildingMainPanel=true
+    local rowCount=mQoL_Auto and #mQoL_Auto.optionRows or 0
+    local ok,err=pcall(ConstructMainPanel,self)
+    self.buildingMainPanel=nil
+    if ok then self.mainPanelReady=true;mQoL_Compat.errors['Hub construction']=nil;return true end
+    mQoL_Compat.CleanupFrame(self.MainFrame)
+    for i=#UISpecialFrames,1,-1 do if UISpecialFrames[i]=='mQoL_Hub_MainFrame' then table.remove(UISpecialFrames,i) end end
+    if mQoL_Auto then for i=#mQoL_Auto.optionRows,rowCount+1,-1 do mQoL_Auto.optionRows[i]=nil end end
+    self.MainFrame,self.ContentArea,self.sidebar,self.searchBox=nil,nil,nil,nil
+    self.activePanel,self.activePanelName=nil,nil
+    mQoL_Compat.Report('Hub construction',err)
+    return false,err
+end
+
 local function CreateButton(parent, text, point, x, y, width, height)
     local btn = mQoL_Templates.CreateButton(parent, text, width, height)
     btn:SetPoint(point, x, y)
@@ -2029,7 +2054,7 @@ end
 
 function mQoL_Hub:ToggleMainPanel()
     if not self.MainFrame then
-        self:CreateMainPanel()
+        if not self:CreateMainPanel() then return end
     end
 
     local hubSettings = mQoL_Database:GetSettings("Hub")
@@ -2072,7 +2097,7 @@ function mQoL_Hub:CreateVersionPanel()
     -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(f.bg, 0.05, 0.05, 0.05, 1)
 
     if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
          mQoL_Templates.CreateFrameBorder(f, 1, {0.25, 0.25, 0.25, 1})
@@ -2086,7 +2111,7 @@ function mQoL_Hub:CreateVersionPanel()
 
     local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
     titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    SetSolidColor(titleBg, 0.1, 0.1, 0.1, 1)
 
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
@@ -2153,7 +2178,7 @@ function mQoL_Hub:CreateVersionPanel()
 
     -- Separator
     local sep = f.headerFrame:CreateTexture(nil, "ARTWORK")
-    sep:SetColorTexture(1, 1, 1, 0.3)
+    SetSolidColor(sep, 1, 1, 1, 0.3)
     sep:SetPoint("BOTTOMLEFT", f.headerFrame, "BOTTOMLEFT", leftMargin - 10, -2)
     sep:SetSize(totalWidth - leftMargin - rightMargin - 12, 1)
 

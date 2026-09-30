@@ -137,6 +137,7 @@ function A:SyncNameplateAll(np)
     return true,'Preserved: incomplete nameplate state'
 end
 function A:ApplyGraphics(settings)
+    if not mQoL_Modules:ShouldLoadModule('Graphics') then return false,'Module disabled' end
     local all=true
     for key,cvar in pairs({ViewDistance='farclip',FogDistance='horizonStart'}) do
         if not disabled(settings[key]) then
@@ -145,6 +146,23 @@ function A:ApplyGraphics(settings)
         end
     end
     return all
+end
+function A:ApplyAppearance(key,value)
+    if disabled(value) then return true end
+    if not mQoL_Modules:ShouldLoadModule('GeneralQoL') then return false,'Module disabled' end
+    local allowed,reason,result=self:CanUse('GeneralQoL',key,true)
+    if not allowed then return report('General.'..key,false,reason) end
+    local definition=self.byKey.GeneralQoL.byFeature[key]
+    if result.adapter=='appearance' then
+        local ok,err=C.Write(definition.setter,value==true)
+        if ok then
+            local read,actual=C.Read(definition.getter)
+            ok=read and self.Boolean(actual)==(value==true)
+            if not ok then err='Appearance readback did not confirm application' end
+        end
+        return report('General.'..key,ok,err)
+    end
+    return V:Apply(definition.cvar,value)
 end
 -- Optional launcher failure must not interrupt registration of Display/Profiles.
 if mQoL_Hub and mQoL_Hub.InitializeMinimap then

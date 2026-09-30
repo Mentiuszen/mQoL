@@ -1,4 +1,5 @@
 local addonName = "mQoL"
+local C_Timer = mQoL_Compat.Timer
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 
 -- Namespace
@@ -122,10 +123,12 @@ local function SafeCall(func, ...)
 end
 
 function mQoL_RaidProfiles:ShouldHandleUseCompactPartyFrames()
+    if mQoL_Auto then return mQoL_CVar:CanRead('useCompactPartyFrames') end
     return clientInfo.isEra or clientInfo.isVanilla or clientInfo.isLegion
 end
 
 function mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
+    if mQoL_Auto then return mQoL_CVar:Apply('useCompactPartyFrames',value) end
     if not self:ShouldHandleUseCompactPartyFrames() then
         return
     end
@@ -428,7 +431,126 @@ VersionAdapters.Legion = {
 }
 
 -- Get adapter for current client version
+VersionAdapters.Unavailable={cvars={},format='unavailable',LoadProfile=function() return false,'No compatible raid adapter' end,SaveProfile=function() return {} end}
+VersionAdapters.AutoOptions={cvars={},format='raid-options-v1',cvarToOption=CvarToOptionMappings.Legion}
+VersionAdapters.AutoCVars={cvars={},format='raid-cvars-v1'}
+local function AutoRead()
+    return mQoL_Auto:GetFeature('RaidProfiles','capture',true)
+end
+local function AutoSave()
+    local r=AutoRead();local values={}
+    if not r or r.state~='ready' then return values end
+    if r.adapter=='raid-options-v1' then
+        for cvar,option in pairs(CvarToOptionMappings.Legion) do
+            local value=r.data.values[option]
+            if value~=nil then values[cvar]=ConvertValueForSave(value) end
+        end
+    else for cvar,value in pairs(r.data.values) do values[cvar]=value end end
+    if next(values) then
+        values._format=r.adapter;values._schema=1
+        if r.adapter=='raid-options-v1' and type(GetRaidProfileSavedPosition)=='function' then
+            local ok,positions=pcall(SavePositions)
+            if ok and positions and type(positions.isDynamic)=='boolean' then values._positions=positions end
+        end
+    end
+    return values
+end
+local function AutoLoad(saved)
+    if not mQoL_Modules:ShouldLoadModule('RaidProfiles') then return false,'Module disabled' end
+    local allowed,reason,r=mQoL_Auto:CanUse('RaidProfiles','apply',true)
+    if not allowed then return false,reason end
+    if mQoL_Compat.InCombat() then
+        local controller=mQoL_RaidProfiles
+        if not controller.pendingCombatFrame then
+            controller.pendingCombatFrame=CreateFrame('Frame')
+            controller.pendingCombatFrame:RegisterEvent('PLAYER_REGEN_ENABLED')
+            controller.pendingCombatFrame:SetScript('OnEvent',function()
+                if controller.pendingProfileUpdate then
+                    controller.pendingProfileUpdate=nil
+                    if mQoL_Modules:ShouldLoadModule('RaidProfiles') then controller:UpdateCurrentProfile(true) end
+                end
+            end)
+        end
+        controller.pendingProfileUpdate=true
+        return false,'Deferred until combat ends'
+    end
+    if saved._format and (saved._format~=r.adapter or saved._schema~=1) then return false,'Incompatible saved raid profile format' end
+    local operations={}
+    for key,value in pairs(saved) do
+        if type(key)=='string' and key:sub(1,1)~='_' then
+            local option=r.adapter=='raid-options-v1' and CvarToOptionMappings.Legion[key] or key
+            if option and r.data.values[option]~=nil then
+                if type(value)~='string' and type(value)~='boolean' and not mQoL_Compat.Number(value) then return false,'Invalid profile value: '..key end
+                operations[#operations+1]={key=key,option=option,value=value}
+            end
+        end
+    end
+    if #operations==0 then return false,'Profile has no supported options' end
+    local positions=saved._positions
+    if positions then
+        local positionOK,positionReason=mQoL_Auto:CanUse('RaidProfiles','positions',true)
+        if not positionOK then return false,positionReason end
+        if type(positions)~='table' or type(positions.isDynamic)~='boolean' then return false,'Invalid saved position format' end
+        if not positions.isDynamic then
+            local points={TOP=true,BOTTOM=true,LEFT=true,RIGHT=true,CENTER=true,TOPLEFT=true,TOPRIGHT=true,BOTTOMLEFT=true,BOTTOMRIGHT=true}
+            for _,key in ipairs({'topPoint','bottomPoint','leftPoint'}) do if not points[positions[key]] then return false,'Invalid saved anchor' end end
+            for _,key in ipairs({'topOffset','bottomOffset','leftOffset'}) do if not mQoL_Compat.Number(positions[key]) then return false,'Invalid saved offset' end end
+        end
+    end
+    if r.adapter=='raid-options-v1' then
+        local ok,exists=mQoL_Compat.Read('RaidProfileExists',MQOL_PROFILE_NAME)
+        if not ok then return false,exists end
+        if not exists then
+            local countOK,count=mQoL_Compat.Read('GetNumRaidProfiles')
+            local maxOK,max=mQoL_Compat.Read('GetMaxNumRaidProfiles')
+            if not countOK or not maxOK or not mQoL_Compat.Number(count) or not mQoL_Compat.Number(max) or count>=max then return false,'Raid profile limit unavailable or reached' end
+            local created,err=mQoL_Compat.Write('CreateNewRaidProfile',MQOL_PROFILE_NAME)
+            if not created then return false,err end
+            local verified,present=mQoL_Compat.Read('RaidProfileExists',MQOL_PROFILE_NAME)
+            if not verified or not present then return false,'Raid profile creation was not confirmed' end
+        end
+        for _,operation in ipairs(operations) do
+            local value=ConvertValueForLoad(operation.value)
+            local ok,err=mQoL_Compat.Write('SetRaidProfileOption',MQOL_PROFILE_NAME,operation.option,value)
+            if not ok then return false,err end
+            local read,actual=mQoL_Compat.Read('GetRaidProfileOption',MQOL_PROFILE_NAME,operation.option)
+            if not read or ConvertValueForSave(actual)~=ConvertValueForSave(value) then return false,'Raid option readback failed: '..operation.option end
+        end
+        local ok,err=mQoL_Compat.Write('SetActiveRaidProfile',MQOL_PROFILE_NAME)
+        if not ok then return false,err end
+        if positions then
+            ok,err=mQoL_Compat.Write('SetRaidProfileSavedPosition',MQOL_PROFILE_NAME,positions.isDynamic,positions.topPoint,positions.topOffset,positions.bottomPoint,positions.bottomOffset,positions.leftPoint,positions.leftOffset)
+            if not ok then return false,err end
+            local read,dynamic,top,topOffset,bottom,bottomOffset,left,leftOffset=mQoL_Compat.Read('GetRaidProfileSavedPosition',MQOL_PROFILE_NAME)
+            if not read or dynamic~=positions.isDynamic then return false,'Saved position readback failed' end
+            if not dynamic and (top~=positions.topPoint or topOffset~=positions.topOffset or bottom~=positions.bottomPoint or bottomOffset~=positions.bottomOffset or left~=positions.leftPoint or leftOffset~=positions.leftOffset) then return false,'Saved position readback failed' end
+            ok,err=mQoL_Compat.Write('CompactRaidFrameManager_ResizeFrame_LoadPosition',CompactRaidFrameManager)
+            if not ok then return false,err end
+        end
+        ok,err=mQoL_Compat.Write('CompactUnitFrameProfiles_ApplyCurrentSettings')
+        if not ok then return false,err end
+        local read,active=mQoL_Compat.Read('GetActiveRaidProfile')
+        return read and active==MQOL_PROFILE_NAME,'Raid profile activation must be confirmed'
+    end
+    for _,operation in ipairs(operations) do
+        local ok,err=mQoL_CVar:Apply(operation.key,operation.value)
+        if not ok then return false,err end
+    end
+    return true
+end
+VersionAdapters.AutoOptions.SaveProfile,VersionAdapters.AutoCVars.SaveProfile=AutoSave,AutoSave
+VersionAdapters.AutoOptions.LoadProfile,VersionAdapters.AutoCVars.LoadProfile=AutoLoad,AutoLoad
 function VersionAdapters:GetCurrent()
+    if mQoL_Auto then
+        local r=AutoRead()
+        if not r or r.state~='ready' then return self.Unavailable end
+        local adapter=r.adapter=='raid-options-v1' and self.AutoOptions or self.AutoCVars
+        adapter.cvars={}
+        if r.adapter=='raid-options-v1' then
+            for cvar,option in pairs(CvarToOptionMappings.Legion) do if r.data.values[option]~=nil then adapter.cvars[#adapter.cvars+1]=cvar end end
+        else for cvar in pairs(r.data.values) do adapter.cvars[#adapter.cvars+1]=cvar end end
+        table.sort(adapter.cvars);return adapter
+    end
     if clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP then
         return self.ModernClassic
     elseif clientInfo.isEra or clientInfo.isVanilla then
@@ -438,8 +560,7 @@ function VersionAdapters:GetCurrent()
     elseif clientInfo.isRetail then
         return self.Retail
     end
-    -- Fallback to Retail if unknown
-    return self.Retail
+    return self.Unavailable
 end
 
 -- Get CVars for current version
@@ -450,6 +571,13 @@ end
 -- Load profile using appropriate adapter
 function VersionAdapters:LoadProfile(savedCVars, profileName)
     local adapter = self:GetCurrent()
+    if not mQoL_Auto and savedCVars._format then
+        local format=(adapter==self.Classic or adapter==self.Legion) and 'raid-options-v1' or 'raid-cvars-v1'
+        if savedCVars._format~=format or savedCVars._schema~=1 then return false,'Incompatible saved raid profile format' end
+        local plain={}
+        for key,value in pairs(savedCVars) do if key=='_positions' or (type(key)=='string' and key:sub(1,1)~='_') then plain[key]=value end end
+        savedCVars=plain
+    end
     return adapter.LoadProfile(savedCVars, profileName)
 end
 

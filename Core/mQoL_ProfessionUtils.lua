@@ -998,7 +998,7 @@ local function BuildClassicSkillLineEntry(skillName, skillRank, numTempPoints, s
 end
 
 local function AddClassicSkillLineSnapshot(result)
-    if not (clientInfo.isEra or clientInfo.isBCC)
+    if not (clientInfo.isEra or clientInfo.isBCC or mQoL_Auto)
         or type(GetNumSkillLines) ~= "function"
         or type(GetSkillLineInfo) ~= "function" then
         return false, false

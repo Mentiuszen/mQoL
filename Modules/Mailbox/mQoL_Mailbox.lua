@@ -1,4 +1,6 @@
 local addonName, L = ...
+local C_Timer = mQoL_Compat.Timer
+local SetSolidColor = mQoL_Compat.SetSolidColor
 -- Only Auto defers hooks for Blizzard UI that has not loaded yet.
 local hooksecurefunc = (mQoL_Auto and mQoL_Auto.HookWhenAvailable) or hooksecurefunc
 mQoL_Mailbox = mQoL_Mailbox or {}
@@ -552,7 +554,7 @@ function mQoL_Mailbox:CreateSidePanel()
     -- Background
     sidePanel.bg = sidePanel:CreateTexture(nil, "BACKGROUND")
     sidePanel.bg:SetAllPoints()
-    sidePanel.bg:SetColorTexture(0.08, 0.08, 0.08, 0.95)
+    SetSolidColor(sidePanel.bg, 0.08, 0.08, 0.08, 0.95)
 
     -- Border
     if CreateFrameBorder then
@@ -589,7 +591,7 @@ function mQoL_Mailbox:CreateSidePanel()
         -- Container Background
         container.bg = container:CreateTexture(nil, "BACKGROUND")
         container.bg:SetAllPoints()
-        container.bg:SetColorTexture(0.12, 0.12, 0.12, 1)
+        SetSolidColor(container.bg, 0.12, 0.12, 0.12, 1)
 
         -- Container Border
         if CreateFrameBorder then
@@ -613,7 +615,7 @@ function mQoL_Mailbox:CreateSidePanel()
 
     -- Separator
     local separator = sidePanel:CreateTexture(nil, "ARTWORK")
-    separator:SetColorTexture(0.3, 0.3, 0.3, 0.5)
+    SetSolidColor(separator, 0.3, 0.3, 0.3, 0.5)
     separator:SetSize(390, 1)
     separator:SetPoint("TOPLEFT", 15, -220)
 
@@ -725,7 +727,7 @@ function mQoL_Mailbox:CreateToggleButton()
     -- Background (Dark/Flat style)
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+    SetSolidColor(bg, 0.15, 0.15, 0.15, 1)
     btn.bg = bg
 
     -- Add a border for better visibility
@@ -744,11 +746,11 @@ function mQoL_Mailbox:CreateToggleButton()
 
     -- Scripts (Hover & Click)
     btn:SetScript("OnEnter", function(self)
-        self.bg:SetColorTexture(0.25, 0.25, 0.25, 1)
+        SetSolidColor(self.bg, 0.25, 0.25, 0.25, 1)
         self.text:SetTextColor(1, 1, 1)
     end)
     btn:SetScript("OnLeave", function(self)
-        self.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(self.bg, 0.15, 0.15, 0.15, 1)
         self.text:SetTextColor(0.9, 0.9, 0.9)
     end)
 

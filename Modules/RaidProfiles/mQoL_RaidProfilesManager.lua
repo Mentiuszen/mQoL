@@ -1,4 +1,6 @@
 local addonName = "mQoL"
+local C_Timer = mQoL_Compat.Timer
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local DeepCopy = mQoL_Utils.DeepCopy
 
@@ -96,12 +98,15 @@ function mQoL_RaidProfiles:LoadRaidProfile(profileName)
 
     -- Use version adapter to load
     local Adapters = self.VersionAdapters
-    Adapters:LoadProfile(savedCVars, profileName)
+    local ok,reason=Adapters:LoadProfile(savedCVars, profileName)
+    if mQoL_Auto and not ok then mQoL_Compat.Report('RaidProfiles apply',reason) end
+    return ok,reason
 end
 
 function mQoL_RaidProfiles:SaveRaidProfile(name)
     local Adapters = self.VersionAdapters
     local cvarData = Adapters:SaveProfile()
+    if mQoL_Auto and (type(cvarData)~='table' or not next(cvarData)) then return false,'No raid profile data available; existing profile retained' end
 
     self.db.settings.raidProfiles[name] = cvarData
     print(addonName .. ": Saved Raid Profile '" .. name .. "' to mQoL Storage.")

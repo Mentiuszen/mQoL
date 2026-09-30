@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
 
 mQoL_Main = mQoL_Main or {}
 

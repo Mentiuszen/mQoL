@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
 
 mQoL_Nameplates = mQoL_Nameplates or mQoL_NameplatesQoL or {}
 mQoL_NameplatesQoL = mQoL_Nameplates -- Legacy API alias

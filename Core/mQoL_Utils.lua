@@ -57,7 +57,10 @@ function mQoL_Utils.GetUnitFullName(unit)
         return nil
     end
 
-    return mQoL_Utils.NormalizeFullName(GetUnitName(unit, true))
+    if type(GetUnitName)=='function' then return mQoL_Utils.NormalizeFullName(GetUnitName(unit, true)) end
+    local name,realm=UnitName(unit)
+    if not name then return nil end
+    return mQoL_Utils.NormalizeFullName(name..'-'..(realm or GetRealmName()))
 end
 
 function mQoL_Utils.GetShortName(name)
@@ -305,15 +308,15 @@ function mQoL_Utils.GetClassColorRGB(classFile, fallbackR, fallbackG, fallbackB)
 end
 
 function mQoL_Utils.GetCommDistribution()
-    if IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+    if type(IsInGroup)=='function' and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
         return "INSTANCE_CHAT"
     end
 
-    if IsInRaid() then
+    if mQoL_Compat.IsInRaid() then
         return "RAID"
     end
 
-    if IsInGroup() then
+    if mQoL_Compat.IsInGroup() then
         return "PARTY"
     end
 

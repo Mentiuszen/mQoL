@@ -87,6 +87,4 @@ function D:UsesCapabilityChecks()
     local ci=self.clientInfo
     return ci and (ci.isAuto==true or ci.isForever==true) or false
 end
--- Compatibility alias for callers from AM-R2. This selects checks, not UI.
-function D:UsesCapabilityRuntime() return self:UsesCapabilityChecks() end
 D:Detect()
