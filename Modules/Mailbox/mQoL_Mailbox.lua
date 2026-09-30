@@ -1,4 +1,6 @@
 local addonName, L = ...
+-- Only Auto defers hooks for Blizzard UI that has not loaded yet.
+local hooksecurefunc = (mQoL_Auto and mQoL_Auto.HookWhenAvailable) or hooksecurefunc
 mQoL_Mailbox = mQoL_Mailbox or {}
 
 -- Check if Hub is Available
@@ -9,6 +11,10 @@ end
 
 -- Check Client Version
 local clientInfo = mQoL_VersionDetection.clientInfo
+local function UsesModernMailboxAPI()
+    if mQoL_Auto then return mQoL_Auto:UseModernMailboxAPI() end
+    return clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC
+end
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles and mQoL_Styles.CreateCustomScrollbar
@@ -265,7 +271,7 @@ function mQoL_Mailbox:ApplySettings()
     end
 
     -- Auto subject
-    if s.autoSubject and s.autoSubject ~= "" then
+    if s.autoSubject and s.autoSubject ~= "" and SendMailSubjectEditBox then
         SendMailSubjectEditBox:SetText(s.autoSubject)
     end
 end
@@ -392,7 +398,7 @@ local function MatchesCategory(itemID, category)
 
     local classID, subclassID, bindType
 
-    if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+    if UsesModernMailboxAPI() then
         classID, subclassID, bindType = select(12, C_Item.GetItemInfo(itemID))
     else
         local _, _, _, _, _, _, _, _, _, _, _, classID_, subclassID_, bindType_ = GetItemInfo(itemID)
@@ -413,9 +419,9 @@ end
 function mQoL_Mailbox:FindMatchingItems(category)
     local found = {}
 
-    for bag = 0, 5 do
+    for bag = 0, (mQoL_Auto and NUM_BAG_SLOTS or 5) do
         local slots
-        if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+        if UsesModernMailboxAPI() then
             slots = C_Container.GetContainerNumSlots(bag)
         else
             slots = GetContainerNumSlots(bag)
@@ -423,7 +429,7 @@ function mQoL_Mailbox:FindMatchingItems(category)
 
         for slot = 1, slots do
             local item
-            if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+            if UsesModernMailboxAPI() then
                 item = C_Container.GetContainerItemInfo(bag, slot)
             else
                 local icon, itemCount, locked, quality, readable, lootable, itemLink = GetContainerItemInfo(bag, slot)
@@ -478,7 +484,7 @@ function mQoL_Mailbox:ProcessSendQueue(category)
         local item = self.sendQueue[self.currentAttachment]
 
         local itemExists, isLocked
-        if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+        if UsesModernMailboxAPI() then
             local location = ItemLocation:CreateFromBagAndSlot(item.bag, item.slot)
             itemExists = C_Item.DoesItemExist(location)
             isLocked = C_Item.IsLocked(location)
@@ -504,7 +510,7 @@ function mQoL_Mailbox:ProcessSendQueue(category)
             end
 
             ClearCursor()
-            if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC then
+            if UsesModernMailboxAPI() then
                 C_Container.PickupContainerItem(item.bag, item.slot)
             else
                 PickupContainerItem(item.bag, item.slot)
@@ -936,7 +942,12 @@ end)
 local mailboxFrame = CreateFrame("Frame")
 mailboxFrame:RegisterEvent("MAIL_SHOW")
 mailboxFrame:RegisterEvent("MAIL_SEND_SUCCESS")
-mailboxFrame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
+if mQoL_Auto then
+    pcall(mailboxFrame.RegisterEvent, mailboxFrame, "PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
+    mailboxFrame:RegisterEvent("MAIL_CLOSED")
+else
+    mailboxFrame:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
+end
 mailboxFrame:RegisterEvent("MAIL_INBOX_UPDATE")
 
 mailboxFrame:SetScript("OnEvent", function(_, event, ...)
@@ -947,7 +958,7 @@ mailboxFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "MAIL_SHOW" then
         mQoL_Mailbox:StartGoldTracking()
         C_Timer.After(0.01, function()
-            if MailFrameTab2:IsShown() or MailFrame.tab == 2 then
+            if (MailFrameTab2 and MailFrameTab2:IsShown()) or (MailFrame and MailFrame.tab == 2) then
                 mQoL_Mailbox:CreateToggleButton()
                 mQoL_Mailbox.ToggleButton:Show()
 
@@ -966,21 +977,23 @@ mailboxFrame:SetScript("OnEvent", function(_, event, ...)
             end
         end)
 
-        if s.autoSubject and s.autoSubject ~= "" then
+        if s.autoSubject and s.autoSubject ~= "" and SendMailSubjectEditBox then
             SendMailSubjectEditBox:SetText(s.autoSubject)
         end
 
     elseif event == "MAIL_SEND_SUCCESS" then
-        if s.autoSubject and s.autoSubject ~= "" then
+        if s.autoSubject and s.autoSubject ~= "" and SendMailSubjectEditBox then
             SendMailSubjectEditBox:SetText(s.autoSubject)
         end
-        if lastRecipient and lastRecipient ~= "" then
+        if lastRecipient and lastRecipient ~= "" and SendMailNameEditBox then
             SendMailNameEditBox:SetText(lastRecipient)
         end
 
+    elseif event == "MAIL_CLOSED" and mQoL_Auto then
+        mQoL_Mailbox:EndGoldTracking()
     elseif event == "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" then
         local interactionType = ...
-        if interactionType == Enum.PlayerInteractionType.MailInfo then
+        if Enum and Enum.PlayerInteractionType and interactionType == Enum.PlayerInteractionType.MailInfo then
             mQoL_Mailbox:EndGoldTracking()
         end
     end
@@ -992,7 +1005,7 @@ hooksecurefunc("MailFrameTab_OnClick", function(tab)
         if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("Mailbox") then return end
         local s = mQoL_Mailbox.db and mQoL_Mailbox.db.settings or {}
 
-        if tab == MailFrameTab2 then
+        if tab == MailFrameTab2 or (mQoL_Auto and tab == 2) then
             mQoL_Mailbox:CreateToggleButton()
             mQoL_Mailbox.ToggleButton:Show()
 

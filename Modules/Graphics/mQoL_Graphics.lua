@@ -33,6 +33,7 @@ end
 function mQoL_Graphics:ApplySettings()
     local s = self.db.settings.Graphics
     if not s then return end
+    if mQoL_Auto then return mQoL_Auto:ApplyGraphics(s) end
 
     if s.ViewDistance then
         SetCVar("farclip", s.ViewDistance)
@@ -62,16 +63,16 @@ function mQoL_Graphics:SetupCheckpointSlider(slider, editBox, checkpoints, onApp
         return checkpoints[FindClosestIndex(value)]
     end
 
-    local function UpdateSliderAndInput(val)
+    local function UpdateSliderAndInput(val, initializing)
         local closest = FindClosestValue(val)
         if editBox then
-            editBox:SetText(tostring(closest))
+            editBox:SetText(tostring((mQoL_Auto and initializing) and val or closest))
         end
         if slider then
             slider:SetValue(FindClosestIndex(closest))
             if slider.UpdateThumb then slider:UpdateThumb() end
         end
-        if onApply then
+        if onApply and not (mQoL_Auto and initializing) then
             onApply(closest)
         end
     end
@@ -84,7 +85,7 @@ function mQoL_Graphics:SetupCheckpointSlider(slider, editBox, checkpoints, onApp
     end
 
     if initialValue then
-        UpdateSliderAndInput(initialValue)
+        UpdateSliderAndInput(initialValue, true)
     end
 
     if editBox then
@@ -141,7 +142,11 @@ function mQoL_Graphics:CreateGraphicsPanel(parent)
     local function GetStartIndex(db, defaults, key, checkpoints, cvarName)
         local cvarValue
         if cvarName then
-            cvarValue = tonumber(GetCVar(cvarName))
+            if mQoL_Auto then
+                cvarValue = mQoL_CVar:ReadNumber(cvarName)
+            else
+                cvarValue = tonumber(GetCVar(cvarName))
+            end
         end
         local val = cvarValue or (db and db[key]) or (defaults and defaults[key]) or checkpoints[1]
         -- Find closest index
@@ -153,14 +158,14 @@ function mQoL_Graphics:CreateGraphicsPanel(parent)
                 closestIndex = i
             end
         end
-        return closestIndex
+        return closestIndex, val
     end
 
     -- VIEW DISTANCE (Farclip)
     local viewEditBox = CreateCustomInputBox(contentContainer)
     viewEditBox:SetSize(60,28)
 
-    local viewStartIndex = GetStartIndex(s, mQoL_Graphics.defaults.Graphics, "ViewDistance", viewDistances, "farclip")
+    local viewStartIndex, viewStartValue = GetStartIndex(s, mQoL_Graphics.defaults.Graphics, "ViewDistance", viewDistances, "farclip")
 
     local viewApplyFunc -- Declarate variable for Apply function
 
@@ -186,13 +191,13 @@ function mQoL_Graphics:CreateGraphicsPanel(parent)
     viewApplyFunc = mQoL_Graphics:SetupCheckpointSlider(viewSlider, viewEditBox, viewDistances, function(val)
         s.ViewDistance = val
         mQoL_Graphics:ApplySettings()
-    end, viewDistances[viewStartIndex])
+    end, (mQoL_Auto and viewStartValue) or viewDistances[viewStartIndex])
 
     -- FOG DISTANCE (HorizonStart)
     local fogEditBox = CreateCustomInputBox(contentContainer)
     fogEditBox:SetSize(60,28)
 
-    local fogStartIndex = GetStartIndex(s, mQoL_Graphics.defaults.Graphics, "FogDistance", fogDistances, "horizonStart")
+    local fogStartIndex, fogStartValue = GetStartIndex(s, mQoL_Graphics.defaults.Graphics, "FogDistance", fogDistances, "horizonStart")
 
     local fogApplyFunc -- Declare variable for Apply function
 
@@ -221,7 +226,7 @@ function mQoL_Graphics:CreateGraphicsPanel(parent)
     fogApplyFunc = mQoL_Graphics:SetupCheckpointSlider(fogSlider, fogEditBox, fogDistances, function(val)
         s.FogDistance = val
         mQoL_Graphics:ApplySettings()
-    end, fogDistances[fogStartIndex])
+    end, (mQoL_Auto and fogStartValue) or fogDistances[fogStartIndex])
 
     AddGap(contentContainer, "Additional", 40)
 

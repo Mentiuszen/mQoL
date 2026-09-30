@@ -57,7 +57,7 @@ function mQoL_ActionBarsQoL:CaptureCurrentSettings()
     end
     SetMissing("autoSelfCast", mQoL_CVar:ReadBoolean("autoSelfCast"))
 
-    local lastBar = (clientInfo.isRetail or clientInfo.isBCC) and 8 or 5
+    local lastBar = (clientInfo.isRetail or clientInfo.isBCC or mQoL_Auto) and 8 or 5
     for bar = 2, lastBar do
         local value
         if clientInfo.isLegion then
@@ -110,6 +110,7 @@ function mQoL_ActionBarsQoL:ApplyVisibilitySettings(ab)
     end
 
     local function apply_alwaysShowActionBars(value)
+        if mQoL_Auto then return mQoL_Auto:ApplyActionBarGrid(value) end
         if clientInfo.isRetail or clientInfo.isBCC then return end
         if mQoL_Database:IsDisabled(value) then return end
 
@@ -240,6 +241,7 @@ function mQoL_ActionBarsQoL:ApplySettings(ab)
 
     local function apply_showActionBar(key, value)
         if mQoL_Database:IsDisabled(value) then return end
+        if mQoL_Auto then return mQoL_Auto:ApplyActionBar(key, value) end
 
         local map
         if clientInfo.isLegion then
@@ -309,6 +311,8 @@ end
 -- and this will use checksum to detect changes if they actually occurred so apply only when needed
 -- By default enabled for Retail only as taint is confirmed there (i was unable to use extra action bar with addon enabled without tainting frames)
 function mQoL_ActionBarsQoL:IsActionBarChecksumEnabled()
+    -- Auto adapters compare actual state and defer protected changes themselves.
+    if mQoL_Auto then return false end
     local enableRetail      = true  --frames will taint its confirmed
     local enableClassic     = false
     local enableLegion      = false
@@ -420,7 +424,7 @@ function mQoL_ActionBarsQoL:CreatePanel(parent)
     AddActionBarDropdown("Action Bar 4", "showActionBars4")
     AddActionBarDropdown("Action Bar 5", "showActionBars5")
 
-    if clientInfo.isRetail or clientInfo.isBCC then
+    if clientInfo.isRetail or clientInfo.isBCC or (mQoL_Auto and mQoL_Auto:HasExtraActionBars()) then
         AddActionBarDropdown("Action Bar 6", "showActionBars6")
         AddActionBarDropdown("Action Bar 7", "showActionBars7")
         AddActionBarDropdown("Action Bar 8", "showActionBars8")

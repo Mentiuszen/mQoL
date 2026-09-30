@@ -137,6 +137,7 @@ function mQoL_NameplatesQoL:ApplySettings(np)
 
     local function apply_nameplateShowAll(np)
         if not np then return end
+        if mQoL_Auto then return mQoL_Auto:SyncNameplateAll(np) end
 
         local showEnemy = (not mQoL_Database:IsDisabled(np.showEnemyNameplates)) and np.showEnemyNameplates or false
 
@@ -204,7 +205,7 @@ function mQoL_NameplatesQoL:ApplySettings(np)
         end
 
         apply_showFriendlyNpcs(np.showFriendlyNpcs)
-    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic then
+    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic or mQoL_Auto then
         -- Legion/BCC/Era/Pandaria: Granular minion types
         if np.separateEnemyMinions then
             mQoL_CVar:Apply("nameplateShowEnemyPets", np.showEnemyPets)
@@ -315,7 +316,7 @@ function mQoL_NameplatesQoL:ApplySettings(np)
             apply_showFriendlyTotems(value)
             apply_nameplateShowAll(np)
         end
-    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic then
+    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic or mQoL_Auto then
         -- Legion/BCC/Era/Pandaria: Granular minion types
         -- Enemy minion appliers
         self.ApplySetting.Nameplates.showEnemyMinions = function(value)

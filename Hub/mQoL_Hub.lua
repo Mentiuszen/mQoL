@@ -112,10 +112,19 @@ SlashCmdList["MQOL_HUBVERSION"] = function()
 end
 
 -- Libs for minimap
-local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
-local LDBIcon = LibStub("LibDBIcon-1.0")
+local LDB, LDBIcon
+if mQoL_Auto then
+    -- The launcher is optional. Missing minimap libraries must not abort the Hub.
+    if LibStub and type(LibStub.GetLibrary) == "function" then
+        LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
+        LDBIcon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+    end
+else
+    LDB = LibStub:GetLibrary("LibDataBroker-1.1")
+    LDBIcon = LibStub("LibDBIcon-1.0")
+end
 
-local hubLauncher = LDB:NewDataObject("mQoL_Hub", {
+local hubLauncher = LDB and LDB:NewDataObject("mQoL_Hub", {
     type = "launcher",
     text = "mQoL Hub",
     icon = "Interface\\AddOns\\mQoL\\Media\\Textures\\logo",
@@ -129,6 +138,10 @@ local hubLauncher = LDB:NewDataObject("mQoL_Hub", {
 })
 
 function mQoL_Hub:InitializeMinimap()
+    if mQoL_Auto and (not hubLauncher or not LDBIcon or type(LDBIcon.Register) ~= "function") then
+        mQoL_Auto.minimapUnavailable = "Minimap launcher library unavailable; the standard Hub remains accessible with /mqol."
+        return
+    end
     LDBIcon:Register("mQoL_Hub", hubLauncher, self.db.minimap)
 
     if self.db.minimap and self.db.minimap.hide then
@@ -1057,7 +1070,7 @@ function mQoL_Hub.CreateInfoSection(parent, yOffset, opts)
     explanationFrame:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -4)
     explanationFrame:SetSize(width, 0) -- start hidden
     explanationFrame:Hide()
-    explanationFrame:SetClipsChildren(true)
+    if not mQoL_Auto or type(explanationFrame.SetClipsChildren) == "function" then explanationFrame:SetClipsChildren(true) end
 
     -- FontString inside explanationFrame
     local explanationFS = explanationFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -1279,7 +1292,7 @@ function mQoL_Hub:CreateSidePanel(parent)
     resultsFrame:SetPoint("TOPRIGHT", searchFrame, "BOTTOMRIGHT", 0, -2)
     resultsFrame:SetHeight(50)
     resultsFrame:EnableMouse(true)
-    resultsFrame:SetMouseMotionEnabled(true)
+    if not mQoL_Auto or type(resultsFrame.SetMouseMotionEnabled) == "function" then resultsFrame:SetMouseMotionEnabled(true) end
     resultsFrame:SetFrameStrata("DIALOG")
     resultsFrame:SetFrameLevel(sidebar:GetFrameLevel() + 10)
     
@@ -1586,7 +1599,7 @@ function mQoL_Hub:CreateSidePanel(parent)
         buttonsFrame:SetPoint("TOPLEFT", 10, 0)
         buttonsFrame:SetPoint("TOPRIGHT", -10, 0)
         buttonsFrame:SetHeight(24 * (#block.buttons))
-        buttonsFrame:SetClipsChildren(true)
+        if not mQoL_Auto or type(buttonsFrame.SetClipsChildren) == "function" then buttonsFrame:SetClipsChildren(true) end
 
         block.container = container
         block.arrow = arrow
