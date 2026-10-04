@@ -206,8 +206,8 @@ function mQoL_NameplatesQoL:ApplySettings(np)
         end
 
         apply_showFriendlyNpcs(np.showFriendlyNpcs)
-    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic or mQoL_Auto then
-        -- Legion/BCC/Era/Pandaria: Granular minion types
+    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isMoP or mQoL_Auto then
+        -- Legion/BCC/Era/MoP: Granular minion types
         if np.separateEnemyMinions then
             mQoL_CVar:Apply("nameplateShowEnemyPets", np.showEnemyPets)
             mQoL_CVar:Apply("nameplateShowEnemyGuardians", np.showEnemyGuardians)
@@ -317,8 +317,8 @@ function mQoL_NameplatesQoL:ApplySettings(np)
             apply_showFriendlyTotems(value)
             apply_nameplateShowAll(np)
         end
-    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic or mQoL_Auto then
-        -- Legion/BCC/Era/Pandaria: Granular minion types
+    elseif clientInfo.isLegion or clientInfo.isBCC or clientInfo.isEra or clientInfo.isMoP or mQoL_Auto then
+        -- Legion/BCC/Era/MoP: Granular minion types
         -- Enemy minion appliers
         self.ApplySetting.Nameplates.showEnemyMinions = function(value)
             np.showEnemyMinions = value
@@ -796,8 +796,8 @@ function mQoL_NameplatesQoL:CreatePanel(parent)
         -- Separator
         AddGap(contentContainer, "BottomSeparator")
 
-    elseif clientInfo.isBCC or clientInfo.isEra or clientInfo.isClassic or clientInfo.isLegion then
-        -- BCC/Era/Pandaria/Legion: Granular Enemy/Friendly Minions
+    elseif clientInfo.isBCC or clientInfo.isEra or clientInfo.isMoP or clientInfo.isLegion then
+        -- BCC/Era/MoP/Legion: Granular Enemy/Friendly Minions
         AddOptionRow("Enemy Minions", "dropdown", {
             list = {
                 { text = "Show All", value = true, onSelect = function() 
@@ -999,7 +999,7 @@ function mQoL_NameplatesQoL:CreatePanel(parent)
 
     -- Max Nameplate Distance
     local distances = {20, 40, 60}
-    if clientInfo.isClassic then distances = {21, 41} end
+    if clientInfo.isMoP then distances = {21, 41} end
     if clientInfo.isBCC then distances = {21, 41} end
     if clientInfo.isEra then distances = {21, 41} end
     if clientInfo.isLegion then distances = {20, 40, 60, 80, 100} end

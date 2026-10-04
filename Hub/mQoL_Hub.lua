@@ -14,7 +14,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.3.0"
-mQoL_Hub.build = "309"
+mQoL_Hub.build = "319"
 mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
@@ -64,21 +64,21 @@ mQoL_Hub.searchIndex = {
     { label = "Alts List", panel = "Mailbox", available = true },
     { label = "Guild List", panel = "Mailbox", available = true },
     { label = "Friends List", panel = "Mailbox", available = true },
-	{ label = "View Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
-    { label = "Fog Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
+	{ label = "View Distance", panel = "Graphics", available = clientInfo.isMoP or clientInfo.isEra or clientInfo.isBCC },
+    { label = "Fog Distance", panel = "Graphics", available = clientInfo.isMoP or clientInfo.isEra or clientInfo.isBCC },
     { label = "Edit Mode Profile Mode", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
     { label = "Force Edit Mode Profile", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
     { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = clientInfo.isEra or clientInfo.isLegion },
     { label = "Saved Raid Profiles", panel = "Raid Profiles", available = true },
     { label = "Forced Raid Profile Mode", panel = "Raid Profiles", available = true },
     { label = "Force Raid Profile", panel = "Raid Profiles", available = true },
-    { label = "PvP Rewards Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Pandaria Map Navigation", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Consolidated Buffs Improvement", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Corpse Map Texture Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Minimap Instance Difficulty Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Auto Reset Instance", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Encounter Journal Tab Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
+    { label = "PvP Rewards Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Pandaria Map Navigation", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Consolidated Buffs Improvement", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Corpse Map Texture Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Minimap Instance Difficulty Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Auto Reset Instance", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Encounter Journal Tab Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
 }
 
 -- SLASH COMMAND OPEN MAIN WINDOW

@@ -15,7 +15,7 @@ end
 local clientInfo = mQoL_VersionDetection.clientInfo
 local function UsesModernMailboxAPI()
     if mQoL_Auto then return mQoL_Auto:UseModernMailboxAPI() end
-    return clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC
+    return clientInfo.isRetail or clientInfo.isMoP or clientInfo.isEra or clientInfo.isBCC
 end
 
 -- Styles

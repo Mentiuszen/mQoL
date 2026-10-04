@@ -1,10 +1,9 @@
 local addonName = ...
 mQoL_VersionDetection = mQoL_VersionDetection or {}
 local D = mQoL_VersionDetection
-local TRANSLATION_MAP = { isClassic="isMoP", isMoP="isClassic", isEra="isVanilla", isVanilla="isEra", isBCC="isTBC", isTBC="isBCC" }
 local ACTIVE_TREE = {
     {key="Retail", name="Retail", flag="isRetail", minToc=120000, maxToc=999999, aliases={}},
-    {key="MoP", name="Mists of Pandaria Classic", flag="isMoP", minToc=50500, maxToc=50505, aliases={"isClassic"}},
+    {key="MoP", name="Mists of Pandaria Classic", flag="isMoP", minToc=50500, maxToc=50505, aliases={}},
     {key="Vanilla", name="Classic Era (Vanilla)", flag="isVanilla", minToc=11300, maxToc=11599, aliases={"isEra"}},
     {key="TBC", name="Burning Crusade Classic", flag="isTBC", minToc=20500, maxToc=20506, aliases={"isBCC"}},
     {key="Forever", name="Forever", flag="isForever", minToc=16000, maxToc=16001, aliases={}},
@@ -12,7 +11,7 @@ local ACTIVE_TREE = {
 local LEGACY_TREE = {
     {key="Legion", name="Legion", flag="isLegion", minToc=70000, maxToc=70300, aliases={}},
 }
-local FLAGS = {"isRetail","isClassic","isMoP","isPandaria","isLegion","isEra","isVanilla","isBCC","isTBC","isForever","isAuto"}
+local FLAGS = {"isRetail","isMoP","isLegion","isEra","isVanilla","isBCC","isTBC","isForever","isAuto"}
 local function ValidTOC(n)
     return type(n)=="number" and n==n and n>0 and n<math.huge and n%1==0
 end
@@ -45,7 +44,7 @@ local function Register(tree, def)
 end
 function D:RegisterActiveVersion(def) return Register(ACTIVE_TREE,def) end
 function D:RegisterLegacyVersion(def) return Register(LEGACY_TREE,def) end
-function D:TranslateVersionKey(key) return TRANSLATION_MAP[key] or key end
+function D:TranslateVersionKey(key) return key end
 function D:Lock() self.locked=true end
 function D:Detect()
     if self.locked then return self.clientInfo, "Client identity is locked for this session" end
@@ -74,7 +73,6 @@ function D:Detect()
         end
     end
     if not found then ci.isAuto=true; ci.detectionReason=reason or "TOC is outside the explicit Active and Legacy ranges" end
-    setmetatable(ci,{__index=function(t,k) local alias=TRANSLATION_MAP[k]; if alias then return rawget(t,alias) end end})
     self[ci.tree.."ClientInfo"]=ci; self.clientInfo=ci
     return ci
 end

@@ -8,7 +8,7 @@ local mQoL_Hub = _G["mQoL_Hub"]
 if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP or clientInfo.isAuto or clientInfo.isForever) then return end
+if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isAuto or clientInfo.isForever) then return end
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
 

@@ -538,7 +538,7 @@ function mQoL_RaidProfiles:HookSettingsPanel()
         self:HookSettingsPanelRetail()
     elseif clientInfo.isBCC or clientInfo.isTBC then
         self:HookSettingsPanelBCC()
-    elseif clientInfo.isClassic or clientInfo.isMoP then
+    elseif clientInfo.isMoP then
         self:HookSettingsPanelBCC()
     elseif clientInfo.isEra or clientInfo.isVanilla then
         self:HookSettingsPanelClassic()
@@ -1485,7 +1485,7 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         return mQoL_Hub:AddOptionRow(contentContainer, label, type, opts, extra, applyFunc)
     end
 
-    if clientInfo.isEra or clientInfo.isLegion or clientInfo.isClassic then
+    if clientInfo.isEra or clientInfo.isLegion or clientInfo.isMoP then
         if self:ShouldHandleUseCompactPartyFrames() then
             AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
                 value = GetCVarBool("useCompactPartyFrames"),

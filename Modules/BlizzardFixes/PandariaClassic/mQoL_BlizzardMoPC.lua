@@ -9,7 +9,7 @@ end
 
 -- ToC Detection
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
-if not (clientInfo and (clientInfo.isClassic or clientInfo.isMoP)) then return end
+if not (clientInfo and clientInfo.isMoP) then return end
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles and mQoL_Styles.CreateCustomScrollbar

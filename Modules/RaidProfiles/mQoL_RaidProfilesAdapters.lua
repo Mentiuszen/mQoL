@@ -551,7 +551,7 @@ function VersionAdapters:GetCurrent()
         else for cvar in pairs(r.data.values) do adapter.cvars[#adapter.cvars+1]=cvar end end
         table.sort(adapter.cvars);return adapter
     end
-    if clientInfo.isBCC or clientInfo.isTBC or clientInfo.isClassic or clientInfo.isMoP then
+    if clientInfo.isBCC or clientInfo.isTBC or clientInfo.isMoP then
         return self.ModernClassic
     elseif clientInfo.isEra or clientInfo.isVanilla then
         return self.Classic

@@ -56,11 +56,11 @@ function mQoL_GeneralQoL:CaptureCurrentSettings()
     SetMissing("fastAutoLoot", false)
     SetMissing("fastAutoLootSpeed", 0.02)
 
-    if clientInfo.isClassic or mQoL_Auto then
+    if clientInfo.isMoP or mQoL_Auto then
         SetMissing("autoConsolidatedBuffs", mQoL_CVar:ReadBoolean("consolidateBuffs"))
     end
 
-    if clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC or mQoL_Auto then
+    if clientInfo.isEra or clientInfo.isBCC or mQoL_Auto then
         local helmValue = mQoL_CVar:ReadBoolean("showHelm")
         local cloakValue = mQoL_CVar:ReadBoolean("showCloak")
         if type(ShowingHelm) == "function" then
@@ -104,20 +104,20 @@ function mQoL_GeneralQoL:ApplySettings(g)
 
     local function apply_showHead(value)
         if mQoL_Auto then return mQoL_Auto:ApplyAppearance('showHead',value) end
-        if not mQoL_Database:IsDisabled(value) and type(ShowHelm) == "function" and (clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
+        if not mQoL_Database:IsDisabled(value) and type(ShowHelm) == "function" and (clientInfo.isEra or clientInfo.isBCC) then
             ShowHelm(value == true)
         end
     end
 
     local function apply_showCloak(value)
         if mQoL_Auto then return mQoL_Auto:ApplyAppearance('showCloak',value) end
-        if not mQoL_Database:IsDisabled(value) and type(ShowCloak) == "function" and (clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC) then
+        if not mQoL_Database:IsDisabled(value) and type(ShowCloak) == "function" and (clientInfo.isEra or clientInfo.isBCC) then
             ShowCloak(value == true)
         end
     end
 
     local function apply_autoConsolidatedBuffs(value)
-        if clientInfo.isClassic or mQoL_Auto then
+        if clientInfo.isMoP or mQoL_Auto then
             mQoL_CVar:Apply("consolidateBuffs", value)
         end
     end
@@ -213,8 +213,8 @@ function mQoL_GeneralQoL:CreatePanel(parent)
 
     AddGap(contentContainer, "Standard")
 
-    -- Auto Enable Consolidated Buffs (Classic only)
-    if clientInfo.isClassic or mQoL_Auto then
+    -- Auto Enable Consolidated Buffs (MoP only)
+    if clientInfo.isMoP or mQoL_Auto then
         AddOptionRow(contentContainer, "Enable Consolidated Buffs", "checkbox", {
             value = s.autoConsolidatedBuffs,
             onValueChanged = function(_, value)
@@ -277,8 +277,8 @@ function mQoL_GeneralQoL:CreatePanel(parent)
     })
     AddGap(contentContainer, "Standard")
 
-    -- Show Head / Show Cloak (Pandaria/Era/BCC only)
-    if clientInfo.isPandaria or clientInfo.isEra or clientInfo.isBCC or mQoL_Auto then
+    -- Show Head / Show Cloak (Era/BCC only)
+    if clientInfo.isEra or clientInfo.isBCC or mQoL_Auto then
         -- Show Head
         AddOptionRow(contentContainer, "Show Head", "dropdown", {
             list = {

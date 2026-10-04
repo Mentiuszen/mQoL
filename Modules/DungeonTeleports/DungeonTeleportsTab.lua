@@ -637,7 +637,7 @@ local function ApplyClientEntryOverrides(entry)
 
     local merged = ShallowCopyTable(entry)
 
-    if clientInfo.isClassic then
+    if clientInfo.isMoP then
         if merged.sourceClassic ~= nil then
             merged.source = merged.sourceClassic
         end
@@ -733,7 +733,7 @@ local function ResolveTeleportEntry(categoryValue, entry, seasonMeta)
 end
 
 local function GetDungeonTeleportsTabConfig()
-    local isClassicLayout = (clientInfo.isClassic or mQoL_Auto) and true or false
+    local isClassicLayout = (clientInfo.isMoP or mQoL_Auto) and true or false
 
     return {
         isClassicLayout = isClassicLayout,
@@ -3555,7 +3555,7 @@ local function IsGroupFinderLoaded()
     return isLoadedOrLoading
 end
 
-local InitializeDungeonTeleportsTab = (clientInfo.isClassic or mQoL_Auto)
+local InitializeDungeonTeleportsTab = (clientInfo.isMoP or mQoL_Auto)
     and InitDungeonTeleportsTabClassic
     or InitDungeonTeleportsTabRetail
 

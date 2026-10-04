@@ -129,7 +129,7 @@ function mQoL_ActionBarsQoL:ApplyVisibilitySettings(ab)
                  InterfaceOptions_UpdateMultiActionBars()
             end
         else
-            -- Classic/Pandaria/Era use Settings API with CVar
+            -- MoP/Era use Settings API with CVar
             SetCVar("alwaysShowActionBars", cvarValue)
 
             -- Call Blizzard's update function to refresh the UI state
@@ -252,7 +252,7 @@ function mQoL_ActionBarsQoL:ApplySettings(ab)
                 showActionBars4 = "SHOW_MULTI_ACTIONBAR_3",
                 showActionBars5 = "SHOW_MULTI_ACTIONBAR_4",
             }
-        elseif clientInfo.isClassic or clientInfo.isRetail or clientInfo.isEra or clientInfo.isBCC then
+        elseif clientInfo.isMoP or clientInfo.isRetail or clientInfo.isEra or clientInfo.isBCC then
             map = {
                 showActionBars2 = "PROXY_SHOW_ACTIONBAR_2",
                 showActionBars3 = "PROXY_SHOW_ACTIONBAR_3",
@@ -315,16 +315,14 @@ function mQoL_ActionBarsQoL:IsActionBarChecksumEnabled()
     -- Auto adapters compare actual state and defer protected changes themselves.
     if mQoL_Auto then return false end
     local enableRetail      = true  --frames will taint its confirmed
-    local enableClassic     = false
+    local enableMoP         = false
     local enableLegion      = false
-    local enablePandaria    = false
     local enableEra         = false
     local enableBCC         = false
 
     if clientInfo.isRetail then return enableRetail end
-    if clientInfo.isClassic then return enableClassic end
+    if clientInfo.isMoP then return enableMoP end
     if clientInfo.isLegion then return enableLegion end
-    if clientInfo.isPandaria then return enablePandaria end
     if clientInfo.isEra then return enableEra end
     if clientInfo.isBCC then return enableBCC end
 
