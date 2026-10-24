@@ -46,15 +46,16 @@ local function evaluate(entry,fresh)
     if not result then return true end
     return result.state=='ready' and result.canWrite~=false,result.reason or result.state
 end
-local function tooltip(entry)
-    if not GameTooltip or not C.HasMethods(GameTooltip,'SetOwner','SetText','Show') then return end
-    GameTooltip:SetOwner(entry.row,'ANCHOR_RIGHT')
-    GameTooltip:SetText(entry.name)
-    if C.HasMethods(GameTooltip,'AddLine') then
-        if entry.allowed then GameTooltip:AddLine('Setting available.',1,1,1,true)
-        else GameTooltip:AddLine(tostring(entry.reason),1,0.8,0.3,true) end
-    end
-    GameTooltip:Show()
+local function featureDefinition(feature)
+    return feature and A.byKey[feature[1]] and A.byKey[feature[1]].byFeature[feature[2]]
+end
+local function isUnavailableCVar(feature,result)
+    local definition=featureDefinition(feature)
+    if not definition or not result then return false end
+    -- Appearance features use a direct API where available and fall back to
+    -- their declared CVar. Treat that fallback exactly like catalog CVars.
+    if definition.kind~='cvar' and definition.cvar==nil then return false end
+    return result.state=='missing' or result.state=='error'
 end
 local function restore(entry)
     if entry.control and type(entry.control.SetValue)=='function' and entry.value~=nil then
@@ -94,6 +95,18 @@ function H:AddOptionRow(parent,name,controlType,params,extra,applyFunc)
     local localCheck=localChecks[name]
     if not feature and not module and not localCheck then return originalRow(self,parent,name,controlType,params,extra,applyFunc) end
     local entry={name=name,feature=feature,module=module,localCheck=localCheck,value=params and params.value}
+    if feature then
+        local result=A:GetFeature(feature[1],feature[2],true)
+        if isUnavailableCVar(feature,result) then
+            -- The module code adds a standard gap after every option. Mark it
+            -- so a filtered option does not leave an empty slot in the panel.
+            if parent then parent.mQoLSkipNextGap=true end
+            for _,frame in ipairs(extra or {}) do
+                if frame and type(frame.Hide)=='function' then frame:Hide() end
+            end
+            return nil,nil
+        end
+    end
     -- Copy descriptors, not WoW frame objects. Never mutate a shared list.
     local options={}
     for key,value in pairs(params or {}) do options[key]=value end
@@ -115,13 +128,6 @@ function H:AddOptionRow(parent,name,controlType,params,extra,applyFunc)
     if control then control.mQoLAvailability=entry end
     for _,frame in ipairs(extra or {}) do frame.mQoLAvailability=entry end
     A.optionRows[#A.optionRows+1]=entry
-    row:EnableMouse(true)
-    row:HookScript('OnEnter',function() tooltip(entry) end)
-    row:HookScript('OnLeave',function() if GameTooltip then GameTooltip:Hide() end end)
-    if control and type(control.HookScript)=='function' then
-        control:HookScript('OnEnter',function() tooltip(entry) end)
-        control:HookScript('OnLeave',function() if GameTooltip then GameTooltip:Hide() end end)
-    end
     A:RefreshOptionRows()
     return row,control
 end
@@ -140,7 +146,7 @@ function A:RefreshOptionRows()
             -- attached for diagnostics; do not erase functioning sibling rows.
             item.autoState=r and r.state or 'unknown'
             item.autoReason=r and r.reason
-            item.available=true
+            item.available=not isUnavailableCVar(feature,r)
         end
     end
 end

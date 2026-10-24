@@ -417,6 +417,10 @@ mQoL_Templates.Spacing = {
 -- type: "Standard", "Additional", "Custom", "BottomSeparator", "WarningSeparator", "MainSeparator", "TopSeparator"
 function mQoL_Templates.AddGap(container, gapType, customSize)
     if not container then return end
+    if container.mQoLSkipNextGap then
+        container.mQoLSkipNextGap=nil
+        return
+    end
 
     local StandardGap = mQoL_Templates.Spacing.Standard
     local TopSeparatorGap = mQoL_Templates.Spacing.TopSeparator
@@ -650,5 +654,8 @@ function mQoL_Templates.CreateStandardOptionsPanel(parent, titleText, infoOpts, 
         _, infoButton, explanationFrame = mQoL_Templates.PanelInfo(panel, infoOpts)
     end
     local contentContainer = mQoL_Templates.BeginOptions(panel, separatorType)
+    scrollFrame:HookScript("OnSizeChanged", function()
+        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
+    end)
     return scrollFrame, panel, contentContainer, infoButton, explanationFrame
 end
