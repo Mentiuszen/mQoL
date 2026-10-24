@@ -46,12 +46,11 @@ Modules/RaidProfiles/mQoL_RaidProfiles.lua
 Modules/DungeonTeleports/DungeonTeleportsTab.lua
 Modules/MythicPlusListing/mQoL_MythicPlusListing.lua
 
-#Blizzard Fixes
+#Blizzard Fixes (MoP Classic Only)
 Modules/BlizzardFixes/PandariaClassic/mQoL_BlizzardMoPC.lua
 Modules/BlizzardFixes/PandariaClassic/mQoL_FixPvPRewardsMoPC.lua
 Modules/BlizzardFixes/PandariaClassic/mQoL_FixWorldMapMoPC.lua
 Modules/BlizzardFixes/PandariaClassic/mQoL_GeneralFixesMoPC.lua
-Modules/BlizzardFixes/BurningCrusadeClassic/mQoL_FixWorldMapBCC.lua
 
 #Unified Setup
 Core/mQoL_Setup.lua
