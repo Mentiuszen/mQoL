@@ -57,6 +57,17 @@ local function isUnavailableCVar(feature,result)
     if definition.kind~='cvar' and definition.cvar==nil then return false end
     return result.state=='missing' or result.state=='error'
 end
+local function isUnavailableFeature(feature,result)
+    if not feature or feature[1]~='EditMode' then return false end
+    -- Edit Mode rows have no useful action on clients without its layout API.
+    -- The provider can be listed as available even when this API does not exist,
+    -- which otherwise leaves the row pending forever in the Hub.
+    if not C.Function('C_EditMode.GetLayouts') then return true end
+    return result and (result.state=='missing' or result.state=='error') or false
+end
+local function shouldHideOption(feature,result)
+    return isUnavailableCVar(feature,result) or isUnavailableFeature(feature,result)
+end
 local function restore(entry)
     if entry.control and type(entry.control.SetValue)=='function' and entry.value~=nil then
         entry.restoring=true
@@ -75,7 +86,8 @@ function A:GuardOption(entry,fn,explicitValue,hasExplicitValue)
         if entry.feature and not mQoL_Modules:ShouldLoadModule(entry.feature[1]) then allowed=false;reason='Module disabled' end
         -- Users must always be able to stop managing a setting or turn a
         -- selected module off even when an API has disappeared.
-        if value=='disable' or (entry.module and value==false) then allowed=true end
+        local disabledMode=type(value)=='string' and value:lower()=='disabled'
+        if value=='disable' or disabledMode or (entry.module and value==false) then allowed=true end
         if not allowed then
             restore(entry)
             C.Report('Option '..entry.name,reason)
@@ -97,7 +109,7 @@ function H:AddOptionRow(parent,name,controlType,params,extra,applyFunc)
     local entry={name=name,feature=feature,module=module,localCheck=localCheck,value=params and params.value}
     if feature then
         local result=A:GetFeature(feature[1],feature[2],true)
-        if isUnavailableCVar(feature,result) then
+        if shouldHideOption(feature,result) then
             -- The module code adds a standard gap after every option. Mark it
             -- so a filtered option does not leave an empty slot in the panel.
             if parent then parent.mQoLSkipNextGap=true end
@@ -146,7 +158,7 @@ function A:RefreshOptionRows()
             -- attached for diagnostics; do not erase functioning sibling rows.
             item.autoState=r and r.state or 'unknown'
             item.autoReason=r and r.reason
-            item.available=not isUnavailableCVar(feature,r)
+            item.available=not shouldHideOption(feature,r)
         end
     end
 end

@@ -10,6 +10,15 @@ end
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local SetSolidColor = mQoL_Compat.SetSolidColor
 local GetClassColor = mQoL_Utils.GetClassColor
+local function GetPlayerSpecializationID()
+    local getSpecIndex = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
+    local getSpecInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
+    if type(getSpecIndex) ~= "function" or type(getSpecInfo) ~= "function" then return nil end
+    local ok, index = pcall(getSpecIndex)
+    if not ok or not index then return nil end
+    local success, specID = pcall(getSpecInfo, index)
+    return success and specID or nil
+end
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -534,6 +543,22 @@ function mQoL_RaidProfiles:HookSettingsPanelLegion()
 end
 
 function mQoL_RaidProfiles:HookSettingsPanel()
+    if mQoL_Auto then
+        -- Pick the Blizzard integration from the UI/API exposed by this client.
+        -- BFA and Legion use the legacy Compact Unit Frame Profiles panel.
+        if CompactUnitFrameProfiles and CompactUnitFrameProfilesDeleteButton then
+            self:HookSettingsPanelLegion()
+        elseif Settings and type(Settings.RegisterVerticalLayoutCategory) == "function"
+            and type(Settings.GetCategory) == "function"
+            and type(CreateSettingsButtonInitializer) == "function"
+            and SettingsPanel and type(SettingsPanel.GetLayout) == "function" then
+            self:HookSettingsPanelBCC()
+        elseif SettingsPanel and RaidProfilesMixin and type(RaidProfilesMixin.Init) == "function" then
+            self:HookSettingsPanelClassic()
+        end
+        return
+    end
+
     if clientInfo.isRetail then
         self:HookSettingsPanelRetail()
     elseif clientInfo.isBCC or clientInfo.isTBC then
@@ -1485,10 +1510,12 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
         return mQoL_Hub:AddOptionRow(contentContainer, label, type, opts, extra, applyFunc)
     end
 
-    if clientInfo.isEra or clientInfo.isLegion or clientInfo.isMoP then
-        if self:ShouldHandleUseCompactPartyFrames() then
+    local supportsCompactPartyFrames = self:ShouldHandleUseCompactPartyFrames()
+    if mQoL_Auto then
+        if supportsCompactPartyFrames then
+            local currentValue = mQoL_CVar:ReadBoolean("useCompactPartyFrames")
             AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
-                value = GetCVarBool("useCompactPartyFrames"),
+                value = currentValue,
                 onValueChanged = function(self, val)
                     mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
                 end
@@ -1496,6 +1523,15 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
             AddGap(contentContainer, "Standard")
             AddGap(contentContainer, "BottomSeparator")
         end
+    elseif (clientInfo.isEra or clientInfo.isLegion or clientInfo.isMoP) and supportsCompactPartyFrames then
+        AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
+            value = GetCVarBool("useCompactPartyFrames"),
+            onValueChanged = function(self, val)
+                mQoL_RaidProfiles:ApplyUseCompactPartyFrames(val)
+            end
+        })
+        AddGap(contentContainer, "Standard")
+        AddGap(contentContainer, "BottomSeparator")
     end
 
     local function OpenProfileManager()
@@ -1842,12 +1878,7 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
 
         -- Initialize tracking
         lastSituation = mQoL_RaidProfiles:GetCurrentSituation()
-        if GetSpecialization and GetSpecializationInfo then
-            local specIndex = GetSpecialization()
-            if specIndex then
-                lastSpecID = GetSpecializationInfo(specIndex)
-            end
-        end
+        lastSpecID = GetPlayerSpecializationID()
 
         -- Apply profile on login
         mQoL_RaidProfiles:UpdateCurrentProfile()
@@ -1856,15 +1887,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
 
     -- PLAYER_SPECIALIZATION_CHANGED: Only update if spec actually changed
     if event == "PLAYER_SPECIALIZATION_CHANGED" and arg1 == "player" then
-        if GetSpecialization and GetSpecializationInfo then
-            local specIndex = GetSpecialization()
-            if specIndex then
-                local currentSpecID = GetSpecializationInfo(specIndex)
-                if currentSpecID and currentSpecID ~= lastSpecID then
-                    lastSpecID = currentSpecID
-                    mQoL_RaidProfiles:UpdateCurrentProfile()
-                end
-            end
+        local currentSpecID = GetPlayerSpecializationID()
+        if currentSpecID and currentSpecID ~= lastSpecID then
+            lastSpecID = currentSpecID
+            mQoL_RaidProfiles:UpdateCurrentProfile()
         end
         return
     end

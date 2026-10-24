@@ -502,8 +502,13 @@ local function AutoLoad(saved)
         if not ok then return false,exists end
         if not exists then
             local countOK,count=mQoL_Compat.Read('GetNumRaidProfiles')
-            local maxOK,max=mQoL_Compat.Read('GetMaxNumRaidProfiles')
-            if not countOK or not maxOK or not mQoL_Compat.Number(count) or not mQoL_Compat.Number(max) or count>=max then return false,'Raid profile limit unavailable or reached' end
+            if not countOK or not mQoL_Compat.Number(count) then return false,'Raid profile count unavailable' end
+            local max=5
+            if type(GetMaxNumRaidProfiles)=='function' then
+                local maxOK,reportedMax=mQoL_Compat.Read('GetMaxNumRaidProfiles')
+                if maxOK and mQoL_Compat.Number(reportedMax) and reportedMax>0 then max=reportedMax end
+            end
+            if count>=max then return false,'Raid profile limit reached' end
             local created,err=mQoL_Compat.Write('CreateNewRaidProfile',MQOL_PROFILE_NAME)
             if not created then return false,err end
             local verified,present=mQoL_Compat.Read('RaidProfileExists',MQOL_PROFILE_NAME)
@@ -516,7 +521,15 @@ local function AutoLoad(saved)
             local read,actual=mQoL_Compat.Read('GetRaidProfileOption',MQOL_PROFILE_NAME,operation.option)
             if not read or ConvertValueForSave(actual)~=ConvertValueForSave(value) then return false,'Raid option readback failed: '..operation.option end
         end
-        local ok,err=mQoL_Compat.Write('SetActiveRaidProfile',MQOL_PROFILE_NAME)
+        local ok,err
+        if type(CompactUnitFrameProfiles_ActivateRaidProfile)=='function' then
+            ok,err=mQoL_Compat.Write('CompactUnitFrameProfiles_ActivateRaidProfile',MQOL_PROFILE_NAME)
+            if not ok and type(SetActiveRaidProfile)=='function' then
+                ok,err=mQoL_Compat.Write('SetActiveRaidProfile',MQOL_PROFILE_NAME)
+            end
+        else
+            ok,err=mQoL_Compat.Write('SetActiveRaidProfile',MQOL_PROFILE_NAME)
+        end
         if not ok then return false,err end
         if positions then
             ok,err=mQoL_Compat.Write('SetRaidProfileSavedPosition',MQOL_PROFILE_NAME,positions.isDynamic,positions.topPoint,positions.topOffset,positions.bottomPoint,positions.bottomOffset,positions.leftPoint,positions.leftOffset)
@@ -527,8 +540,10 @@ local function AutoLoad(saved)
             ok,err=mQoL_Compat.Write('CompactRaidFrameManager_ResizeFrame_LoadPosition',CompactRaidFrameManager)
             if not ok then return false,err end
         end
-        ok,err=mQoL_Compat.Write('CompactUnitFrameProfiles_ApplyCurrentSettings')
-        if not ok then return false,err end
+        if type(CompactUnitFrameProfiles_ApplyCurrentSettings)=='function' then
+            ok,err=mQoL_Compat.Write('CompactUnitFrameProfiles_ApplyCurrentSettings')
+            if not ok then return false,err end
+        end
         local read,active=mQoL_Compat.Read('GetActiveRaidProfile')
         return read and active==MQOL_PROFILE_NAME,'Raid profile activation must be confirmed'
     end

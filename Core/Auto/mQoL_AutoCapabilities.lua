@@ -260,7 +260,8 @@ probes.raidRead=RaidRead
 probes.raidWrite=function()
     local r=RaidRead(); if r.state~="ready" then return r end
     if r.adapter=="raid-options-v1" then
-        local funcs=Functions({"SetRaidProfileOption","SetActiveRaidProfile","CompactUnitFrameProfiles_ApplyCurrentSettings","RaidProfileExists","CreateNewRaidProfile","GetNumRaidProfiles","GetMaxNumRaidProfiles"}); if funcs.state~="ready" then return funcs end
+        local funcs=Functions({"SetRaidProfileOption","RaidProfileExists","CreateNewRaidProfile","GetNumRaidProfiles"}); if funcs.state~="ready" then return funcs end
+        if not (F("SetActiveRaidProfile") or F("CompactUnitFrameProfiles_ActivateRaidProfile")) then return Missing("raid profile activation API") end
     elseif not (F("C_CVar.SetCVar") or F("SetCVar")) then return Missing("CVar setter") end
     return r
 end
