@@ -14,7 +14,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.3.0"
-mQoL_Hub.build = "321"
+mQoL_Hub.build = "322"
 mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
@@ -604,8 +604,30 @@ function mQoL_Hub:GetIntroVersionKey(version)
 end
 
 -- HOME PANEL
+local PANEL_FOOTER_HEIGHT = 40
+local function CreatePanelWithFooter(parent, footerMessage)
+    local page = CreateFrame("Frame", nil, parent)
+    local scrollFrame, scrollChild = mQoL_Templates.CreateScrollPanel(page, { width = 850, height = 600 })
+    scrollFrame:ClearAllPoints()
+    scrollFrame:SetAllPoints(page)
+
+    local separator = page:CreateTexture(nil, "ARTWORK")
+    SetSolidColor(separator, 1, 1, 1, 0.15)
+    separator:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, PANEL_FOOTER_HEIGHT)
+    separator:SetSize(770, 1)
+
+    local footerText = page:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    footerText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
+    footerText:SetWidth(770)
+    footerText:SetJustifyH("CENTER")
+    footerText:SetText(footerMessage)
+
+    page.GetScrollChild = function() return scrollChild end
+    return page, scrollFrame, scrollChild
+end
+
 function mQoL_Hub:CreateHomePanel(parent)
-    local scrollFrame, scrollChild = mQoL_Templates.CreateScrollPanel(parent, { width = 850, height = 600 })
+    local page, scrollFrame, scrollChild = CreatePanelWithFooter(parent, "mQoL is constantly evolving. Stay tuned for more updates!")
     
     -- Intro Logic
     local shouldShowIntro = false
@@ -733,36 +755,28 @@ function mQoL_Hub:CreateHomePanel(parent)
     AddTip("You can use the search bar in the side menu to instantly find any setting.")
     AddTip("Some options have a third state (disabled). This prevents the addon from modifying that specific setting.")
 
-    -- Update scroll height (content + footer space)
-    local footerHeight = 100
-    local contentHeight = math.abs(currentY)
-    local totalHeight = math.max(contentHeight + footerHeight, 600)
-    scrollChild:SetHeight(totalHeight)
-
-    -- Separator
-    local separator = panel:CreateTexture(nil, "ARTWORK")
-    SetSolidColor(separator, 1, 1, 1, 0.15)
-    separator:SetPoint("BOTTOMLEFT", 20, 80)
-    separator:SetSize(770, 1)
-
-    -- Footer Text
-    local footerText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    footerText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
-    footerText:SetWidth(770)
-    footerText:SetJustifyH("CENTER")
-    footerText:SetText("mQoL is constantly evolving. Stay tuned for more updates!")
-
-    if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
-        scrollFrame.scrollbar:UpdateScrollbar()
+    panel.UpdateScrollChildHeight = function()
+        panel:SetHeight(math.max(math.abs(currentY), scrollFrame:GetHeight()))
+        if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
+            scrollFrame.scrollbar:UpdateScrollbar()
+        end
     end
+    scrollFrame:HookScript("OnSizeChanged", panel.UpdateScrollChildHeight)
+    panel.UpdateScrollChildHeight()
 
-    return scrollFrame
+    return page
 end
 
 mQoL_Hub:RegisterModuleOptions(nil, "Home", function(parent) return mQoL_Hub:CreateHomePanel(parent) end)
 
 function mQoL_Hub:CreateAboutPanel(parent)
-    local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "About", nil, "TopSeparator")
+    local page, scrollFrame, panel = CreatePanelWithFooter(parent, "Created by Mentiuszen-KulTiras (EU)")
+    mQoL_Templates.PanelStart(panel)
+    mQoL_Templates.PanelTitle(panel, "About")
+    local contentContainer = mQoL_Templates.BeginOptions(panel, "TopSeparator")
+    scrollFrame:HookScript("OnSizeChanged", function()
+        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
+    end)
 
     local header = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     header:SetPoint("TOPLEFT", 20, contentContainer.currentY)
@@ -824,38 +838,12 @@ function mQoL_Hub:CreateAboutPanel(parent)
     contentContainer.currentY = CreateCopyableLinkRow("Bug Reports", "https://github.com/Mentiuszen/mQoL/issues", contentContainer.currentY)
     contentContainer.currentY = contentContainer.currentY - 20
 
-    local footerHeight = 100
-    local _, _, _, _, containerYOffset = contentContainer:GetPoint()
-    containerYOffset = containerYOffset or 0
-    local contentHeight = math.abs(containerYOffset) + math.abs(contentContainer.currentY or 0)
-    local minHeight = (scrollFrame and scrollFrame:GetHeight()) or 0
-    local totalHeight = math.max(contentHeight + footerHeight, minHeight)
-    panel:SetHeight(totalHeight)
-
-    local separator = panel:CreateTexture(nil, "ARTWORK")
-    SetSolidColor(separator, 1, 1, 1, 0.15)
-    separator:SetPoint("BOTTOMLEFT", 20, 80)
-    separator:SetSize(770, 1)
-
-    local authorText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    authorText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
-    authorText:SetWidth(770)
-    authorText:SetJustifyH("CENTER")
-    authorText:SetText("Created by Mentiuszen-KulTiras (EU)")
-
     panel.UpdateScrollChildHeight = function()
-        local _, _, _, _, cY = contentContainer:GetPoint()
-        cY = cY or 0
-        local cH = math.abs(cY) + math.abs(contentContainer.currentY or 0)
-        local minH = (scrollFrame and scrollFrame:GetHeight()) or 0
-        panel:SetHeight(math.max(cH + footerHeight, minH))
-        if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
-            scrollFrame.scrollbar:UpdateScrollbar()
-        end
+        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
     end
     panel.UpdateScrollChildHeight()
 
-    return scrollFrame
+    return page
 end
 
 mQoL_Hub:RegisterModuleOptions(nil, "About", function(parent) return mQoL_Hub:CreateAboutPanel(parent) end)
