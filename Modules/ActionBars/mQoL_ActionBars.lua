@@ -58,7 +58,7 @@ function mQoL_ActionBarsQoL:CaptureCurrentSettings()
     end
     SetMissing("autoSelfCast", mQoL_CVar:ReadBoolean("autoSelfCast"))
 
-    local lastBar = (clientInfo.isRetail or clientInfo.isBCC or mQoL_Auto) and 8 or 5
+    local lastBar = (clientInfo.isRetail or clientInfo.isTBC or mQoL_Auto) and 8 or 5
     for bar = 2, lastBar do
         local value
         if clientInfo.isLegion then
@@ -112,7 +112,7 @@ function mQoL_ActionBarsQoL:ApplyVisibilitySettings(ab)
 
     local function apply_alwaysShowActionBars(value)
         if mQoL_Auto then return mQoL_Auto:ApplyActionBarGrid(value) end
-        if clientInfo.isRetail or clientInfo.isBCC then return end
+        if clientInfo.isRetail or clientInfo.isTBC then return end
         if mQoL_Database:IsDisabled(value) then return end
 
         local cvarValue = value and "1" or "0"
@@ -252,14 +252,14 @@ function mQoL_ActionBarsQoL:ApplySettings(ab)
                 showActionBars4 = "SHOW_MULTI_ACTIONBAR_3",
                 showActionBars5 = "SHOW_MULTI_ACTIONBAR_4",
             }
-        elseif clientInfo.isMoP or clientInfo.isRetail or clientInfo.isEra or clientInfo.isBCC then
+        elseif clientInfo.isMoP or clientInfo.isRetail or clientInfo.isVanilla or clientInfo.isTBC then
             map = {
                 showActionBars2 = "PROXY_SHOW_ACTIONBAR_2",
                 showActionBars3 = "PROXY_SHOW_ACTIONBAR_3",
                 showActionBars4 = "PROXY_SHOW_ACTIONBAR_4",
                 showActionBars5 = "PROXY_SHOW_ACTIONBAR_5",
             }
-            if clientInfo.isRetail or clientInfo.isBCC then
+            if clientInfo.isRetail or clientInfo.isTBC then
                 map.showActionBars6 = "PROXY_SHOW_ACTIONBAR_6"
                 map.showActionBars7 = "PROXY_SHOW_ACTIONBAR_7"
                 map.showActionBars8 = "PROXY_SHOW_ACTIONBAR_8"
@@ -323,8 +323,8 @@ function mQoL_ActionBarsQoL:IsActionBarChecksumEnabled()
     if clientInfo.isRetail then return enableRetail end
     if clientInfo.isMoP then return enableMoP end
     if clientInfo.isLegion then return enableLegion end
-    if clientInfo.isEra then return enableEra end
-    if clientInfo.isBCC then return enableBCC end
+    if clientInfo.isVanilla then return enableEra end
+    if clientInfo.isTBC then return enableBCC end
 
     return true
 end
@@ -423,7 +423,7 @@ function mQoL_ActionBarsQoL:CreatePanel(parent)
     AddActionBarDropdown("Action Bar 4", "showActionBars4")
     AddActionBarDropdown("Action Bar 5", "showActionBars5")
 
-    if clientInfo.isRetail or clientInfo.isBCC or (mQoL_Auto and mQoL_Auto:HasExtraActionBars()) then
+    if clientInfo.isRetail or clientInfo.isTBC or (mQoL_Auto and mQoL_Auto:HasExtraActionBars()) then
         AddActionBarDropdown("Action Bar 6", "showActionBars6")
         AddActionBarDropdown("Action Bar 7", "showActionBars7")
         AddActionBarDropdown("Action Bar 8", "showActionBars8")

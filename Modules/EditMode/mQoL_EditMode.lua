@@ -8,7 +8,45 @@ local mQoL_Hub = _G["mQoL_Hub"]
 if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isAuto or clientInfo.isForever) then return end
+if not (clientInfo.isRetail or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isAuto or clientInfo.isForever) then return end
+local function IsEditModeAvailable()
+    -- Forever is a supported Active Tree client; its settings page must not be
+    -- hidden when the generic Auto probe cannot parse its layout data.
+    if clientInfo.isForever then return true end
+    if mQoL_Auto then
+        return mQoL_Auto:CanUse("EditMode", "layouts")
+    end
+    return type(C_EditMode) == "table" and type(C_EditMode.GetLayouts) == "function"
+end
+
+local function GetNativeEditModeLayouts()
+    if C_EditMode and type(C_EditMode.GetLayouts) == "function" then
+        local ok, layoutInfo = pcall(C_EditMode.GetLayouts)
+        if ok and type(layoutInfo) == "table" then
+            if type(layoutInfo.layouts) == "table" then return layoutInfo.layouts end
+            if #layoutInfo > 0 then return layoutInfo end
+        end
+    end
+
+    if EditModeManagerFrame and type(EditModeManagerFrame.GetLayouts) == "function" then
+        local ok, layoutInfo = pcall(EditModeManagerFrame.GetLayouts, EditModeManagerFrame)
+        if ok and type(layoutInfo) == "table" then
+            if type(layoutInfo.layouts) == "table" then return layoutInfo.layouts end
+            if #layoutInfo > 0 then return layoutInfo end
+        end
+    end
+
+    return nil
+end
+
+local function RegisterEditModeOptions()
+    if not IsEditModeAvailable() or not mQoL_Hub.RegisterModuleOptions then return false end
+    mQoL_Hub:RegisterModuleOptions("mQoL_EditMode", "Edit Mode", function(parent)
+        return mQoL_EditMode:CreateEditModePanel(parent)
+    end)
+    return true
+end
+
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
 
@@ -101,16 +139,15 @@ function mQoL_EditMode:InitializeDB()
 end
 
 function mQoL_EditMode:GetEditModeProfiles()
-    if mQoL_Auto then
+    if not IsEditModeAvailable() then return {} end
+    if mQoL_Auto and not clientInfo.isForever then
         local result=mQoL_Auto.ReadLayouts()
         local names={}
         if result.state=='ready' then for _,layout in ipairs(result.data.layouts) do names[#names+1]=layout.layoutName end end
         table.sort(names);return names
     end
-    if not EditModeManagerFrame or not EditModeManagerFrame.GetLayouts then
-        return {}
-    end
-    local layouts = EditModeManagerFrame:GetLayouts()
+    local layouts = GetNativeEditModeLayouts()
+    if not layouts then return {} end
     local names = {}
     for _, layout in ipairs(layouts) do
         if layout and layout.layoutName then
@@ -194,7 +231,8 @@ local function ExportLayoutString(layout, fallbackIndex)
 end
 
 function mQoL_EditMode:BackupPlayerProfiles(force)
-    if mQoL_Auto and not mQoL_Auto:CanUse('EditMode','export') then return end
+    if not IsEditModeAvailable() then return end
+    if mQoL_Auto and not clientInfo.isForever and not mQoL_Auto:CanUse('EditMode','export') then return end
     if self._backupDoneThisSession and not force then return end
     if not force then
         self._backupDoneThisSession = true
@@ -288,8 +326,9 @@ end
 
 function mQoL_EditMode:ForceEditModeProfile(profileName)
     if not profileName or profileName == "" then return false end
+    if not IsEditModeAvailable() then return false end
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule('EditMode') then return false end
-    if mQoL_Auto then
+    if mQoL_Auto and not clientInfo.isForever then
         local allowed,reason,r=mQoL_Auto:CanUse('EditMode','apply',true)
         if not allowed then return false,reason end
         if mQoL_Compat.InCombat() then self.pendingProfileLoad=profileName;SetupCombatEventFrame();return false end
@@ -313,28 +352,14 @@ function mQoL_EditMode:ForceEditModeProfile(profileName)
 
     -- Use C_EditMode directly to avoid tainting EditModeManagerFrame
     if C_EditMode and C_EditMode.SetActiveLayout then
-        local layouts = nil
-        if C_EditMode.GetLayouts then
-            local layoutInfo = C_EditMode.GetLayouts()
-            if layoutInfo and layoutInfo.layouts then
-                layouts = layoutInfo.layouts
-            end
-        end
-        
-        if not layouts and EditModeManagerFrame and EditModeManagerFrame.GetLayouts then
-             local layoutInfo = EditModeManagerFrame:GetLayouts()
-             if layoutInfo and layoutInfo.layouts then
-                 layouts = layoutInfo.layouts
-             elseif layoutInfo and #layoutInfo > 0 then
-                 layouts = layoutInfo
-             end
-        end
+        local layouts = GetNativeEditModeLayouts()
         
         if layouts then
             for i, layout in ipairs(layouts) do
                 if layout and layout.layoutName == profileName then
-                    if layout.layoutIdentifier then
-                        C_EditMode.SetActiveLayout(layout.layoutIdentifier)
+                    local layoutID = layout.layoutIdentifier or layout.layoutIndex or i
+                    if layoutID then
+                        C_EditMode.SetActiveLayout(layoutID)
                         return true
                     end
                 end
@@ -368,6 +393,7 @@ function mQoL_EditMode:IsSituationalModeEnabled()
 end
 
 function mQoL_EditMode:UpdateCurrentProfile(immediate)
+    if not IsEditModeAvailable() then return end
     if self.updateTimer then self.updateTimer:Cancel() end
 
     local function Update()
@@ -1199,21 +1225,16 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 
     if event=='ADDON_LOADED' or event=='EDIT_MODE_LAYOUTS_UPDATED' then
-        if mQoL_Auto then
-            if not mQoL_EditMode.db then mQoL_EditMode:InitializeDB() end
-            if mQoL_Auto:CanUse('EditMode','layouts') then
-                mQoL_Hub:RegisterModuleOptions('mQoL_EditMode','Edit Mode',function(parent) return mQoL_EditMode:CreateEditModePanel(parent) end)
-            end
+        if not mQoL_EditMode.db then mQoL_EditMode:InitializeDB() end
+        if IsEditModeAvailable() then
+            RegisterEditModeOptions()
         end
         return
     end
 
     if event == "PLAYER_LOGIN" then
-        if mQoL_Hub and mQoL_Hub.RegisterModuleOptions then
-            mQoL_Hub:RegisterModuleOptions("mQoL_EditMode", "Edit Mode", function(parent)
-                return mQoL_EditMode:CreateEditModePanel(parent)
-            end)
-        end
+        if not IsEditModeAvailable() then return end
+        RegisterEditModeOptions()
 
         lastSituation = mQoL_EditMode:GetCurrentSituation()
         lastSpecID = GetPlayerSpecID()

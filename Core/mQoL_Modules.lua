@@ -20,7 +20,7 @@ mQoL_Modules.AvailableModules = {
         key = "AccountOverview",
         label = "Account Overview",
         description = "Account-wide overview with tracked characters, professions, played time, and gold history.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC"},
         setupVersion = 1,
         order = 10,
     },
@@ -28,7 +28,7 @@ mQoL_Modules.AvailableModules = {
         key = "GeneralQoL",
         label = "General QoL",
         description = "General quality of life improvements, including Auto Loot and Quest Tracking.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC"},
         controller = "mQoL_General",
         setupVersion = 1,
         order = 20,
@@ -37,7 +37,7 @@ mQoL_Modules.AvailableModules = {
         key = "NameplatesQoL",
         label = "Nameplates QoL",
         description = "Nameplate settings and improvements.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC"},
         controller = "mQoL_Nameplates",
         setupVersion = 1,
         order = 30,
@@ -46,7 +46,7 @@ mQoL_Modules.AvailableModules = {
         key = "ActionBarsQoL",
         label = "Action Bars QoL",
         description = "Action bar visibility and settings.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC"},
         controller = "mQoL_ActionBars",
         setupVersion = 1,
         order = 40,
@@ -55,7 +55,7 @@ mQoL_Modules.AvailableModules = {
         key = "Mailbox",
         label = "Mailbox Improvements",
         description = "Enhancements for the mailbox UI and functionality.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC"},
         setupVersion = 1,
         order = 50,
     },
@@ -63,7 +63,8 @@ mQoL_Modules.AvailableModules = {
         key = "Graphics",
         label = "Graphics Settings",
         description = "Additional graphics tweaks and options.",
-        versions = {"isMoP", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isMoP", "isVanilla", "isTBC", "isForever"},
+        hardlock = {"isAuto"},
         setupVersion = 1,
         order = 60,
     },
@@ -71,8 +72,8 @@ mQoL_Modules.AvailableModules = {
         key = "BlizzardFixes",
         label = "Blizzard Fixes",
         description = "Fixes for various Blizzard UI bugs and annoyances.",
-        versions = {"isMoP", "isBCC", "isTBC"},
-        hardlock = {"isRetail", "isLegion", "isEra", "isVanilla"},
+        versions = {"isMoP"},
+        hardlock = {"isRetail", "isLegion", "isVanilla", "isTBC", "isForever", "isAuto"},
         setupVersion = 1,
         order = 70,
     },
@@ -80,8 +81,8 @@ mQoL_Modules.AvailableModules = {
         key = "EditMode",
         label = "Edit Mode",
         description = "Manage Edit Mode profiles and settings.",
-        versions = {"isRetail", "isBCC", "isTBC", "isMoP", "isEra", "isVanilla"},
-        hardlock = {"isLegion"},
+        versions = {"isRetail", "isTBC", "isMoP", "isVanilla", "isForever"},
+        hardlock = {"isLegion", "isAuto"},
         setupVersion = 1,
         order = 80,
     },
@@ -89,7 +90,7 @@ mQoL_Modules.AvailableModules = {
         key = "RaidProfiles",
         label = "Raid Profiles",
         description = "Automatic transfer of raid profiles between characters.",
-        versions = {"isRetail", "isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        versions = {"isRetail", "isMoP", "isLegion", "isVanilla", "isTBC", "isForever"},
         setupVersion = 1,
         order = 90,
     },
@@ -98,7 +99,7 @@ mQoL_Modules.AvailableModules = {
         label = "Dungeon Teleports Tab",
         description = "Adds dungeon teleport navigation to the Group Finder interface.",
         versions = {"isRetail", "isMoP"},
-        hardlock = {"isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        hardlock = {"isLegion", "isVanilla", "isTBC", "isForever", "isAuto"},
         setupVersion = 1,
         order = 100,
     },
@@ -107,7 +108,7 @@ mQoL_Modules.AvailableModules = {
         label = "Mythic+ Listing Helper",
         description = "Adds a Retail-only helper to the Premade Groups Mythic+ listing panel that shows party keystones.",
         versions = {"isRetail"},
-        hardlock = {"isMoP", "isLegion", "isEra", "isVanilla", "isBCC", "isTBC"},
+        hardlock = {"isMoP", "isLegion", "isVanilla", "isTBC", "isForever", "isAuto"},
         setupVersion = 1,
         order = 110,
     },
@@ -154,6 +155,19 @@ function mQoL_Modules:IsModuleCompatible(moduleData)
         return mQoL_AutoCapabilities:IsModuleCompatible(moduleData)
     end
 
+    if moduleData.key == "EditMode" then
+        local supportedVersion = false
+        for _, versionKey in ipairs(moduleData.versions or {}) do
+            if clientInfo[versionKey] then
+                supportedVersion = true
+                break
+            end
+        end
+        return supportedVersion
+            and type(C_EditMode) == "table"
+            and type(C_EditMode.GetLayouts) == "function"
+    end
+
     for _, versionKey in ipairs(moduleData.versions or {}) do
         if clientInfo[versionKey] then
             return true
@@ -166,16 +180,15 @@ function mQoL_Modules:IsModuleHardlocked(moduleData)
     local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
     if not moduleData or not clientInfo then return false end
 
-    if clientInfo.isAuto and mQoL_AutoCapabilities and mQoL_AutoCapabilities.IsModuleHardlocked then
-        return mQoL_AutoCapabilities:IsModuleHardlocked(moduleData)
-    end
-
-    if not moduleData.hardlock then return false end
-
-    for _, versionKey in ipairs(moduleData.hardlock) do
+    if moduleData.hardlocked then return true end
+    for _, versionKey in ipairs(moduleData.hardlock or {}) do
         if clientInfo[versionKey] then
             return true
         end
+    end
+
+    if clientInfo.isAuto and mQoL_AutoCapabilities and mQoL_AutoCapabilities.IsModuleHardlocked then
+        return mQoL_AutoCapabilities:IsModuleHardlocked(moduleData)
     end
     return false
 end

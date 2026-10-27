@@ -353,7 +353,15 @@ function T:EvaluateModule(m) return self.results.modules[type(m)=="table" and m.
 function T:IsModuleCompatible(m)
     local r=self:EvaluateModule(m); return r and (r.state=="ready" or r.state=="partial" or r.state=="pending") or false
 end
-function T:IsModuleHardlocked(m) return m and (m.key=="BlizzardFixes" or m.hardlocked==true) or false end
+function T:IsModuleHardlocked(m)
+    if not m then return true end
+    if m.key=="BlizzardFixes" or m.hardlocked==true then return true end
+    local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+    for _,versionKey in ipairs(m.hardlock or {}) do
+        if clientInfo and clientInfo[versionKey] then return true end
+    end
+    return false
+end
 
 -- The original registry performs an initial legacy migration when its file is
 -- loaded. Make observations available before that; do not initialize modules.

@@ -97,7 +97,4 @@ Feature(m,"communication","Party keystone exchange","communication")
 Feature(m,"listingRead","Current listing","listingRead",{events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
 Feature(m,"integration","Existing LFG entry controller","mythicUI",{provider="Blizzard_GroupFinder",events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
 Feature(m,"listingWrite","Fill existing LFG entry form","mythicUI",{provider="Blizzard_GroupFinder",protected=true,events={PLAYER_LOGIN=true,ADDON_LOADED=true}})
--- These probes describe APIs; they do not replace the shared controllers/UI.
--- This is a SPELL CATALOG, not proof of client content or an assumed season.
--- Only records for known spells with a valid localized spell name are displayed.
 A.teleportIDs = {131204, 131205, 131206, 131222, 131225, 131228, 131229, 131231, 131232, 159895, 159896, 159897, 159898, 159899, 159900, 159901, 159902, 354462, 354463, 354464, 354465, 354466, 354467, 354468, 354469, 367416, 373190, 373191, 373192, 373262, 373274, 393222, 393256, 393262, 393267, 393273, 393276, 393279, 393283, 393764, 393766, 410071, 410074, 410078, 410080, 424142, 424153, 424163, 424167, 424187, 424197, 432254, 432257, 432258, 445269, 445414, 445416, 445417, 445418, 445424, 445440, 445441, 445443, 445444, 464256, 467553, 467555, 1216786, 1226482, 1237215, 1239155, 1254400, 1254551, 1254555, 1254559, 1254563, 1254572, 1286801, 1286804, 1286807, 1286809, 1286812, 1286828, 1286831}

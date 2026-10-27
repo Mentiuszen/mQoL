@@ -39,8 +39,12 @@ local localChecks={
 local function evaluate(entry,fresh)
     if entry.localCheck then return entry.localCheck() end
     if entry.module then
-        local allowed=mQoL_Modules:IsModuleCompatible(entry.module)
+        local allowed=mQoL_Modules:IsModuleAvailable(entry.module)
         return allowed,allowed and nil or 'No currently available implementation. A selected module can still be disabled.'
+    end
+    local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+    if entry.feature and entry.feature[1]=='EditMode' and clientInfo and clientInfo.isForever then
+        return true
     end
     local result=A:GetFeature(entry.feature[1],entry.feature[2],fresh)
     if not result then return true end
@@ -52,16 +56,13 @@ end
 local function isUnavailableCVar(feature,result)
     local definition=featureDefinition(feature)
     if not definition or not result then return false end
-    -- Appearance features use a direct API where available and fall back to
-    -- their declared CVar. Treat that fallback exactly like catalog CVars.
     if definition.kind~='cvar' and definition.cvar==nil then return false end
     return result.state=='missing' or result.state=='error'
 end
 local function isUnavailableFeature(feature,result)
     if not feature or feature[1]~='EditMode' then return false end
-    -- Edit Mode rows have no useful action on clients without its layout API.
-    -- The provider can be listed as available even when this API does not exist,
-    -- which otherwise leaves the row pending forever in the Hub.
+    local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+    if clientInfo and clientInfo.isForever then return false end
     if not C.Function('C_EditMode.GetLayouts') then return true end
     return result and (result.state=='missing' or result.state=='error') or false
 end
@@ -84,8 +85,6 @@ function A:GuardOption(entry,fn,explicitValue,hasExplicitValue)
         if not hasExplicitValue then value=select(2,...);if value==nil then value=select(1,...) end end
         local allowed,reason=evaluate(entry,true)
         if entry.feature and not mQoL_Modules:ShouldLoadModule(entry.feature[1]) then allowed=false;reason='Module disabled' end
-        -- Users must always be able to stop managing a setting or turn a
-        -- selected module off even when an API has disappeared.
         local disabledMode=type(value)=='string' and value:lower()=='disabled'
         if value=='disable' or disabledMode or (entry.module and value==false) then allowed=true end
         if not allowed then
@@ -110,8 +109,6 @@ function H:AddOptionRow(parent,name,controlType,params,extra,applyFunc)
     if feature then
         local result=A:GetFeature(feature[1],feature[2],true)
         if shouldHideOption(feature,result) then
-            -- The module code adds a standard gap after every option. Mark it
-            -- so a filtered option does not leave an empty slot in the panel.
             if parent then parent.mQoLSkipNextGap=true end
             for _,frame in ipairs(extra or {}) do
                 if frame and type(frame.Hide)=='function' then frame:Hide() end
@@ -119,7 +116,6 @@ function H:AddOptionRow(parent,name,controlType,params,extra,applyFunc)
             return nil,nil
         end
     end
-    -- Copy descriptors, not WoW frame objects. Never mutate a shared list.
     local options={}
     for key,value in pairs(params or {}) do options[key]=value end
     options.onValueChanged=A:GuardOption(entry,options.onValueChanged)
@@ -146,16 +142,12 @@ end
 function A:RefreshOptionRows()
     for _,entry in ipairs(self.optionRows) do
         entry.allowed,entry.reason=evaluate(entry,false)
-        -- Keep the original control and its Disable selection. Guard callbacks
-        -- instead of destroying/rebuilding panels or changing saved values.
         if entry.control then entry.control:SetAlpha(entry.allowed and 1 or 0.45) end
     end
     for _,item in ipairs(H.searchIndex or {}) do
         local feature=rows[item.label]
         if feature then
             local r=self:GetFeature(feature[1],feature[2],false)
-            -- Keep a search result for the existing panel, with availability
-            -- attached for diagnostics; do not erase functioning sibling rows.
             item.autoState=r and r.state or 'unknown'
             item.autoReason=r and r.reason
             item.available=not shouldHideOption(feature,r)
@@ -187,8 +179,6 @@ if mQoL_Graphics and mQoL_Graphics.SetupCheckpointSlider then
     end
 end
 A:RefreshOptionRows()
--- An optional animation must never leave the existing Home content hidden.
--- Recovery reveals the SAME content frame, not an alternative Hub.
 if H.RunHomeIntro then
     local runIntro=H.RunHomeIntro
     function H:RunHomeIntro(parent,content)

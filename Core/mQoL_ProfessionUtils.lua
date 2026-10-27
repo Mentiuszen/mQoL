@@ -247,7 +247,7 @@ end
 
 local function ResolveProfessionIcon(professionName, skillLineID)
     local professionKey = GetProfessionKey(professionName)
-    if clientInfo.isEra or clientInfo.isBCC then
+    if clientInfo.isVanilla or clientInfo.isTBC then
         return professionKey and CLASSIC_PROFESSION_ICON_IDS[professionKey] or nil
     end
 
@@ -817,7 +817,7 @@ local function AddProfessionEntryToSnapshot(result, entry, targetListKey)
     end
 
     local resolvedIcon = ResolveProfessionIcon(entry.name, entry.skillLine)
-    if (clientInfo.isEra or clientInfo.isBCC) and resolvedIcon then
+    if (clientInfo.isVanilla or clientInfo.isTBC) and resolvedIcon then
         entry.icon = resolvedIcon
     else
         entry.icon = entry.icon or resolvedIcon
@@ -998,7 +998,7 @@ local function BuildClassicSkillLineEntry(skillName, skillRank, numTempPoints, s
 end
 
 local function AddClassicSkillLineSnapshot(result)
-    if not (clientInfo.isEra or clientInfo.isBCC or mQoL_Auto)
+    if not (clientInfo.isVanilla or clientInfo.isTBC or mQoL_Auto)
         or type(GetNumSkillLines) ~= "function"
         or type(GetSkillLineInfo) ~= "function" then
         return false, false

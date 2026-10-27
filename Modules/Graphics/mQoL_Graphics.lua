@@ -9,6 +9,9 @@ end
 
 -- ToC Detection
 local clientInfo = mQoL_VersionDetection.clientInfo
+if not (clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isTBC or clientInfo.isForever) then
+    return
+end
 
 -- Styles
 local CreateCustomButton = mQoL_Styles.CreateCustomButton

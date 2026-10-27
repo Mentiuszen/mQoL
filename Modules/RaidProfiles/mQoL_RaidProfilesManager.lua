@@ -254,7 +254,7 @@ function mQoL_RaidProfiles:UpdateCurrentProfile(immediate)
         elseif mode == "Advanced" then
             local _, classFile = UnitClass("player")
             local specID
-            if clientInfo.isRetail or clientInfo.isMoP or clientInfo.isEra or clientInfo.isBCC or clientInfo.isLegion
+            if clientInfo.isRetail or clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isTBC or clientInfo.isLegion
                 or (mQoL_Auto and HasPlayerSpecAPI()) then
                 specID = GetPlayerSpecID()
                 

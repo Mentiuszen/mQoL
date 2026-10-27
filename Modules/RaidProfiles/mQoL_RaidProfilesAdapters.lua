@@ -124,7 +124,7 @@ end
 
 function mQoL_RaidProfiles:ShouldHandleUseCompactPartyFrames()
     if mQoL_Auto then return mQoL_CVar:CanRead('useCompactPartyFrames') end
-    return clientInfo.isEra or clientInfo.isVanilla or clientInfo.isLegion
+    return clientInfo.isVanilla or clientInfo.isLegion
 end
 
 function mQoL_RaidProfiles:ApplyUseCompactPartyFrames(value)
@@ -566,9 +566,9 @@ function VersionAdapters:GetCurrent()
         else for cvar in pairs(r.data.values) do adapter.cvars[#adapter.cvars+1]=cvar end end
         table.sort(adapter.cvars);return adapter
     end
-    if clientInfo.isBCC or clientInfo.isTBC or clientInfo.isMoP then
+    if clientInfo.isTBC or clientInfo.isMoP then
         return self.ModernClassic
-    elseif clientInfo.isEra or clientInfo.isVanilla then
+    elseif clientInfo.isVanilla then
         return self.Classic
     elseif clientInfo.isLegion then
         return self.Legion

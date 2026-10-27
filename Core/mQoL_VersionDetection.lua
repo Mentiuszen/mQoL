@@ -3,15 +3,15 @@ mQoL_VersionDetection = mQoL_VersionDetection or {}
 local D = mQoL_VersionDetection
 local ACTIVE_TREE = {
     {key="Retail", name="Retail", flag="isRetail", minToc=120000, maxToc=999999, aliases={}},
-    {key="MoP", name="Mists of Pandaria Classic", flag="isMoP", minToc=50500, maxToc=50505, aliases={}},
-    {key="Vanilla", name="Classic Era (Vanilla)", flag="isVanilla", minToc=11300, maxToc=11599, aliases={"isEra"}},
-    {key="TBC", name="Burning Crusade Classic", flag="isTBC", minToc=20500, maxToc=20506, aliases={"isBCC"}},
-    {key="Forever", name="Forever", flag="isForever", minToc=16000, maxToc=16001, aliases={}},
+    {key="MoP", name="Mists of Pandaria Classic", flag="isMoP", minToc=50500, maxToc=50599, aliases={}},
+    {key="Vanilla", name="Classic Era (Vanilla)", flag="isVanilla", minToc=11300, maxToc=11599, aliases={}},
+    {key="TBC", name="Burning Crusade Classic", flag="isTBC", minToc=20500, maxToc=20599, aliases={}},
+    {key="Forever", name="Forever", flag="isForever", minToc=16000, maxToc=16099, aliases={}},
 }
 local LEGACY_TREE = {
     {key="Legion", name="Legion", flag="isLegion", minToc=70000, maxToc=70300, aliases={}},
 }
-local FLAGS = {"isRetail","isMoP","isLegion","isEra","isVanilla","isBCC","isTBC","isForever","isAuto"}
+local FLAGS = {"isRetail","isMoP","isLegion","isVanilla","isTBC","isForever","isAuto"}
 local function ValidTOC(n)
     return type(n)=="number" and n==n and n>0 and n<math.huge and n%1==0
 end

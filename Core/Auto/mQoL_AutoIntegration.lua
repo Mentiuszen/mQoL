@@ -21,8 +21,6 @@ function A:CanUse(moduleKey,featureKey,write)
     return r.state=="ready" and (not write or r.canWrite~=false),r.reason,r
 end
 function A:Refresh(phase,provider)
-    -- Read only. In particular no SetCVar, setting capture, initializer replay,
-    -- migrations, frame replacement, or changes to module selections here.
     local result=T:Refresh(phase or "manual",provider)
     if self.RefreshOptionRows then self:RefreshOptionRows() end
     return result
@@ -33,7 +31,13 @@ function T:IsModuleCompatible(module)
     local key=module.key
     local r=self:EvaluateModule(key)
     if key=="BlizzardFixes" then return false end
+    if key=="Graphics" then
+        local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+        if clientInfo and clientInfo.isAuto then return false end
+    end
     if key=="EditMode" then
+        local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+        if clientInfo and clientInfo.isForever then return true end
         local layouts=r and r.features.layouts
         return layouts and (layouts.state=='ready' or layouts.state=='pending') or false
     end
@@ -49,17 +53,26 @@ function T:IsModuleCompatible(module)
     end
     return r and (r.state=="ready" or r.state=="partial" or r.state=="pending") or false
 end
-function T:IsModuleHardlocked(module) return not module or module.key=="BlizzardFixes" end
-
--- Forever has its own identity, but uses the same availability checks as Auto.
--- The original registry object and its runtime method are left in place.
+function T:IsModuleHardlocked(module)
+    if not module then return true end
+    if module.key=="BlizzardFixes" or module.hardlocked==true then return true end
+    local clientInfo=mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+    for _,versionKey in ipairs(module.hardlock or {}) do
+        if clientInfo and clientInfo[versionKey] then return true end
+    end
+    return false
+end
 function M:IsModuleCompatible(module) return T:IsModuleCompatible(module) end
 function M:IsModuleHardlocked(module) return T:IsModuleHardlocked(module) end
 function M:GetCompatibleModules()
-    -- The ORIGINAL Module Manager shows the same modules. Unavailable entries
-    -- are annotated/guarded individually, not silently removed from the Hub.
     local result={}
-    for _,module in ipairs(self.AvailableModules) do result[#result+1]=module end
+    for _,module in ipairs(self.AvailableModules) do
+        -- Hide unavailable modules that are off, but keep selected modules
+        -- visible so users can turn them off after switching client branches.
+        if self:IsModuleEnabled(module.key) or self:IsModuleAvailable(module) then
+            result[#result+1]=module
+        end
+    end
     table.sort(result,function(a,b) return (a.order or 0)<(b.order or 0) end)
     return result
 end
@@ -73,9 +86,6 @@ function M:SetModuleEnabled(key,enabled,allowUnsupported)
     return baseSet(self,key,enabled,allowUnsupported)
 end
 
--- There is no automatic conversion of profiles or account history. Only
--- explicitly equivalent scalar settings are copied, and only into empty keys.
--- Existing values take precedence; imported source data remains intact.
 local scalarMaps={
     GeneralQoL={autoLoot="autoLoot",autoQuestTracking="autoQuestTracking",showMyName="showMyName",showLuaErrors="showLuaErrors",fastAutoLoot="fastAutoLoot",showHead="showHead",showCloak="showCloak",autoConsolidatedBuffs="autoConsolidatedBuffs"},
     NameplatesQoL={enemyNameplates="showEnemyNameplates",friendlyNameplates="showFriendlyNameplates",maxDistance="nameplateMaxDistance",enemyPets="showEnemyPets",enemyGuardians="showEnemyGuardians",enemyTotems="showEnemyTotems",enemyMinions="showEnemyMinions",friendlyPets="showFriendlyPets",friendlyGuardians="showFriendlyGuardians",friendlyTotems="showFriendlyTotems",friendlyMinions="showFriendlyMinions"},

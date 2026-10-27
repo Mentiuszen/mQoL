@@ -561,11 +561,11 @@ function mQoL_RaidProfiles:HookSettingsPanel()
 
     if clientInfo.isRetail then
         self:HookSettingsPanelRetail()
-    elseif clientInfo.isBCC or clientInfo.isTBC then
+    elseif clientInfo.isTBC then
         self:HookSettingsPanelBCC()
     elseif clientInfo.isMoP then
         self:HookSettingsPanelBCC()
-    elseif clientInfo.isEra or clientInfo.isVanilla then
+    elseif clientInfo.isVanilla then
         self:HookSettingsPanelClassic()
     elseif clientInfo.isLegion then
         self:HookSettingsPanelLegion()
@@ -913,7 +913,7 @@ function mQoL_RaidProfiles:CreateAdvancedSetupPanel(parent, width)
 
         local items = {}
         local function ShouldIncludeClass(classID)
-            if not clientInfo.isEra then return true end
+            if not clientInfo.isVanilla then return true end
             if not classID then return true end
             if not UnitFactionGroup then return true end
             local faction = UnitFactionGroup("player")
@@ -1523,7 +1523,7 @@ function mQoL_RaidProfiles:CreateRaidProfilesPanel(parent)
             AddGap(contentContainer, "Standard")
             AddGap(contentContainer, "BottomSeparator")
         end
-    elseif (clientInfo.isEra or clientInfo.isLegion or clientInfo.isMoP) and supportsCompactPartyFrames then
+    elseif (clientInfo.isVanilla or clientInfo.isLegion or clientInfo.isMoP) and supportsCompactPartyFrames then
         AddOptionRow("Use Raid Frames in 5-Man Party", "checkbox", {
             value = GetCVarBool("useCompactPartyFrames"),
             onValueChanged = function(self, val)
