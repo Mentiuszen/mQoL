@@ -3597,41 +3597,9 @@ local function TryInitializeDungeonTeleportsTab(eventFrame)
     eventFrame:UnregisterEvent("ADDON_LOADED")
 end
 
--- This panel belongs to the original module and the shared Hub. The original
--- PVE card controller is still used whenever its actual frame contract fits.
-local function RegisterKnownTeleportsPanel()
-    if not mQoL_Auto or not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then return end
-    mQoL_Hub:RegisterModuleOptions('mQoL_DungeonTeleports','Dungeon Teleports',function(parent)
-        local scroll,panel,content=mQoL_Templates.CreateStandardOptionsPanel(parent,'Known Dungeon Teleports')
-        local result=mQoL_Auto:GetFeature(MODULE_KEY,'spells')
-        local spells=result and result.state=='ready' and result.data or {}
-        local cast=mQoL_Auto:GetFeature(MODULE_KEY,'cast')
-        local canCast=cast and cast.state=='ready' and not mQoL_Compat.InCombat()
-        if #spells==0 then
-            local label=content:CreateFontString(nil,'OVERLAY','GameFontNormal')
-            label:SetPoint('TOPLEFT',20,content.currentY);label:SetText('No known spells from the teleport catalog in this client.')
-            content.currentY=content.currentY-30
-        end
-        for _,spell in ipairs(spells) do
-            local label=content:CreateFontString(nil,'OVERLAY','GameFontNormal')
-            label:SetPoint('TOPLEFT',20,content.currentY-8);label:SetText(spell.name)
-            if canCast then
-                local ok,button=pcall(CreateTeleportPopupButton,content,'Teleport',true)
-                if ok then
-                    button:SetPoint('TOPLEFT',500,content.currentY)
-                    ConfigureTeleportButtonClicks(button);SetTeleportButtonSpellAction(button,spell.id)
-                else mQoL_Compat.Report('Teleport button',button) end
-            end
-            content.currentY=content.currentY-38
-        end
-        mQoL_Templates.UpdateScrollChildHeight(scroll,panel,content)
-        return scroll
-    end)
-end
 initializerFrame:RegisterEvent("ADDON_LOADED")
 initializerFrame:RegisterEvent("PLAYER_LOGIN")
 initializerFrame:SetScript("OnEvent", function(self, event, loadedAddonName)
-    RegisterKnownTeleportsPanel()
     if event == "ADDON_LOADED" then
         if loadedAddonName == GROUP_FINDER_ADDON_NAME then
             TryInitializeDungeonTeleportsTab(self)

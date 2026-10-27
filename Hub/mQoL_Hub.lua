@@ -1020,7 +1020,6 @@ local PANEL_STRUCTURE = {
     },
     ["Custom Features"] = {
         "Graphics",
-		"Dungeon Teleports",
 		"Mythic+ Listing",
 		"Blizzard Fixes",
     },
