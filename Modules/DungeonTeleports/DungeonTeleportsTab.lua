@@ -1416,6 +1416,37 @@ local function CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
     return panel, gearButton
 end
 
+local function LayoutDungeonTeleportHeaderControls(contentFrame, scrollFrame, scrollChild, dropdown, gearButton)
+    if not dropdown then
+        return
+    end
+
+    local firstTeleport = contentFrame.buttons and contentFrame.buttons[1]
+    local cardWidth = firstTeleport and firstTeleport:GetWidth()
+    if not cardWidth or cardWidth <= 0 then
+        cardWidth = (scrollChild:GetWidth() - 40) / 3
+    end
+    cardWidth = math.max(1, cardWidth)
+    dropdown:SetWidth(cardWidth)
+    if dropdown.text then
+        dropdown.text:SetWidth(math.max(1, cardWidth - 32))
+    end
+
+    dropdown:ClearAllPoints()
+    dropdown:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -10, 40)
+
+    if gearButton then
+        gearButton:ClearAllPoints()
+        local scrollbarCenterX = scrollFrame.scrollbar and select(1, scrollFrame.scrollbar:GetCenter())
+        local dropdownCenterX = select(1, dropdown:GetCenter())
+        if scrollbarCenterX and dropdownCenterX then
+            gearButton:SetPoint("CENTER", dropdown, "CENTER", scrollbarCenterX - dropdownCenterX, 0)
+        else
+            gearButton:SetPoint("LEFT", dropdown, "RIGHT", 8, 0)
+        end
+    end
+end
+
 local function IsDungeonListingActivity(activityInfo)
     if type(activityInfo) ~= "table" then
         return false
@@ -2591,9 +2622,13 @@ local function InitDungeonTeleportsTabClassic()
         dropdown:HookScript("OnMouseDown", function()
             RefreshCategoryOptions(selectedCategoryValue)
         end)
-        dropdown:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -30, -30)
     end
-    CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
+    local _, gearButton = CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
+    local function LayoutHeaderControls()
+        LayoutDungeonTeleportHeaderControls(contentFrame, scrollFrame, scrollChild, dropdown, gearButton)
+    end
+    LayoutHeaderControls()
+    contentFrame:HookScript("OnShow", LayoutHeaderControls)
 
     local UpdateDungeonTeleportsTabTextColor
     local isDungeonTeleportsTabForceDisabled = false
@@ -3573,9 +3608,13 @@ local function InitDungeonTeleportsTabRetail()
         dropdown:HookScript("OnMouseDown", function()
             RefreshCategoryOptions(selectedCategoryValue)
         end)
-        dropdown:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -30, -30)
     end
-    CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
+    local _, gearButton = CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
+    local function LayoutHeaderControls()
+        LayoutDungeonTeleportHeaderControls(contentFrame, scrollFrame, scrollChild, dropdown, gearButton)
+    end
+    LayoutHeaderControls()
+    contentFrame:HookScript("OnShow", LayoutHeaderControls)
 
     local UpdateDungeonTeleportsTabTextColor
     local isDungeonTeleportsTabForceDisabled = false
