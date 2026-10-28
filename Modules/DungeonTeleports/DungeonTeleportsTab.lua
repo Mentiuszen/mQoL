@@ -833,6 +833,7 @@ local LISTED_DUNGEON_TOOLTIP_COLOR = { 1.00, 0.82, 0.00 }
 local TELEPORT_POPUP_WIDTH = 360
 local TELEPORT_POPUP_HEIGHT = 260
 local TELEPORT_POPUP_IMAGE_HEIGHT = 108
+local LISTED_DUNGEON_FULL_GROUP_SIZE = 5
 
 local function AddListedDungeonHighlightTooltipLine()
     GameTooltip:AddLine("Your group is listed for this dungeon.", LISTED_DUNGEON_TOOLTIP_COLOR[1], LISTED_DUNGEON_TOOLTIP_COLOR[2], LISTED_DUNGEON_TOOLTIP_COLOR[3], true)
@@ -848,6 +849,11 @@ local listedDungeonHighlightState = {
     pendingJoinedGroupInfoExpires = nil,
     joinedGroupInfo = nil,
     joinedGroupInfoExpires = nil,
+    fullGroupPopupInfo = nil,
+    groupFillSignature = nil,
+    groupFillGroupGUID = nil,
+    groupFillSawIncomplete = false,
+    groupFillNotified = false,
     suppressedSignature = nil,
     wasInGroup = false,
     ignoreActiveEntryUntilClear = false,
@@ -1004,22 +1010,60 @@ local listedDungeonTeleportPopupKey
 local listedDungeonTeleportPopupDeclinedKey
 
 local function GetListedDungeonTeleportPopupKey(info, signature)
+    local reason = type(info) == "table" and info.popupReason or nil
+    if not reason and type(info) == "table" and info == listedDungeonHighlightState.joinedGroupInfo then
+        reason = "joined"
+    end
+    reason = reason or "listed"
+
+    local keyPrefix = tostring(reason) .. ":" .. tostring(signature or "")
     if type(info) ~= "table" then
-        return signature
+        return keyPrefix
     end
 
     if info.groupGUID then
-        return tostring(signature or "") .. ":" .. tostring(info.groupGUID)
+        return keyPrefix .. ":" .. tostring(info.groupGUID)
+    end
+
+    if info.searchResultID then
+        return keyPrefix .. ":" .. tostring(info.searchResultID)
     end
 
     if info.activityID then
-        return tostring(signature or "") .. ":" .. tostring(info.activityID)
+        return keyPrefix .. ":" .. tostring(info.activityID)
     end
 
-    return signature
+    return keyPrefix
+end
+
+local function GetDungeonTeleportPopupSettings()
+    mQoL_DB = type(mQoL_DB) == "table" and mQoL_DB or {}
+    local moduleDB = mQoL_DB[MODULE_KEY]
+    if type(moduleDB) ~= "table" then
+        moduleDB = {}
+        mQoL_DB[MODULE_KEY] = moduleDB
+    end
+
+    if type(moduleDB.settings) ~= "table" then
+        moduleDB.settings = {}
+    end
+
+    local settings = moduleDB.settings
+    if settings.popupOnJoin == nil then
+        settings.popupOnJoin = true
+    end
+    if settings.popupOnFull == nil then
+        settings.popupOnFull = true
+    end
+
+    return settings
 end
 
 local function GetListedDungeonTeleportPopupTitle(PopupInfo)
+    if type(PopupInfo) == "table" and PopupInfo.popupReason == "full" then
+        return "Group is full!"
+    end
+
     if PopupInfo and PopupInfo == listedDungeonHighlightState.joinedGroupInfo then
         return "You joined a group for"
     end
@@ -1222,7 +1266,7 @@ local function MaybeShowListedDungeonTeleportPopup()
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
     if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'popup') then return end
     local state = listedDungeonHighlightState
-    local PopupInfo = state.joinedGroupInfo or state.activeInfo
+    local PopupInfo = state.fullGroupPopupInfo or state.joinedGroupInfo or state.activeInfo
     local signature = state.activeSignature
     local teleportID = state.activeTeleportID
 
@@ -1234,6 +1278,20 @@ local function MaybeShowListedDungeonTeleportPopup()
         return
     end
     local PopupKey = GetListedDungeonTeleportPopupKey(PopupInfo, signature)
+    local popupSettings = GetDungeonTeleportPopupSettings()
+    local popupReason = PopupInfo.popupReason
+        or (PopupInfo == state.joinedGroupInfo and "joined")
+        or "listed"
+
+    if (popupReason == "full" and not popupSettings.popupOnFull)
+        or (popupReason ~= "full" and not popupSettings.popupOnJoin) then
+        if listedDungeonTeleportPopup and listedDungeonTeleportPopup.PopupKey == PopupKey then
+            HideListedDungeonTeleportPopup(signature)
+        end
+        listedDungeonTeleportPopupKey = PopupKey
+        return
+    end
+
     if signature == state.suppressedSignature or PopupKey == listedDungeonTeleportPopupDeclinedKey then
         HideListedDungeonTeleportPopup(signature)
         return
@@ -1256,6 +1314,106 @@ local function MaybeShowListedDungeonTeleportPopup()
     if ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKey, GetListedDungeonTeleportPopupTitle(PopupInfo)) then
         listedDungeonTeleportPopupKey = PopupKey
     end
+end
+
+local function CreateTeleportPopupCheckbox(parent, label, value, onValueChanged)
+    if mQoL_Styles and mQoL_Styles.CreateCustomCheckbox then
+        local checkbox = mQoL_Styles.CreateCustomCheckbox(parent, label)
+        checkbox:SetValue(value)
+        if checkbox.SetHitRectInsets then
+            checkbox:SetHitRectInsets(0, -190, 0, 0)
+        end
+        checkbox.OnValueChanged = function(_, newValue)
+            onValueChanged(newValue)
+        end
+        return checkbox
+    end
+
+    local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    checkbox:SetSize(24, 24)
+    checkbox:SetChecked(value)
+    checkbox.label = checkbox:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    checkbox.label:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
+    checkbox.label:SetText(label)
+    if checkbox.SetHitRectInsets then
+        checkbox:SetHitRectInsets(0, -190, 0, 0)
+    end
+    checkbox:SetScript("OnClick", function(self)
+        onValueChanged(self:GetChecked())
+    end)
+    return checkbox
+end
+
+local function CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
+    local settings = GetDungeonTeleportPopupSettings()
+    local panel = CreateFrame("Frame", nil, contentFrame, "BackdropTemplate")
+    panel:SetSize(230, 96)
+    panel:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -14, -56)
+    panel:SetFrameStrata("DIALOG")
+    panel:SetFrameLevel(contentFrame:GetFrameLevel() + 30)
+    panel:EnableMouse(true)
+    panel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    panel:SetBackdropColor(0.04, 0.04, 0.04, 0.97)
+    panel:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+
+    panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    panel.title:SetPoint("TOPLEFT", 12, -10)
+    panel.title:SetText("Popup Settings")
+    panel.title:SetTextColor(1, 0.82, 0)
+
+    panel.closeButton = CreateFrame("Button", nil, panel)
+    panel.closeButton:SetSize(20, 20)
+    panel.closeButton:SetPoint("TOPRIGHT", -4, -4)
+    panel.closeButton.text = panel.closeButton:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    panel.closeButton.text:SetPoint("CENTER", 0, 1)
+    panel.closeButton.text:SetText("X")
+    panel.closeButton.text:SetTextColor(0.75, 0.75, 0.75)
+    panel.closeButton:SetScript("OnClick", function()
+        panel:Hide()
+    end)
+
+    panel.joinCheckbox = CreateTeleportPopupCheckbox(panel, "On group join / listing", settings.popupOnJoin, function(value)
+        settings.popupOnJoin = value and true or false
+    end)
+    panel.joinCheckbox:SetPoint("TOPLEFT", 12, -34)
+
+    panel.fullCheckbox = CreateTeleportPopupCheckbox(panel, "On full party", settings.popupOnFull, function(value)
+        settings.popupOnFull = value and true or false
+    end)
+    panel.fullCheckbox:SetPoint("TOPLEFT", 12, -60)
+    panel:Hide()
+
+    local gearButton = CreateFrame("Button", nil, contentFrame)
+    local dropdownHeight = dropdown and dropdown:GetHeight() or 26
+    local gearSize = math.max(12, math.floor(dropdownHeight * 0.5 + 0.5))
+    gearButton:SetSize(gearSize, gearSize)
+    if dropdown then
+        gearButton:SetPoint("LEFT", dropdown, "RIGHT", 8, 0)
+    else
+        gearButton:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -14, -34)
+    end
+    if gearButton.SetHitRectInsets then
+        gearButton:SetHitRectInsets(-4, -4, -4, -4)
+    end
+    gearButton:SetNormalTexture("Interface\\Buttons\\UI-OptionsButton")
+    gearButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    gearButton:SetScript("OnClick", function()
+        panel:SetShown(not panel:IsShown())
+    end)
+    gearButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText("Popup Settings", 1, 0.82, 0)
+        GameTooltip:Show()
+    end)
+    gearButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    return panel, gearButton
 end
 
 local function IsDungeonListingActivity(activityInfo)
@@ -1441,6 +1599,8 @@ local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoi
     local hadState = listedDungeonHighlightState.activeSignature ~= nil
         or listedDungeonHighlightState.activeInfo ~= nil
         or listedDungeonHighlightState.groupGUID ~= nil
+        or listedDungeonHighlightState.fullGroupPopupInfo ~= nil
+        or listedDungeonHighlightState.groupFillSignature ~= nil
         or (not keepJoinedGroupInfo and listedDungeonHighlightState.pendingJoinedGroupInfo ~= nil)
         or (not keepJoinedGroupInfo and listedDungeonHighlightState.joinedGroupInfo ~= nil)
         or (not keepSuppressedSignature and listedDungeonHighlightState.suppressedSignature ~= nil)
@@ -1456,6 +1616,11 @@ local function ResetListedDungeonHighlightState(keepSuppressedSignature, keepJoi
         listedDungeonHighlightState.joinedGroupInfo = nil
         listedDungeonHighlightState.joinedGroupInfoExpires = nil
     end
+    listedDungeonHighlightState.fullGroupPopupInfo = nil
+    listedDungeonHighlightState.groupFillSignature = nil
+    listedDungeonHighlightState.groupFillGroupGUID = nil
+    listedDungeonHighlightState.groupFillSawIncomplete = false
+    listedDungeonHighlightState.groupFillNotified = false
     if not keepSuppressedSignature then
         listedDungeonHighlightState.suppressedSignature = nil
     end
@@ -1526,9 +1691,13 @@ local function UpdateListedDungeonHighlightState()
         state.pendingJoinedGroupInfoExpires = nil
     end
 
-    if state.joinedGroupInfoExpires and now > state.joinedGroupInfoExpires then
-        state.joinedGroupInfo = nil
-        state.joinedGroupInfoExpires = nil
+    if state.joinedGroupInfoExpires then
+        if isInGroup then
+            state.joinedGroupInfoExpires = nil
+        elseif now > state.joinedGroupInfoExpires then
+            state.joinedGroupInfo = nil
+            state.joinedGroupInfoExpires = nil
+        end
     end
 
     if state.wasInGroup and not isInGroup then
@@ -1568,6 +1737,70 @@ local function UpdateListedDungeonHighlightState()
     if changed then
         NotifyListedDungeonHighlightChanged()
     end
+end
+
+local function UpdateListedDungeonFullGroupState()
+    local state = listedDungeonHighlightState
+    local info = state.joinedGroupInfo or state.activeInfo
+    if type(info) ~= "table" or not info.signature or not GetNumGroupMembers then
+        return false
+    end
+
+    if IsInRaid then
+        local okRaid, isInRaid = pcall(IsInRaid)
+        if okRaid and isInRaid then
+            return false
+        end
+    end
+
+    local okMembers, memberCount = pcall(GetNumGroupMembers)
+    if not okMembers or type(memberCount) ~= "number" then
+        return false
+    end
+
+    local signature = tostring(info.signature)
+    local groupGUID = info.groupGUID or state.groupGUID
+    local isJoinedGroupInfo = info == state.joinedGroupInfo
+    -- An accepted LFG invite can arrive before the player is in that group's roster.
+    local canObserveIncomplete = not isJoinedGroupInfo or IsPlayerInAnyGroup()
+    local trackingChanged = state.groupFillSignature ~= signature
+        or (state.groupFillGroupGUID and groupGUID and state.groupFillGroupGUID ~= groupGUID)
+
+    if trackingChanged then
+        state.groupFillSignature = signature
+        state.groupFillGroupGUID = groupGUID
+        state.groupFillSawIncomplete = canObserveIncomplete and memberCount < LISTED_DUNGEON_FULL_GROUP_SIZE
+        state.groupFillNotified = false
+        state.fullGroupPopupInfo = nil
+        return false
+    end
+
+    if not state.groupFillGroupGUID and groupGUID then
+        state.groupFillGroupGUID = groupGUID
+    end
+
+    if memberCount < LISTED_DUNGEON_FULL_GROUP_SIZE then
+        if canObserveIncomplete then
+            state.groupFillSawIncomplete = true
+        end
+        return false
+    end
+
+    -- Do not report a group that was already full when this listing was first observed.
+    if not state.groupFillSawIncomplete or state.groupFillNotified then
+        return false
+    end
+
+    state.groupFillNotified = true
+    state.fullGroupPopupInfo = {
+        teleportID = info.teleportID,
+        activityID = info.activityID,
+        searchResultID = info.searchResultID,
+        groupGUID = groupGUID,
+        signature = info.signature,
+        popupReason = "full",
+    }
+    return true
 end
 
 GetCurrentInstanceMapID = function()
@@ -1680,12 +1913,14 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
         listedDungeonTeleportPopupKey = nil
         listedDungeonTeleportPopupDeclinedKey = nil
     end
+    UpdateListedDungeonFullGroupState()
     MaybeShowListedDungeonTeleportPopup()
 end)
 
 if not mQoL_Modules or mQoL_Modules:ShouldLoadModule(MODULE_KEY) then
     UpdateListedDungeonHighlightState()
     SuppressListedDungeonHighlightForCurrentInstance()
+    UpdateListedDungeonFullGroupState()
 end
 
 -- Populate the existing card controller from spells actually known by this
@@ -2356,8 +2591,9 @@ local function InitDungeonTeleportsTabClassic()
         dropdown:HookScript("OnMouseDown", function()
             RefreshCategoryOptions(selectedCategoryValue)
         end)
-        dropdown:SetPoint("TOPRIGHT", -5, -30)
+        dropdown:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -30, -30)
     end
+    CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
 
     local UpdateDungeonTeleportsTabTextColor
     local isDungeonTeleportsTabForceDisabled = false
@@ -3337,8 +3573,9 @@ local function InitDungeonTeleportsTabRetail()
         dropdown:HookScript("OnMouseDown", function()
             RefreshCategoryOptions(selectedCategoryValue)
         end)
-        dropdown:SetPoint("TOPRIGHT", -5, -30)
+        dropdown:SetPoint("TOPRIGHT", contentFrame, "TOPRIGHT", -30, -30)
     end
+    CreateDungeonTeleportPopupSettings(contentFrame, dropdown)
 
     local UpdateDungeonTeleportsTabTextColor
     local isDungeonTeleportsTabForceDisabled = false
