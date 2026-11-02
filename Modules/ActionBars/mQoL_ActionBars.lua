@@ -335,7 +335,7 @@ function mQoL_ActionBarsQoL:CreatePanel(parent)
     local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "Action Bars Quality of Life Settings", {
         text = "How Action Bars QoL works?",
         textColor = {1, 0.82, 0},
-        explanation = "Manage Action Bar visibility.\n\n- Always Show Action Bars is only available in non-Retail or BCC clients.\n- To control Action Bars visibility on Retail or BCC, use Edit Mode Profile.\n- On Retail, changing these settings will require you to reload UI to prevent action bars tainting.\n- Settings can be Disabled to prevent the addon from modifying them.",
+        explanation = "Manage Action Bar visibility.\n\n- Always Show Action Bars is available in Legion and Auto clients when the required API is supported.\n- To control Action Bars visibility on Retail or TBC, use Edit Mode Profile.\n- On Retail, changing these settings will require you to reload UI to prevent action bars tainting.\n- Settings can be Disabled to prevent the addon from modifying them.",
         explanationColor = {1, 1, 1},
         width = 770,
         icon = "Interface\\Icons\\INV_Misc_QuestionMark",
@@ -349,7 +349,7 @@ function mQoL_ActionBarsQoL:CreatePanel(parent)
         return mQoL_Hub:AddOptionRow(contentContainer, label, type, opts)
     end
 
-    if not clientInfo.isRetail then
+    if clientInfo.isLegion or clientInfo.isAuto then
         local val = s.alwaysShowActionBars
         if val == nil then val = DISABLE end
 

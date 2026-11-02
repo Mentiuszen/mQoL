@@ -26,23 +26,6 @@ local function CreateButton(parent, text, width, height)
     return button
 end
 
-local function CreateCheckbox(parent)
-    if mQoL_Styles and mQoL_Styles.CreateCustomCheckbox then
-        return mQoL_Styles.CreateCustomCheckbox(parent)
-    end
-
-    local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    checkbox:SetSize(24, 24)
-    checkbox.SetValue = function(self, value) self:SetChecked(value == true) end
-    checkbox.GetValue = function(self) return self:GetChecked() == true end
-    checkbox:SetScript("OnClick", function(self)
-        if self.OnValueChanged then
-            self:OnValueChanged(self:GetChecked() == true)
-        end
-    end)
-    return checkbox
-end
-
 local function CreateSetupFrame()
     if setupFrame then return setupFrame end
 
@@ -93,18 +76,17 @@ local function CreateSetupFrame()
     frame.moduleDescription:SetJustifyH("CENTER")
     frame.moduleDescription:SetJustifyV("TOP")
 
-    frame.checkbox = CreateCheckbox(frame)
-    frame.checkbox:SetPoint("BOTTOM", frame, "BOTTOM", -90, 78)
-
-    frame.checkboxLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    frame.checkboxLabel:SetPoint("LEFT", frame.checkbox, "RIGHT", 8, 0)
-    frame.checkboxLabel:SetText("Activate this module")
-
     frame.backButton = CreateButton(frame, "Back", 110, 28)
-    frame.backButton:SetPoint("BOTTOMLEFT", 36, 28)
+    frame.backButton:SetPoint("TOPLEFT", 20, -20)
 
     frame.nextButton = CreateButton(frame, "Next", 110, 28)
-    frame.nextButton:SetPoint("BOTTOMRIGHT", -36, 28)
+    frame.nextButton:SetPoint("BOTTOMRIGHT", -20, 28)
+
+    frame.activateButton = CreateButton(frame, "Activate", 110, 28)
+    frame.activateButton:SetPoint("BOTTOMRIGHT", -20, 28)
+
+    frame.skipButton = CreateButton(frame, "Skip", 110, 28)
+    frame.skipButton:SetPoint("BOTTOMLEFT", 20, 28)
 
     setupFrame = frame
     return frame
@@ -138,8 +120,8 @@ function mQoL_Setup:RefreshFrame()
     local pageCount = #session.modules
     local currentModule = GetCurrentModule()
 
-    frame.checkbox:Hide()
-    frame.checkboxLabel:Hide()
+    frame.activateButton:Hide()
+    frame.skipButton:Hide()
     frame.moduleLabel:Hide()
     frame.moduleDescription:Hide()
     frame.backButton:Show()
@@ -161,10 +143,9 @@ function mQoL_Setup:RefreshFrame()
         frame.moduleDescription:SetText(currentModule.description or "")
         frame.moduleLabel:Show()
         frame.moduleDescription:Show()
-        frame.checkbox:SetValue(session.selected[currentModule.key] == true)
-        frame.checkbox:Show()
-        frame.checkboxLabel:Show()
-        frame.nextButton:SetText(session.page == pageCount and "Review" or "Next")
+        frame.nextButton:Hide()
+        frame.activateButton:Show()
+        frame.skipButton:Show()
     else
         frame.title:SetText("Setup summary")
         frame.progress:SetText("Ready to finish")
@@ -189,9 +170,18 @@ function mQoL_Setup:RefreshFrame()
     end)
 
     if currentModule then
-        frame.checkbox.OnValueChanged = function(_, value)
-            session.selected[currentModule.key] = value == true
+        local function ChooseModule(enabled)
+            session.selected[currentModule.key] = enabled
+            session.page = session.page + 1
+            mQoL_Setup:RefreshFrame()
         end
+
+        frame.activateButton:SetScript("OnClick", function()
+            ChooseModule(true)
+        end)
+        frame.skipButton:SetScript("OnClick", function()
+            ChooseModule(false)
+        end)
     end
 end
 

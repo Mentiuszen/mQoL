@@ -14,7 +14,7 @@ mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
 mQoL_Hub.version = "1.3.0"
-mQoL_Hub.build = "325"
+mQoL_Hub.build = "326"
 mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
@@ -48,7 +48,7 @@ mQoL_Hub.searchIndex = {
     { label = "Enemy Nameplates", panel = "Nameplates", available = true },
     { label = "Friendly Nameplates", panel = "Nameplates", available = true },
 	{ label = "Max Nameplate Distance", panel = "Nameplates", available = true },
-    { label = "Always Show Action Bars", panel = "Action Bars", available = not clientInfo.isRetail or clientInfo.isTBC },
+    { label = "Always Show Action Bars", panel = "Action Bars", available = clientInfo.isLegion or clientInfo.isAuto },
 	{ label = "Auto Push Spell To Action Bar", panel = "Action Bars", available = true },
 	{ label = "Auto Self Cast", panel = "Action Bars", available = true },
 	{ label = "Action Bar 2", panel = "Action Bars", available = true },

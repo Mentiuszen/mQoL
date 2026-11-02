@@ -424,7 +424,14 @@ function mQoL_Styles.CreateCustomDropdown(parent, width, items, selectedValue, o
             break
         end
     end
-    dropdown.text:SetText(selectedText or "Select")
+    if selectedText then
+        dropdown.text:SetText(selectedText)
+    elseif selectedValue ~= nil then
+        -- Show an out-of-list current value without adding it to the options.
+        dropdown.text:SetText(tostring(selectedValue))
+    else
+        dropdown.text:SetText("Select")
+    end
     dropdown.value = selectedValue
 
     -- Dropdown arrow texture

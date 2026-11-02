@@ -111,6 +111,14 @@ local function isUnavailableFeature(feature, result)
 end
 
 local function shouldHideOption(feature, result)
+    if feature
+        and feature[1] == 'ActionBarsQoL'
+        and feature[2] == 'alwaysShowActionBars'
+        and result
+        and result.canWrite == false then
+        return true
+    end
+
     return isUnavailableCVar(feature, result) or isUnavailableFeature(feature, result)
 end
 
@@ -248,6 +256,7 @@ function H:AddOptionRow(parent, name, controlType, params, extra, applyFunc)
 end
 
 function A:RefreshOptionRows()
+    local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
     for _, entry in ipairs(self.optionRows) do
         entry.allowed, entry.reason = evaluate(entry, false)
         if entry.control then
@@ -260,7 +269,11 @@ function A:RefreshOptionRows()
             local result = self:GetFeature(feature[1], feature[2], false)
             item.autoState = result and result.state or 'unknown'
             item.autoReason = result and result.reason
-            item.available = not shouldHideOption(feature, result)
+            local clientSupportsOption = not (
+                feature[1] == 'ActionBarsQoL'
+                and feature[2] == 'alwaysShowActionBars'
+            ) or (clientInfo and clientInfo.isAuto == true)
+            item.available = clientSupportsOption and not shouldHideOption(feature, result)
         end
     end
 end
