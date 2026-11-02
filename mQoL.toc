@@ -1,4 +1,4 @@
-## Interface: 120100, 16001, 50504, 11509, 20506
+## Interface: 70300
 ## Title: mQoL
 ## Notes: Quality of life improvements for World of Warcraft
 ## Author: Mentiuszen
@@ -7,7 +7,7 @@
 # Identity first; availability checks never choose a different Hub.
 Core/mQoL_VersionDetection.lua
 Core/mQoL_Compat.lua
-Libs\Libs_Unified\libs.xml
+Libs/Libs_Unified/libs.xml
 
 #Core Func
 Core/mQoL_Database.lua
