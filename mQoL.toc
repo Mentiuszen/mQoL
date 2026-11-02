@@ -45,6 +45,7 @@ Modules/RaidProfiles/mQoL_RaidProfilesManager.lua
 Modules/RaidProfiles/mQoL_RaidProfiles.lua
 Modules/DungeonTeleports/DungeonTeleportsTab.lua
 Modules/MythicPlusListing/mQoL_MythicPlusListing.lua
+Modules/Profiles/mQoL_Profiles.lua
 
 #Blizzard Fixes (MoP Classic Only)
 Modules/BlizzardFixes/PandariaClassic/mQoL_BlizzardMoPC.lua

@@ -2004,39 +2004,9 @@ local function CreateButton(parent, text, point, x, y, width, height)
     return btn
 end
 
+-- Implemented in Modules/Profiles/mQoL_Profiles.lua (export/import between game versions)
 function mQoL_Hub:CreateProfilesPanel(parent)
-
-    local isEnabled = false --Disable profiles tab (this code is anyway not working right now) (Plans for future update maybe 1.2 or later)
-
-	if not isEnabled then
-		local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "General Settings - Profiles", {
-			text = "How Profiles work?",
-			textColor = {1, 0.82, 0},
-			explanation = "Profiles are currently disabled. They will be enabled in a future update. \nProfiles will allow you to export and import your settings for different accounts and game versions.",
-			explanationColor = {1, 1, 1},
-			width = 770,
-			icon = "Interface\\Icons\\INV_Misc_QuestionMark",
-			animDuration = 0.25
-		}, "TopSeparator")
-		local AddGap = mQoL_Templates.AddGap
-
-		-- Information Message about unavailability
-		local message = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		message:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-		message:SetWidth(770)
-		message:SetJustifyH("LEFT")
-		message:SetText("|cffff0000Profiles are currently unavailable in this version. Profile creation, sharing, and import/export are disabled. \n\nProfiles are planned for a future update.|r")
-		AddGap(contentContainer, "Additional", 30)
-
-        -- Removed all code from version 1.0 as its not functional right now and won't be at all after ui rework
-
-		panel.UpdateScrollChildHeight = function()
-			mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
-		end
-		panel.UpdateScrollChildHeight()
-
-		return scrollFrame
-	end
+    return mQoL_Profiles:CreatePanel(parent)
 end
 
 function mQoL_Hub:ToggleMainPanel()
