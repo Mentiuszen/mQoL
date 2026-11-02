@@ -1433,7 +1433,13 @@ local function LayoutDungeonTeleportHeaderControls(contentFrame, scrollFrame, sc
     end
 
     dropdown:ClearAllPoints()
-    dropdown:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", -10, 40)
+    local scrollChildRight = scrollChild:GetRight()
+    local scrollFrameRight = scrollFrame:GetRight()
+    local dropdownRightOffset = -10
+    if scrollChildRight and scrollFrameRight then
+        dropdownRightOffset = dropdownRightOffset + scrollChildRight - scrollFrameRight
+    end
+    dropdown:SetPoint("TOPRIGHT", scrollFrame, "TOPRIGHT", dropdownRightOffset, 40)
 
     if gearButton then
         gearButton:ClearAllPoints()
