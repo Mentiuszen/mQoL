@@ -7,7 +7,7 @@
 # Identity first; availability checks never choose a different Hub.
 Core/mQoL_VersionDetection.lua
 Core/mQoL_Compat.lua
-Libs\Libs_Unified\libs.xml
+Libs/Libs_Unified/libs.xml
 
 #Core Func
 Core/mQoL_Database.lua
