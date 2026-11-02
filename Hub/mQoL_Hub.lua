@@ -1,4 +1,7 @@
 local addonName, L = ...
+local C_Timer = mQoL_Compat.Timer
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
+local SetSolidColor = mQoL_Compat.SetSolidColor
 mQoL_Hub = mQoL_Hub or {}
 mQoL_Hub.name = addonName
 mQoL_Hub.modules = {}
@@ -10,9 +13,9 @@ local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
 -- Addon Version
-mQoL_Hub.version = "1.2.6"
-mQoL_Hub.build = "273"
-mQoL_Hub.vendor = "release"    --dev / test / release
+mQoL_Hub.version = "1.3.0"
+mQoL_Hub.build = "328"
+mQoL_Hub.vendor = "dev"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -45,37 +48,37 @@ mQoL_Hub.searchIndex = {
     { label = "Enemy Nameplates", panel = "Nameplates", available = true },
     { label = "Friendly Nameplates", panel = "Nameplates", available = true },
 	{ label = "Max Nameplate Distance", panel = "Nameplates", available = true },
-    { label = "Always Show Action Bars", panel = "Action Bars", available = not clientInfo.isRetail or clientInfo.isBCC },
+    { label = "Always Show Action Bars", panel = "Action Bars", available = clientInfo.isLegion or clientInfo.isAuto },
 	{ label = "Auto Push Spell To Action Bar", panel = "Action Bars", available = true },
 	{ label = "Auto Self Cast", panel = "Action Bars", available = true },
 	{ label = "Action Bar 2", panel = "Action Bars", available = true },
 	{ label = "Action Bar 3", panel = "Action Bars", available = true },
 	{ label = "Action Bar 4", panel = "Action Bars", available = true },
 	{ label = "Action Bar 5", panel = "Action Bars", available = true },
-	{ label = "Action Bar 6", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isBCC },
-	{ label = "Action Bar 7", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isBCC },
-	{ label = "Action Bar 8", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isBCC },
+	{ label = "Action Bar 6", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isTBC },
+	{ label = "Action Bar 7", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isTBC },
+	{ label = "Action Bar 8", panel = "Action Bars", available = clientInfo.isRetail or clientInfo.isTBC },
     { label = "Auto Open Mailbox Side Panel", panel = "Mailbox", available = true },
     { label = "Enable Gold Summary from Mailbox", panel = "Mailbox", available = true },
     { label = "Auto Mailbox Subject", panel = "Mailbox", available = true },
     { label = "Alts List", panel = "Mailbox", available = true },
     { label = "Guild List", panel = "Mailbox", available = true },
     { label = "Friends List", panel = "Mailbox", available = true },
-	{ label = "View Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
-    { label = "Fog Distance", panel = "Graphics", available = clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC },
-    { label = "Edit Mode Profile Mode", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
-    { label = "Force Edit Mode Profile", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isBCC },
-    { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = clientInfo.isClassicToT or clientInfo.isEra or clientInfo.isLegion },
+	{ label = "View Distance", panel = "Graphics", available = clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isTBC or clientInfo.isForever },
+    { label = "Fog Distance", panel = "Graphics", available = clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isTBC or clientInfo.isForever },
+    { label = "Edit Mode Profile Mode", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isVanilla },
+    { label = "Force Edit Mode Profile", panel = "Edit Mode", available = clientInfo.isRetail or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isVanilla },
+    { label = "Use Raid Frames in 5-Man Party", panel = "Raid Profiles", available = clientInfo.isVanilla or clientInfo.isLegion },
     { label = "Saved Raid Profiles", panel = "Raid Profiles", available = true },
     { label = "Forced Raid Profile Mode", panel = "Raid Profiles", available = true },
     { label = "Force Raid Profile", panel = "Raid Profiles", available = true },
-    { label = "PvP Rewards Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Pandaria Map Navigation", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Consolidated Buffs Improvement", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Corpse Map Texture Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Minimap Instance Difficulty Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Auto Reset Instance", panel = "Blizzard Fixes", available = clientInfo.isClassic },
-    { label = "Encounter Journal Tab Fix", panel = "Blizzard Fixes", available = clientInfo.isClassic },
+    { label = "PvP Rewards Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Pandaria Map Navigation", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Consolidated Buffs Improvement", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Corpse Map Texture Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Minimap Instance Difficulty Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Auto Reset Instance", panel = "Blizzard Fixes", available = clientInfo.isMoP },
+    { label = "Encounter Journal Tab Fix", panel = "Blizzard Fixes", available = clientInfo.isMoP },
 }
 
 -- SLASH COMMAND OPEN MAIN WINDOW
@@ -112,10 +115,19 @@ SlashCmdList["MQOL_HUBVERSION"] = function()
 end
 
 -- Libs for minimap
-local LDB = LibStub:GetLibrary("LibDataBroker-1.1")
-local LDBIcon = LibStub("LibDBIcon-1.0")
+local LDB, LDBIcon
+if mQoL_Auto then
+    -- The launcher is optional. Missing minimap libraries must not abort the Hub.
+    if LibStub and type(LibStub.GetLibrary) == "function" then
+        LDB = LibStub:GetLibrary("LibDataBroker-1.1", true)
+        LDBIcon = LibStub:GetLibrary("LibDBIcon-1.0", true)
+    end
+else
+    LDB = LibStub:GetLibrary("LibDataBroker-1.1")
+    LDBIcon = LibStub("LibDBIcon-1.0")
+end
 
-local hubLauncher = LDB:NewDataObject("mQoL_Hub", {
+local hubLauncher = LDB and LDB:NewDataObject("mQoL_Hub", {
     type = "launcher",
     text = "mQoL Hub",
     icon = "Interface\\AddOns\\mQoL\\Media\\Textures\\logo",
@@ -129,7 +141,12 @@ local hubLauncher = LDB:NewDataObject("mQoL_Hub", {
 })
 
 function mQoL_Hub:InitializeMinimap()
-    LDBIcon:Register("mQoL_Hub", hubLauncher, self.db.minimap)
+    if mQoL_Auto and (not hubLauncher or not LDBIcon or type(LDBIcon.Register) ~= "function") then
+        mQoL_Auto.minimapUnavailable = "Minimap launcher library unavailable; the standard Hub remains accessible with /mqol."
+        return
+    end
+    if LDBIcon:IsRegistered("mQoL_Hub") then LDBIcon:Refresh("mQoL_Hub", self.db.minimap)
+    else LDBIcon:Register("mQoL_Hub", hubLauncher, self.db.minimap) end
 
     if self.db.minimap and self.db.minimap.hide then
         LDBIcon:Hide("mQoL_Hub")
@@ -424,7 +441,7 @@ function mQoL_Hub:AddOptionRow(parent, name, controlType, controlParams, extra, 
 
         control.bg = control:CreateTexture(nil, "BACKGROUND")
         control.bg:SetAllPoints()
-        control.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+        SetSolidColor(control.bg, 0.15, 0.15, 0.15, 1)
 
         if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
             control.border = mQoL_Templates.CreateFrameBorder(control, 1, {0.25, 0.25, 0.25, 1})
@@ -587,8 +604,30 @@ function mQoL_Hub:GetIntroVersionKey(version)
 end
 
 -- HOME PANEL
+local PANEL_FOOTER_HEIGHT = 40
+local function CreatePanelWithFooter(parent, footerMessage)
+    local page = CreateFrame("Frame", nil, parent)
+    local scrollFrame, scrollChild = mQoL_Templates.CreateScrollPanel(page, { width = 850, height = 600 })
+    scrollFrame:ClearAllPoints()
+    scrollFrame:SetAllPoints(page)
+
+    local separator = page:CreateTexture(nil, "ARTWORK")
+    SetSolidColor(separator, 1, 1, 1, 0.15)
+    separator:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 20, PANEL_FOOTER_HEIGHT)
+    separator:SetSize(770, 1)
+
+    local footerText = page:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    footerText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
+    footerText:SetWidth(770)
+    footerText:SetJustifyH("CENTER")
+    footerText:SetText(footerMessage)
+
+    page.GetScrollChild = function() return scrollChild end
+    return page, scrollFrame, scrollChild
+end
+
 function mQoL_Hub:CreateHomePanel(parent)
-    local scrollFrame, scrollChild = mQoL_Templates.CreateScrollPanel(parent, { width = 850, height = 600 })
+    local page, scrollFrame, scrollChild = CreatePanelWithFooter(parent, "mQoL is constantly evolving. Stay tuned for more updates!")
     
     -- Intro Logic
     local shouldShowIntro = false
@@ -627,7 +666,7 @@ function mQoL_Hub:CreateHomePanel(parent)
 
     -- Separator under title
     local titleSeparator = panel:CreateTexture(nil, "ARTWORK")
-    titleSeparator:SetColorTexture(1, 1, 1, 0.3)
+    SetSolidColor(titleSeparator, 1, 1, 1, 0.3)
     titleSeparator:SetPoint("TOPLEFT", 20, currentY)
     titleSeparator:SetSize(770, 1)
     currentY = currentY - 30
@@ -635,7 +674,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- What's New Section
     local newsTitle = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     newsTitle:SetPoint("TOPLEFT", 20, currentY)
-    newsTitle:SetText("What's New in v1.2.0?")
+    newsTitle:SetText("What's New in v1.3.0?")
     newsTitle:SetTextColor(0.3, 0.7, 1)
     currentY = currentY - 30
 
@@ -649,19 +688,19 @@ function mQoL_Hub:CreateHomePanel(parent)
         local bullet = panel:CreateTexture(nil, "ARTWORK")
         bullet:SetSize(6, 6)
         bullet:SetPoint("RIGHT", textFS, "LEFT", -6, 0)
-        bullet:SetColorTexture(1, 1, 1, 0.8)
+        SetSolidColor(bullet, 1, 1, 1, 0.8)
         
         currentY = currentY - textFS:GetStringHeight() - 10
     end
 
-    AddBulletPoint("Dungeon Teleports: New tab in Group Finder for easy access to teleports, seasons support and detailed tooltips.")
-    AddBulletPoint("Account Overview: New panel displaying a list of all your characters and an Gold Chart.")
-    AddBulletPoint("Great Vault Preview: See Great Vault of your other characters without character switching.")
-    AddBulletPoint("Party Keystones: View keystones of your party members and quickly list keystone.")
-    AddBulletPoint("New QoL Options: Added settings for Auto Push Spell To Action Bar, and Auto Self Cast.")
-    AddBulletPoint("Fast Auto Loot: Much faster auto loot option.")
-    AddBulletPoint("Edit Mode Backups: Automatically creates and keeps up to 5 backups of your UI profiles upon login.")
-    AddBulletPoint("Edit Mode Backups are only available in config file and not accessible from the UI yet.")
+    AddBulletPoint("Point 1 - to be filled.")
+    AddBulletPoint("Point 2 - to be filled.")
+    AddBulletPoint("Point 3 - to be filled.")
+    AddBulletPoint("Point 4 - to be filled.")
+    AddBulletPoint("Point 5 - to be filled.")
+    AddBulletPoint("Point 6 - to be filled.")
+    AddBulletPoint("Point 7 - to be filled.")
+    AddBulletPoint("Point 8 - to be filled.")
     
     currentY = currentY - 20
 
@@ -707,7 +746,7 @@ function mQoL_Hub:CreateHomePanel(parent)
         local bullet = panel:CreateTexture(nil, "ARTWORK")
         bullet:SetSize(4, 4)
         bullet:SetPoint("RIGHT", textFS, "LEFT", -6, 0)
-        bullet:SetColorTexture(1, 0.82, 0, 0.8)
+        SetSolidColor(bullet, 1, 0.82, 0, 0.8)
         
         currentY = currentY - textFS:GetStringHeight() - 8
     end
@@ -716,36 +755,28 @@ function mQoL_Hub:CreateHomePanel(parent)
     AddTip("You can use the search bar in the side menu to instantly find any setting.")
     AddTip("Some options have a third state (disabled). This prevents the addon from modifying that specific setting.")
 
-    -- Update scroll height (content + footer space)
-    local footerHeight = 100
-    local contentHeight = math.abs(currentY)
-    local totalHeight = math.max(contentHeight + footerHeight, 600)
-    scrollChild:SetHeight(totalHeight)
-
-    -- Separator
-    local separator = panel:CreateTexture(nil, "ARTWORK")
-    separator:SetColorTexture(1, 1, 1, 0.15)
-    separator:SetPoint("BOTTOMLEFT", 20, 80)
-    separator:SetSize(770, 1)
-
-    -- Footer Text
-    local footerText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    footerText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
-    footerText:SetWidth(770)
-    footerText:SetJustifyH("CENTER")
-    footerText:SetText("mQoL is constantly evolving. Stay tuned for more updates!")
-
-    if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
-        scrollFrame.scrollbar:UpdateScrollbar()
+    panel.UpdateScrollChildHeight = function()
+        panel:SetHeight(math.max(math.abs(currentY), scrollFrame:GetHeight()))
+        if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
+            scrollFrame.scrollbar:UpdateScrollbar()
+        end
     end
+    scrollFrame:HookScript("OnSizeChanged", panel.UpdateScrollChildHeight)
+    panel.UpdateScrollChildHeight()
 
-    return scrollFrame
+    return page
 end
 
 mQoL_Hub:RegisterModuleOptions(nil, "Home", function(parent) return mQoL_Hub:CreateHomePanel(parent) end)
 
 function mQoL_Hub:CreateAboutPanel(parent)
-    local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "About", nil, "TopSeparator")
+    local page, scrollFrame, panel = CreatePanelWithFooter(parent, "Created by Mentiuszen-KulTiras (EU)")
+    mQoL_Templates.PanelStart(panel)
+    mQoL_Templates.PanelTitle(panel, "About")
+    local contentContainer = mQoL_Templates.BeginOptions(panel, "TopSeparator")
+    scrollFrame:HookScript("OnSizeChanged", function()
+        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
+    end)
 
     local header = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     header:SetPoint("TOPLEFT", 20, contentContainer.currentY)
@@ -807,38 +838,12 @@ function mQoL_Hub:CreateAboutPanel(parent)
     contentContainer.currentY = CreateCopyableLinkRow("Bug Reports", "https://github.com/Mentiuszen/mQoL/issues", contentContainer.currentY)
     contentContainer.currentY = contentContainer.currentY - 20
 
-    local footerHeight = 100
-    local _, _, _, _, containerYOffset = contentContainer:GetPoint()
-    containerYOffset = containerYOffset or 0
-    local contentHeight = math.abs(containerYOffset) + math.abs(contentContainer.currentY or 0)
-    local minHeight = (scrollFrame and scrollFrame:GetHeight()) or 0
-    local totalHeight = math.max(contentHeight + footerHeight, minHeight)
-    panel:SetHeight(totalHeight)
-
-    local separator = panel:CreateTexture(nil, "ARTWORK")
-    separator:SetColorTexture(1, 1, 1, 0.15)
-    separator:SetPoint("BOTTOMLEFT", 20, 80)
-    separator:SetSize(770, 1)
-
-    local authorText = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    authorText:SetPoint("TOP", separator, "BOTTOM", 0, -15)
-    authorText:SetWidth(770)
-    authorText:SetJustifyH("CENTER")
-    authorText:SetText("Created by Mentiuszen-KulTiras (EU)")
-
     panel.UpdateScrollChildHeight = function()
-        local _, _, _, _, cY = contentContainer:GetPoint()
-        cY = cY or 0
-        local cH = math.abs(cY) + math.abs(contentContainer.currentY or 0)
-        local minH = (scrollFrame and scrollFrame:GetHeight()) or 0
-        panel:SetHeight(math.max(cH + footerHeight, minH))
-        if scrollFrame.scrollbar and scrollFrame.scrollbar.UpdateScrollbar then
-            scrollFrame.scrollbar:UpdateScrollbar()
-        end
+        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
     end
     panel.UpdateScrollChildHeight()
 
-    return scrollFrame
+    return page
 end
 
 mQoL_Hub:RegisterModuleOptions(nil, "About", function(parent) return mQoL_Hub:CreateAboutPanel(parent) end)
@@ -879,7 +884,7 @@ function mQoL_Hub:CreateDisplayPanel(parent)
 	scaleEditBox:SetSize(60, 24)
 	scaleEditBox.bg = scaleEditBox:CreateTexture(nil, "BACKGROUND")
 	scaleEditBox.bg:SetAllPoints()
-	scaleEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+	SetSolidColor(scaleEditBox.bg, 0.15, 0.15, 0.15, 1)
 	scaleEditBox.border = mQoL_Templates.CreateFrameBorder(scaleEditBox, 1, {0.25, 0.25, 0.25, 1})
 
 	-- Slider + row
@@ -918,7 +923,7 @@ function mQoL_Hub:CreateDisplayPanel(parent)
 	opacityEditBox:SetSize(60, 24)
 	opacityEditBox.bg = opacityEditBox:CreateTexture(nil, "BACKGROUND")
 	opacityEditBox.bg:SetAllPoints()
-	opacityEditBox.bg:SetColorTexture(0.15, 0.15, 0.15, 1)
+	SetSolidColor(opacityEditBox.bg, 0.15, 0.15, 0.15, 1)
 	opacityEditBox.border = mQoL_Templates.CreateFrameBorder(opacityEditBox, 1, {0.25, 0.25, 0.25, 1})
 
 	local defaultOpacity = (self.db.display and self.db.display.opacity) or self.defaults.display.opacity
@@ -1015,6 +1020,7 @@ local PANEL_STRUCTURE = {
     },
     ["Custom Features"] = {
         "Graphics",
+		"Mythic+ Listing",
 		"Blizzard Fixes",
     },
 }
@@ -1057,7 +1063,7 @@ function mQoL_Hub.CreateInfoSection(parent, yOffset, opts)
     explanationFrame:SetPoint("TOPLEFT", infoButton, "BOTTOMLEFT", 0, -4)
     explanationFrame:SetSize(width, 0) -- start hidden
     explanationFrame:Hide()
-    explanationFrame:SetClipsChildren(true)
+    if type(explanationFrame.SetClipsChildren) == "function" then explanationFrame:SetClipsChildren(true) end
 
     -- FontString inside explanationFrame
     local explanationFS = explanationFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -1207,7 +1213,7 @@ function mQoL_Hub:CreateSidePanel(parent)
 
     sidebar.bg = sidebar:CreateTexture(nil, "BACKGROUND")
     sidebar.bg:SetAllPoints()
-    sidebar.bg:SetColorTexture(0.10, 0.10, 0.10, 1.0)
+    SetSolidColor(sidebar.bg, 0.10, 0.10, 0.10, 1.0)
 	sidebar.bg.mQoL_baseAlpha = 1.0
 
     -- Smooth Height Animation
@@ -1251,7 +1257,7 @@ function mQoL_Hub:CreateSidePanel(parent)
 
     searchFrame.bg = searchFrame:CreateTexture(nil, "BACKGROUND")
     searchFrame.bg:SetAllPoints()
-    searchFrame.bg:SetColorTexture(0, 0, 0, 0.75)
+    SetSolidColor(searchFrame.bg, 0, 0, 0, 0.75)
 	searchFrame.bg.mQoL_baseAlpha = 0.75
 
     local searchBox = CreateFrame("EditBox", nil, searchFrame)
@@ -1279,13 +1285,13 @@ function mQoL_Hub:CreateSidePanel(parent)
     resultsFrame:SetPoint("TOPRIGHT", searchFrame, "BOTTOMRIGHT", 0, -2)
     resultsFrame:SetHeight(50)
     resultsFrame:EnableMouse(true)
-    resultsFrame:SetMouseMotionEnabled(true)
+    if type(resultsFrame.SetMouseMotionEnabled) == "function" then resultsFrame:SetMouseMotionEnabled(true) end
     resultsFrame:SetFrameStrata("DIALOG")
     resultsFrame:SetFrameLevel(sidebar:GetFrameLevel() + 10)
     
 	local bg = resultsFrame:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints()
-	bg:SetColorTexture(0, 0, 0, 0.85)
+	SetSolidColor(bg, 0, 0, 0, 0.85)
 	resultsFrame.bg = bg
 	resultsFrame.bg.mQoL_baseAlpha = 0.85
 	sidebar.resultsFrame = resultsFrame
@@ -1586,7 +1592,7 @@ function mQoL_Hub:CreateSidePanel(parent)
         buttonsFrame:SetPoint("TOPLEFT", 10, 0)
         buttonsFrame:SetPoint("TOPRIGHT", -10, 0)
         buttonsFrame:SetHeight(24 * (#block.buttons))
-        buttonsFrame:SetClipsChildren(true)
+        if type(buttonsFrame.SetClipsChildren) == "function" then buttonsFrame:SetClipsChildren(true) end
 
         block.container = container
         block.arrow = arrow
@@ -1740,7 +1746,7 @@ function mQoL_Hub:CreateMainPanel()
 
     -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(f.bg, 0.05, 0.05, 0.05, 1)
 	f.bg.mQoL_baseAlpha = 1.0
 
     -- Border
@@ -1781,7 +1787,7 @@ function mQoL_Hub:CreateMainPanel()
     local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
     titleBar.bg = titleBg
     titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.08, 0.08, 0.08, 1.0)
+    SetSolidColor(titleBg, 0.08, 0.08, 0.08, 1.0)
 	titleBg.mQoL_baseAlpha = 1.2
 
     titleBar:EnableMouse(true)
@@ -1814,13 +1820,53 @@ function mQoL_Hub:CreateMainPanel()
 
     self.ContentArea = contentArea
 
-	-- Generate Panels
 	local panels = {}
+	self.panelErrors = {}
+
+	local function CreatePanelOrFallback(name, panelFunc)
+		local success, panelOrError = pcall(panelFunc, contentArea)
+		local panel = success and panelOrError or nil
+		local isFrame = panel
+			and type(panel.Show) == "function"
+			and type(panel.Hide) == "function"
+			and type(panel.SetParent) == "function"
+
+		if isFrame then
+			self.panelErrors[name] = nil
+			return panel
+		end
+
+		local errorMessage
+		if not success then
+			errorMessage = tostring(panelOrError)
+		elseif panel == nil then
+			errorMessage = "Panel factory returned no frame."
+		else
+			errorMessage = "Panel factory returned an invalid frame."
+		end
+
+		self.panelErrors[name] = errorMessage
+		print(string.format("|cffff4444[mQoL Hub]|r Failed to create panel [%s]: %s", name, errorMessage))
+
+		panel = CreateFrame("Frame", nil, contentArea)
+		local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		title:SetPoint("TOPLEFT", 24, -24)
+		title:SetText(name .. " is unavailable")
+
+		local details = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		details:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -16)
+		details:SetWidth(760)
+		details:SetJustifyH("LEFT")
+		details:SetText("This module panel could not be created. The rest of mQoL is still available.\n\n" .. errorMessage)
+		return panel
+	end
+
+	-- Generate Panels
 	for categoryName, subcategories in pairs(PANEL_STRUCTURE) do
 		for _, sub in ipairs(subcategories) do
 			local panelFunc = mQoL_Hub.modules[sub]
 			if panelFunc then
-				local panel = panelFunc(contentArea)
+				local panel = CreatePanelOrFallback(sub, panelFunc)
 				if panel.SetAllPoints then
 					panel:SetAllPoints()
 				else
@@ -1900,7 +1946,7 @@ function mQoL_Hub:CreateMainPanel()
 		-- Get the panel creation function and recreate
 		local panelFunc = self.modules[currentName]
 		if panelFunc then
-			local panel = panelFunc(contentArea)
+			local panel = CreatePanelOrFallback(currentName, panelFunc)
 			if panel then
 				if panel.SetAllPoints then
 					panel:SetAllPoints()
@@ -1933,50 +1979,39 @@ function mQoL_Hub:CreateMainPanel()
 	self:SetActiveSidebarButton(defaultPanel)
 end
 
+-- The original constructor remains the UI owner. Cache only successful builds.
+local ConstructMainPanel = mQoL_Hub.CreateMainPanel
+function mQoL_Hub:CreateMainPanel()
+    if self.mainPanelReady then return true end
+    if self.buildingMainPanel then return false end
+    self.buildingMainPanel=true
+    local rowCount=mQoL_Auto and #mQoL_Auto.optionRows or 0
+    local ok,err=pcall(ConstructMainPanel,self)
+    self.buildingMainPanel=nil
+    if ok then self.mainPanelReady=true;mQoL_Compat.errors['Hub construction']=nil;return true end
+    mQoL_Compat.CleanupFrame(self.MainFrame)
+    for i=#UISpecialFrames,1,-1 do if UISpecialFrames[i]=='mQoL_Hub_MainFrame' then table.remove(UISpecialFrames,i) end end
+    if mQoL_Auto then for i=#mQoL_Auto.optionRows,rowCount+1,-1 do mQoL_Auto.optionRows[i]=nil end end
+    self.MainFrame,self.ContentArea,self.sidebar,self.searchBox=nil,nil,nil,nil
+    self.activePanel,self.activePanelName=nil,nil
+    mQoL_Compat.Report('Hub construction',err)
+    return false,err
+end
+
 local function CreateButton(parent, text, point, x, y, width, height)
     local btn = mQoL_Templates.CreateButton(parent, text, width, height)
     btn:SetPoint(point, x, y)
     return btn
 end
 
+-- Implemented in Modules/Profiles/mQoL_Profiles.lua (export/import between game versions)
 function mQoL_Hub:CreateProfilesPanel(parent)
-
-    local isEnabled = false --Disable profiles tab (this code is anyway not working right now) (Plans for future update maybe 1.2 or later)
-
-	if not isEnabled then
-		local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "General Settings - Profiles", {
-			text = "How Profiles work?",
-			textColor = {1, 0.82, 0},
-			explanation = "Profiles are currently disabled. They will be enabled in a future update. \nProfiles will allow you to export and import your settings for different accounts and game versions.",
-			explanationColor = {1, 1, 1},
-			width = 770,
-			icon = "Interface\\Icons\\INV_Misc_QuestionMark",
-			animDuration = 0.25
-		}, "TopSeparator")
-		local AddGap = mQoL_Templates.AddGap
-
-		-- Information Message about unavailability
-		local message = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		message:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-		message:SetWidth(770)
-		message:SetJustifyH("LEFT")
-		message:SetText("|cffff0000Profiles are currently unavailable in this version. Profile creation, sharing, and import/export are disabled. \n\nProfiles are planned for a future update.|r")
-		AddGap(contentContainer, "Additional", 30)
-
-        -- Removed all code from version 1.0 as its not functional right now and won't be at all after ui rework
-
-		panel.UpdateScrollChildHeight = function()
-			mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
-		end
-		panel.UpdateScrollChildHeight()
-
-		return scrollFrame
-	end
+    return mQoL_Profiles:CreatePanel(parent)
 end
 
 function mQoL_Hub:ToggleMainPanel()
     if not self.MainFrame then
-        self:CreateMainPanel()
+        if not self:CreateMainPanel() then return end
     end
 
     local hubSettings = mQoL_Database:GetSettings("Hub")
@@ -2019,7 +2054,7 @@ function mQoL_Hub:CreateVersionPanel()
     -- Background
     f.bg = f:CreateTexture(nil, "BACKGROUND")
     f.bg:SetAllPoints()
-    f.bg:SetColorTexture(0.05, 0.05, 0.05, 1)
+    SetSolidColor(f.bg, 0.05, 0.05, 0.05, 1)
 
     if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
          mQoL_Templates.CreateFrameBorder(f, 1, {0.25, 0.25, 0.25, 1})
@@ -2033,7 +2068,7 @@ function mQoL_Hub:CreateVersionPanel()
 
     local titleBg = titleBar:CreateTexture(nil, "BACKGROUND")
     titleBg:SetAllPoints()
-    titleBg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    SetSolidColor(titleBg, 0.1, 0.1, 0.1, 1)
 
     titleBar:EnableMouse(true)
     titleBar:RegisterForDrag("LeftButton")
@@ -2100,7 +2135,7 @@ function mQoL_Hub:CreateVersionPanel()
 
     -- Separator
     local sep = f.headerFrame:CreateTexture(nil, "ARTWORK")
-    sep:SetColorTexture(1, 1, 1, 0.3)
+    SetSolidColor(sep, 1, 1, 1, 0.3)
     sep:SetPoint("BOTTOMLEFT", f.headerFrame, "BOTTOMLEFT", leftMargin - 10, -2)
     sep:SetSize(totalWidth - leftMargin - rightMargin - 12, 1)
 
@@ -2337,15 +2372,6 @@ local function RegisterMessagePrefix(prefix)
     end
 end
 
-local function SendAddonMessage(prefix, message, channel, target)
-	if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-        C_ChatInfo.SendAddonMessage(prefix, message, channel, target)
-    else
-        -- Old API fallback
-        SendAddonMessage(prefix, message, channel, target)
-    end
-end
-
 -- Event Handler
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
@@ -2401,7 +2427,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
 
         if msg == "!VREQ" or msg == "!MHVREQ" then
             -- Fix: Include vendor in response (was missing before)
-            C_ChatInfo.SendAddonMessage(ADDON_PREFIX,
+            SendAddonMessage(ADDON_PREFIX,
                 "!MHVRESP:" .. (mQoL_Hub.vendor or "unknown") .. ":" .. (mQoL_Hub.version or "unknown") .. ":" .. (mQoL_Hub.build or "unknown"),
                 channel)
             return

@@ -1,5 +1,8 @@
 local addonName = ...
 
+local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+if not (clientInfo and clientInfo.isMoP) then return end
+
 -- DEBUG
 local DEBUG = {
     GLOBAL = false,

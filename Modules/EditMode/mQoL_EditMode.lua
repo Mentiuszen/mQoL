@@ -1,17 +1,45 @@
 local addonName, _ = ...
+local C_Timer = mQoL_Compat.Timer
+local SetSolidColor = mQoL_Compat.SetSolidColor
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
 mQoL_EditMode = mQoL_EditMode or {}
 
 local mQoL_Hub = _G["mQoL_Hub"]
 if not mQoL_Hub then return end
 
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
-if not (clientInfo.isRetail or clientInfo.isBCC or clientInfo.isClassic) then return end
+if not (clientInfo.isRetail or clientInfo.isTBC or clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isAuto or clientInfo.isForever) then return end
+
+local function GetNativeEditModeLayouts()
+    if C_EditMode and type(C_EditMode.GetLayouts) == "function" then
+        local ok, layoutInfo = pcall(C_EditMode.GetLayouts)
+        if ok and type(layoutInfo) == "table" then
+            if type(layoutInfo.layouts) == "table" then return layoutInfo.layouts end
+            if #layoutInfo > 0 then return layoutInfo end
+        end
+    end
+
+    if EditModeManagerFrame and type(EditModeManagerFrame.GetLayouts) == "function" then
+        local ok, layoutInfo = pcall(EditModeManagerFrame.GetLayouts, EditModeManagerFrame)
+        if ok and type(layoutInfo) == "table" then
+            if type(layoutInfo.layouts) == "table" then return layoutInfo.layouts end
+            if #layoutInfo > 0 then return layoutInfo end
+        end
+    end
+
+    return nil
+end
+
+local function RegisterEditModeOptions()
+    if not mQoL_Hub.RegisterModuleOptions then return false end
+    mQoL_Hub:RegisterModuleOptions("mQoL_EditMode", "Edit Mode", function(parent)
+        return mQoL_EditMode:CreateEditModePanel(parent)
+    end)
+    return true
+end
+
 local DeepCopy = mQoL_Utils.DeepCopy
 local GetClassColor = mQoL_Utils.GetClassColor
-
-local function IsClassicEditModePending()
-    return clientInfo.isClassicToT
-end
 
 local SITUATIONAL_MODE_KEY = "Use Situational Instead"
 
@@ -102,14 +130,14 @@ function mQoL_EditMode:InitializeDB()
 end
 
 function mQoL_EditMode:GetEditModeProfiles()
-    if IsClassicEditModePending() then
-        return {}
+    if mQoL_Auto and not clientInfo.isForever then
+        local result=mQoL_Auto.ReadLayouts()
+        local names={}
+        if result.state=='ready' then for _,layout in ipairs(result.data.layouts) do names[#names+1]=layout.layoutName end end
+        table.sort(names);return names
     end
-
-    if not EditModeManagerFrame or not EditModeManagerFrame.GetLayouts then
-        return {}
-    end
-    local layouts = EditModeManagerFrame:GetLayouts()
+    local layouts = GetNativeEditModeLayouts()
+    if not layouts then return {} end
     local names = {}
     for _, layout in ipairs(layouts) do
         if layout and layout.layoutName then
@@ -193,10 +221,7 @@ local function ExportLayoutString(layout, fallbackIndex)
 end
 
 function mQoL_EditMode:BackupPlayerProfiles(force)
-    if IsClassicEditModePending() then
-        return
-    end
-
+    if mQoL_Auto and not clientInfo.isForever and not mQoL_Auto:CanUse('EditMode','export') then return end
     if self._backupDoneThisSession and not force then return end
     if not force then
         self._backupDoneThisSession = true
@@ -289,11 +314,23 @@ local function SetupCombatEventFrame()
 end
 
 function mQoL_EditMode:ForceEditModeProfile(profileName)
-    if IsClassicEditModePending() then
-        return false
-    end
-
     if not profileName or profileName == "" then return false end
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule('EditMode') then return false end
+    if mQoL_Auto and not clientInfo.isForever then
+        local allowed,reason,r=mQoL_Auto:CanUse('EditMode','apply',true)
+        if not allowed then return false,reason end
+        if mQoL_Compat.InCombat() then self.pendingProfileLoad=profileName;SetupCombatEventFrame();return false end
+        for index,layout in ipairs(r.data.layouts) do
+            if layout.layoutName==profileName then
+                local ok,err=mQoL_Compat.Write('C_EditMode.SetActiveLayout',index)
+                if not ok then mQoL_Compat.Report('EditMode apply',err);return false,err end
+                local actual=mQoL_Auto.ReadLayouts()
+                if actual.state~='ready' or actual.data.activeLayout~=index then return false,'Layout readback did not confirm application' end
+                return true
+            end
+        end
+        return false,'Layout not found'
+    end
 
     if InCombatLockdown and InCombatLockdown() then
         self.pendingProfileLoad = profileName
@@ -303,22 +340,7 @@ function mQoL_EditMode:ForceEditModeProfile(profileName)
 
     -- Use C_EditMode directly to avoid tainting EditModeManagerFrame
     if C_EditMode and C_EditMode.SetActiveLayout then
-        local layouts = nil
-        if C_EditMode.GetLayouts then
-            local layoutInfo = C_EditMode.GetLayouts()
-            if layoutInfo and layoutInfo.layouts then
-                layouts = layoutInfo.layouts
-            end
-        end
-        
-        if not layouts and EditModeManagerFrame and EditModeManagerFrame.GetLayouts then
-             local layoutInfo = EditModeManagerFrame:GetLayouts()
-             if layoutInfo and layoutInfo.layouts then
-                 layouts = layoutInfo.layouts
-             elseif layoutInfo and #layoutInfo > 0 then
-                 layouts = layoutInfo
-             end
-        end
+        local layouts = GetNativeEditModeLayouts()
         
         if layouts then
             for i, layout in ipairs(layouts) do
@@ -358,10 +380,6 @@ function mQoL_EditMode:IsSituationalModeEnabled()
 end
 
 function mQoL_EditMode:UpdateCurrentProfile(immediate)
-    if IsClassicEditModePending() then
-        return
-    end
-
     if self.updateTimer then self.updateTimer:Cancel() end
 
     local function Update()
@@ -535,7 +553,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
         dragCursor:EnableMouse(false)
         local bg = dragCursor:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0.2, 0.5, 0.2, 0.9)
+        SetSolidColor(bg, 0.2, 0.5, 0.2, 0.9)
         if mQoL_Templates and mQoL_Templates.CreateFrameBorder then
             mQoL_Templates.CreateFrameBorder(dragCursor, 1, {0.4, 0.8, 0.4, 1})
         end
@@ -644,7 +662,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
             local bg = btn:CreateTexture(nil, "BACKGROUND")
             bg:SetAllPoints()
-            bg:SetColorTexture(1, 1, 1, 0.03)
+            SetSolidColor(bg, 1, 1, 1, 0.03)
 
             local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             text:SetPoint("LEFT", 4, 0)
@@ -655,7 +673,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
             btn:SetScript("OnEnter", function(self)
                 if not currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.08)
+                    SetSolidColor(bg, 1, 1, 1, 0.08)
                 end
                 if text:IsTruncated() then
                     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -665,7 +683,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             end)
             btn:SetScript("OnLeave", function()
                 if not currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.03)
+                    SetSolidColor(bg, 1, 1, 1, 0.03)
                 end
                 GameTooltip:Hide()
             end)
@@ -674,14 +692,14 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                 if button == "LeftButton" then
                     currentDrag = name
                     currentHoverTarget = nil
-                    bg:SetColorTexture(0.2, 0.5, 0.2, 0.5)
+                    SetSolidColor(bg, 0.2, 0.5, 0.2, 0.5)
                     CreateDragCursor(name)
                 end
             end)
 
             btn:SetScript("OnMouseUp", function(self, button)
                 if button == "LeftButton" and currentDrag then
-                    bg:SetColorTexture(1, 1, 1, 0.03)
+                    SetSolidColor(bg, 1, 1, 1, 0.03)
                     if not CheckDropTargets() then
                         HideDragCursor()
                     end
@@ -766,7 +784,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             bg:SetAllPoints()
             local c = item.color or {r=0.5, g=0.5, b=0.5}
             local origR, origG, origB, origA = c.r*0.15, c.g*0.15, c.b*0.15, 0.5
-            bg:SetColorTexture(origR, origG, origB, origA)
+            SetSolidColor(bg, origR, origG, origB, origA)
 
             local expander = CreateFrame("Button", nil, row)
             expander:SetSize(16, 16)
@@ -825,16 +843,16 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
             row:SetScript("OnEnter", function(self)
                 if currentDrag then
                     if hasSituational then
-                        bg:SetColorTexture(0.7, 0.2, 0.2, 0.8)
+                        SetSolidColor(bg, 0.7, 0.2, 0.2, 0.8)
                     else
-                        bg:SetColorTexture(0.2, 0.7, 0.2, 0.8)
+                        SetSolidColor(bg, 0.2, 0.7, 0.2, 0.8)
                     end
                 else
-                    bg:SetColorTexture(c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
+                    SetSolidColor(bg, c.r*0.25, c.g*0.25, c.b*0.25, 0.7)
                 end
             end)
             row:SetScript("OnLeave", function(self)
-                bg:SetColorTexture(origR, origG, origB, origA)
+                SetSolidColor(bg, origR, origG, origB, origA)
             end)
 
             row:SetScript("OnMouseUp", function(self, button)
@@ -863,7 +881,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
 
                     local subBg = subRow:CreateTexture(nil, "BACKGROUND")
                     subBg:SetAllPoints()
-                    subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3)
+                    SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3)
 
                     local subLabel = subRow:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                     subLabel:SetPoint("LEFT", 4, 0)
@@ -905,15 +923,15 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
                     subRow:SetScript("OnEnter", function()
                         if currentDrag then
                             if mainAssigned then
-                                subBg:SetColorTexture(0.7, 0.2, 0.2, 0.6)
+                                SetSolidColor(subBg, 0.7, 0.2, 0.2, 0.6)
                             else
-                                subBg:SetColorTexture(0.2, 0.7, 0.2, 0.6)
+                                SetSolidColor(subBg, 0.2, 0.7, 0.2, 0.6)
                             end
                         else
-                            subBg:SetColorTexture(0.2, 0.2, 0.2, 0.5)
+                            SetSolidColor(subBg, 0.2, 0.2, 0.2, 0.5)
                         end
                     end)
-                    subRow:SetScript("OnLeave", function() subBg:SetColorTexture(0.1, 0.1, 0.1, 0.3) end)
+                    subRow:SetScript("OnLeave", function() SetSolidColor(subBg, 0.1, 0.1, 0.1, 0.3) end)
 
                     subRow:SetScript("OnMouseUp", function(self, button)
                         if button == "RightButton" then
@@ -951,36 +969,7 @@ function mQoL_EditMode:CreateAdvancedSetupPanel(parent, width)
     return panel
 end
 
-function mQoL_EditMode:CreateClassicEditModeNoticePanel(parent)
-    local scrollFrame, panel, contentContainer = mQoL_Templates.CreateStandardOptionsPanel(parent, "Edit Mode Settings", nil, "TopSeparator")
-    local currentVersion = clientInfo.version or "unknown"
-    local currentTocVersion = tonumber(clientInfo.tocversion) or 0
-
-    local message = contentContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    message:SetPoint("TOPLEFT", 20, contentContainer.currentY)
-    message:SetWidth(770)
-    message:SetJustifyH("LEFT")
-    message:SetText(string.format(
-        "|cffffd100Edit Mode will be available in Mists of Pandaria Classic version 5.5.4.|r\n\nCurrent Mists of Pandaria Classic version: %s (%d).",
-        currentVersion,
-        currentTocVersion
-    ))
-
-    contentContainer.currentY = contentContainer.currentY - ((message.GetStringHeight and message:GetStringHeight()) or 42) - 24
-
-    panel.UpdateScrollChildHeight = function()
-        mQoL_Templates.UpdateScrollChildHeight(scrollFrame, panel, contentContainer)
-    end
-    panel.UpdateScrollChildHeight()
-
-    return scrollFrame
-end
-
 function mQoL_EditMode:CreateEditModePanel(parent)
-    if IsClassicEditModePending() then
-        return self:CreateClassicEditModeNoticePanel(parent)
-    end
-
     local module = self
     local s = self.db.settings
 
@@ -1209,8 +1198,9 @@ local lastSpecID = nil
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_LOGOUT")
-eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
-eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+mQoL_Compat.RegisterEvent(eventFrame,"PLAYER_SPECIALIZATION_CHANGED")
+mQoL_Compat.RegisterEvent(eventFrame,"GROUP_ROSTER_UPDATE")
+mQoL_Compat.RegisterEvent(eventFrame,"EDIT_MODE_LAYOUTS_UPDATED")
 
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule("EditMode") then return end
@@ -1220,16 +1210,14 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         return
     end
 
-    if event == "PLAYER_LOGIN" then
-        if mQoL_Hub and mQoL_Hub.RegisterModuleOptions then
-            mQoL_Hub:RegisterModuleOptions("mQoL_EditMode", "Edit Mode", function(parent)
-                return mQoL_EditMode:CreateEditModePanel(parent)
-            end)
-        end
+    if event=='ADDON_LOADED' or event=='EDIT_MODE_LAYOUTS_UPDATED' then
+        if not mQoL_EditMode.db then mQoL_EditMode:InitializeDB() end
+        RegisterEditModeOptions()
+        return
+    end
 
-        if IsClassicEditModePending() then
-            return
-        end
+    if event == "PLAYER_LOGIN" then
+        RegisterEditModeOptions()
 
         lastSituation = mQoL_EditMode:GetCurrentSituation()
         lastSpecID = GetPlayerSpecID()
@@ -1238,10 +1226,6 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
             mQoL_EditMode:BackupPlayerProfiles()
             mQoL_EditMode:UpdateCurrentProfile(true)
         end)
-        return
-    end
-
-    if IsClassicEditModePending() then
         return
     end
 

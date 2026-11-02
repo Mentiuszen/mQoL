@@ -1,4 +1,5 @@
 local addonName = ...
+local C_Timer = mQoL_Compat.Timer
 mQoL_FastAutoloot = mQoL_FastAutoloot or {}
 
 local FastAutoloot = mQoL_FastAutoloot
@@ -20,10 +21,19 @@ FastAutoloot.defaults = {
 
 local function GetGeneralSettings()
     mQoL_DB = mQoL_DB or {}
-    mQoL_DB["MainQoL"] = mQoL_DB["MainQoL"] or {}
-    mQoL_DB["MainQoL"].settings = mQoL_DB["MainQoL"].settings or {}
-    mQoL_DB["MainQoL"].settings.general = mQoL_DB["MainQoL"].settings.general or {}
-    return mQoL_DB["MainQoL"].settings.general
+    mQoL_DB.GeneralQoL = mQoL_DB.GeneralQoL or {}
+
+    if type(mQoL_DB.GeneralQoL.settings) ~= "table" then
+        mQoL_DB.GeneralQoL.settings = {}
+        local legacyGeneral = mQoL_DB.MainQoL
+            and mQoL_DB.MainQoL.settings
+            and mQoL_DB.MainQoL.settings.general
+        for key, value in pairs(legacyGeneral or {}) do
+            mQoL_DB.GeneralQoL.settings[key] = value
+        end
+    end
+
+    return mQoL_DB.GeneralQoL.settings
 end
 
 local function IsGeneralQoLModuleEnabled()
@@ -72,7 +82,8 @@ local function ResolveAutoLootState(autoLoot)
         return autoLoot
     end
 
-    local autoLootDefault = GetCVarBool("autoLootDefault")
+    local autoLootDefault = mQoL_CVar:ReadBoolean("autoLootDefault")
+    if autoLootDefault==nil then return false end
     local modifierHeld = type(IsModifiedClick) == "function" and IsModifiedClick("AUTOLOOTTOGGLE") or false
     return autoLootDefault ~= modifierHeld
 end
@@ -152,6 +163,8 @@ function FastAutoloot:ScheduleCloseCheck()
 end
 
 function FastAutoloot:LootSingleSlot(slot)
+    if not self.isEnabled or not IsGeneralQoLModuleEnabled() then return end
+    if mQoL_Auto and not mQoL_Auto:CanUse('GeneralQoL','fastAutoLoot',true) then self:ResetLootState();return end
     if type(LootSlot) ~= "function" then
         return
     end
@@ -193,6 +206,7 @@ function FastAutoloot:HandleLootReady(autoLoot)
     if not self.isEnabled or not IsGeneralQoLModuleEnabled() then
         return
     end
+    if mQoL_Auto and not mQoL_Auto:CanUse('GeneralQoL','fastAutoLoot',true) then self:ResetLootState();return end
 
     if self.initialAutoLootState == nil then
         self.initialAutoLootState = ResolveAutoLootState(autoLoot)
@@ -217,8 +231,8 @@ function FastAutoloot:HandleLootReady(autoLoot)
 end
 
 function FastAutoloot:UpdateEventRegistration()
-    if self.isEnabled and IsGeneralQoLModuleEnabled() then
-        self.frame:RegisterEvent("LOOT_READY")
+    if self.isEnabled and IsGeneralQoLModuleEnabled() and (not mQoL_Auto or mQoL_Auto:CanUse('GeneralQoL','fastAutoLoot',true)) then
+        mQoL_Compat.RegisterEvent(self.frame,"LOOT_READY")
         self.frame:RegisterEvent("LOOT_OPENED")
         self.frame:RegisterEvent("LOOT_SLOT_CLEARED")
         self.frame:RegisterEvent("LOOT_CLOSED")
@@ -274,6 +288,8 @@ FastAutoloot.frame:SetScript("OnEvent", function(_, event, arg1)
 
     if event == "PLAYER_LOGIN" then
         FastAutoloot:SetEnabled(GetSavedFastAutoLootValue())
+    elseif event == "ADDON_LOADED" then
+        FastAutoloot:UpdateEventRegistration()
     elseif event == "LOOT_READY" or event == "LOOT_OPENED" then
         FastAutoloot:HandleLootReady(arg1)
     elseif event == "LOOT_SLOT_CLEARED" then

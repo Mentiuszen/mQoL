@@ -1,4 +1,7 @@
 local addonName, L = ...
+local C_Timer = mQoL_Compat.Timer
+local SetSolidColor = mQoL_Compat.SetSolidColor
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
 mQoL_AccountOverview = mQoL_AccountOverview or {}
 
 local mQoL_Hub = _G["mQoL_Hub"]
@@ -1360,12 +1363,11 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
         character.faction = UnitFactionGroup("player") or character.faction or "Neutral"
         character.firstSeen = character.firstSeen or now
 
-        local getSpecIndex = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
-        local getSpecInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
-        local specIndex = getSpecIndex and getSpecIndex()
-        if specIndex then
-            local specID, specName, _, specIcon = getSpecInfo(specIndex)
-            if specID then
+        local getSpecIndex, getSpecInfo = mQoL_Compat.SpecAdapter()
+        local okIndex, specIndex = mQoL_Compat.Read(getSpecIndex)
+        if okIndex and type(specIndex)=='number' and specIndex>0 then
+            local okInfo, specID, specName, _, specIcon = mQoL_Compat.Read(getSpecInfo,specIndex)
+            if okInfo and specID then
                 character.specID = specID
                 character.specName = specName
                 character.specIcon = specIcon
@@ -1374,7 +1376,8 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
     end
 
     if opts.refreshMoney or character.money == nil then
-        local fetchedMoney = GetMoney() or 0
+        local moneyOK, fetchedMoney = mQoL_Compat.Read('GetMoney')
+        if moneyOK and mQoL_Compat.Number(fetchedMoney) and fetchedMoney>=0 then
         local existingMoney = math.floor(tonumber(character.money) or 0)
         local bootstrapWindowActive = IsBootstrapMoneyWindow(self.session, now)
 
@@ -1418,6 +1421,7 @@ function mQoL_AccountOverview:UpdateCurrentCharacterSnapshot(opts)
 
         character.money = math.floor(tonumber(effectiveMoney) or 0)
         character.lastMoneySync = now
+        end
     end
 
     if opts.refreshProfessions or character.professions == nil then
@@ -1849,7 +1853,7 @@ local function PrepareChartGridTexture(texture, alpha)
     if texture.SetTexelSnappingBias then
         texture:SetTexelSnappingBias(0)
     end
-    texture:SetColorTexture(1, 1, 1, alpha)
+    SetSolidColor(texture, 1, 1, 1, alpha)
 end
 
 local function SetTextureColor(texture, color)
@@ -1857,7 +1861,7 @@ local function SetTextureColor(texture, color)
         return
     end
 
-    texture:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+    SetSolidColor(texture, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
 end
 
 local function SetOverviewCellButtonIcon(texture, icon)
@@ -1892,16 +1896,16 @@ local function SetBorderColor(border, color)
     end
 
     if border.top then
-        border.top:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        SetSolidColor(border.top, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
     if border.bottom then
-        border.bottom:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        SetSolidColor(border.bottom, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
     if border.left then
-        border.left:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        SetSolidColor(border.left, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
     if border.right then
-        border.right:SetColorTexture(color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
+        SetSolidColor(border.right, color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1)
     end
 end
 
@@ -1979,7 +1983,7 @@ local function CreateOverviewCellButton(parent)
     button.topHighlight:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
     button.topHighlight:SetPoint("TOPRIGHT", button, "TOPRIGHT", -1, -1)
     button.topHighlight:SetHeight(1)
-    button.topHighlight:SetColorTexture(1, 1, 1, 0.045)
+    SetSolidColor(button.topHighlight, 1, 1, 1, 0.045)
 
     button.icon = button:CreateTexture(nil, "ARTWORK")
     button.icon:SetSize(16, 16)
@@ -2049,7 +2053,7 @@ local function CreateTabButton(parent, text, width)
     if not button.bg then
         button.bg = button:CreateTexture(nil, "BACKGROUND")
         button.bg:SetAllPoints()
-        button.bg:SetColorTexture(0.12, 0.12, 0.12, 1)
+        SetSolidColor(button.bg, 0.12, 0.12, 0.12, 1)
     end
 
     if not button.text then
@@ -2062,10 +2066,10 @@ local function CreateTabButton(parent, text, width)
 
     local function UpdateVisualState(self)
         if self.isActive then
-            self.bg:SetColorTexture(self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, 1)
+            SetSolidColor(self.bg, self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, self.isHovered and 0.20 or 0.18, 1)
             self.text:SetTextColor(1, 0.82, 0)
         else
-            self.bg:SetColorTexture(self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, 1)
+            SetSolidColor(self.bg, self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, self.isHovered and 0.20 or 0.12, 1)
             self.text:SetTextColor(self.isHovered and 1 or 0.82, self.isHovered and 1 or 0.82, self.isHovered and 1 or 0.82)
         end
     end
@@ -2309,7 +2313,7 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
 
     frame.bg = frame:CreateTexture(nil, "BACKGROUND")
     frame.bg:SetAllPoints()
-    frame.bg:SetColorTexture(0.05, 0.05, 0.05, 0.98)
+    SetSolidColor(frame.bg, 0.05, 0.05, 0.05, 0.98)
 
     if CreateFrameBorder then
         frame.border = CreateFrameBorder(frame, 1, { 0.25, 0.25, 0.25, 1 })
@@ -2323,7 +2327,7 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
 
     frame.titleBar.bg = frame.titleBar:CreateTexture(nil, "BACKGROUND")
     frame.titleBar.bg:SetAllPoints()
-    frame.titleBar.bg:SetColorTexture(0.1, 0.1, 0.1, 1)
+    SetSolidColor(frame.titleBar.bg, 0.1, 0.1, 0.1, 1)
 
     frame.title = frame.titleBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     frame.title:SetPoint("CENTER", frame.titleBar, "CENTER", 0, -1)
@@ -2356,7 +2360,7 @@ function mQoL_AccountOverview:EnsureProfessionDetailFrame()
     frame.subtitle:SetText("Detailed profession tiers")
 
     frame.separator = frame:CreateTexture(nil, "ARTWORK")
-    frame.separator:SetColorTexture(1, 1, 1, 0.15)
+    SetSolidColor(frame.separator, 1, 1, 1, 0.15)
     frame.separator:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -62)
     frame.separator:SetSize(276, 1)
 
@@ -2457,7 +2461,7 @@ local function EnsureSecondaryProfessionTable(frame, index)
     tableFrame.title:SetTextColor(1, 0.82, 0)
 
     tableFrame.separator = tableFrame:CreateTexture(nil, "ARTWORK")
-    tableFrame.separator:SetColorTexture(1, 1, 1, 0.12)
+    SetSolidColor(tableFrame.separator, 1, 1, 1, 0.12)
     tableFrame.separator:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 0, -20)
     tableFrame.separator:SetPoint("TOPRIGHT", tableFrame, "TOPRIGHT", 0, -20)
     tableFrame.separator:SetHeight(1)
@@ -2500,13 +2504,13 @@ local function PopulateSecondaryProfessionTable(tableFrame, professionEntry, wid
         rowBackground:ClearAllPoints()
         rowBackground:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 0, rowOffset + 2)
         rowBackground:SetSize(width, rowHeight - 2)
-        rowBackground:SetColorTexture(index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
+        SetSolidColor(rowBackground, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
 
         local rowSeparator = AcquireTexture(tableFrame.rowSeparators, index, tableFrame, "ARTWORK")
         rowSeparator:ClearAllPoints()
         rowSeparator:SetPoint("TOPLEFT", tableFrame, "TOPLEFT", 2, rowOffset + 1)
         rowSeparator:SetSize(width - 4, 1)
-        rowSeparator:SetColorTexture(1, 1, 1, 0.05)
+        SetSolidColor(rowSeparator, 1, 1, 1, 0.05)
 
         local left = AcquireFontString(tableFrame.rowsLeft, index, tableFrame, "GameFontNormalSmall")
         left:ClearAllPoints()
@@ -2631,13 +2635,13 @@ function mQoL_AccountOverview:ShowProfessionDetailFrame(ownerButton, professionE
         rowBackground:ClearAllPoints()
         rowBackground:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, rowOffset + 2)
         rowBackground:SetSize(frameWidth - 24, rowHeight - 2)
-        rowBackground:SetColorTexture(index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
+        SetSolidColor(rowBackground, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, index % 2 == 1 and 0.08 or 0.10, 0.95)
 
         local rowSeparator = AcquireTexture(frame.rowSeparators, index, frame, "ARTWORK")
         rowSeparator:ClearAllPoints()
         rowSeparator:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, rowOffset + 1)
         rowSeparator:SetSize(frameWidth - 32, 1)
-        rowSeparator:SetColorTexture(1, 1, 1, 0.05)
+        SetSolidColor(rowSeparator, 1, 1, 1, 0.05)
 
         local left = AcquireFontString(frame.rowsLeft, index, frame, "GameFontNormalSmall")
         left:ClearAllPoints()
@@ -3976,7 +3980,7 @@ function mQoL_AccountOverview:EnsureGoldChartView()
 
     view.chart.bg = view.chart:CreateTexture(nil, "BACKGROUND")
     view.chart.bg:SetAllPoints()
-    view.chart.bg:SetColorTexture(0.08, 0.08, 0.08, 0.96)
+    SetSolidColor(view.chart.bg, 0.08, 0.08, 0.08, 0.96)
 
     if CreateFrameBorder then
         view.chart.border = CreateFrameBorder(view.chart, 1, { 0.22, 0.22, 0.22, 1 })
@@ -4030,7 +4034,7 @@ function mQoL_AccountOverview:EnsureGoldChartView()
                 
                 if not self.zoomSelection then
                     self.zoomSelection = self:CreateTexture(nil, "OVERLAY")
-                    self.zoomSelection:SetColorTexture(1, 0.82, 0, 0.15)
+                    SetSolidColor(self.zoomSelection, 1, 0.82, 0, 0.15)
                 end
                 
                 local plotHeight = self:GetHeight() - self.plotBottom - self.plotTop
@@ -4281,7 +4285,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
 
         local point = AcquireTexture(chart.points, index, chart, "OVERLAY")
         point:ClearAllPoints()
-        point:SetColorTexture(1, 0.82, 0, index == #samples and 1 or 0.92)
+        SetSolidColor(point, 1, 0.82, 0, index == #samples and 1 or 0.92)
         point:SetSize(index == #samples and 6 or 4, index == #samples and 6 or 4)
         point:SetPoint("CENTER", chart, "BOTTOMLEFT", x, y)
 
@@ -4318,13 +4322,13 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
             GameTooltip:Show()
             
             self.pointVisual:SetSize(self.index == #samples and 10 or 8, self.index == #samples and 10 or 8)
-            self.pointVisual:SetColorTexture(1, 1, 1, 1)
+            SetSolidColor(self.pointVisual, 1, 1, 1, 1)
         end)
         
         pointBtn:SetScript("OnLeave", function(self)
             GameTooltip:Hide()
             self.pointVisual:SetSize(self.index == #samples and 6 or 4, self.index == #samples and 6 or 4)
-            self.pointVisual:SetColorTexture(1, 0.82, 0, self.index == #samples and 1 or 0.92)
+            SetSolidColor(self.pointVisual, 1, 0.82, 0, self.index == #samples and 1 or 0.92)
         end)
         
         pointBtn:SetScript("OnMouseDown", function(self, button)
@@ -4349,7 +4353,7 @@ function mQoL_AccountOverview:DrawGoldChart(samples)
             local segment = AcquireLine(chart.segments, index - 1, chart, "ARTWORK")
 
             if chart.CreateLine then
-                segment:SetColorTexture(1, 0.82, 0, 0.75)
+                SetSolidColor(segment, 1, 0.82, 0, 0.75)
                 segment:SetThickness(2)
                 segment:SetStartPoint("BOTTOMLEFT", previousX, previousY)
                 segment:SetEndPoint("BOTTOMLEFT", x, y)
@@ -4531,7 +4535,7 @@ function mQoL_AccountOverview:EnsurePlayedTimeView()
 
     view.graphFrame.bg = view.graphFrame:CreateTexture(nil, "BACKGROUND")
     view.graphFrame.bg:SetAllPoints()
-    view.graphFrame.bg:SetColorTexture(0.08, 0.08, 0.08, 0.96)
+    SetSolidColor(view.graphFrame.bg, 0.08, 0.08, 0.08, 0.96)
 
     if CreateFrameBorder then
         view.graphFrame.border = CreateFrameBorder(view.graphFrame, 1, { 0.22, 0.22, 0.22, 1 })
@@ -4588,17 +4592,17 @@ function mQoL_AccountOverview:EnsureChartRow(index)
 
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
-    row.bg:SetColorTexture(0.06, 0.06, 0.07, 0.5)
+    SetSolidColor(row.bg, 0.06, 0.06, 0.07, 0.5)
 
     row.barBg = row:CreateTexture(nil, "BORDER")
     row.barBg:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -4)
     row.barBg:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 4)
-    row.barBg:SetColorTexture(0.12, 0.12, 0.14, 0.6)
+    SetSolidColor(row.barBg, 0.12, 0.12, 0.14, 0.6)
 
     row.barFill = row:CreateTexture(nil, "ARTWORK")
     row.barFill:SetPoint("TOPLEFT", row.barBg, "TOPLEFT", 0, 0)
     row.barFill:SetPoint("BOTTOMLEFT", row.barBg, "BOTTOMLEFT", 0, 0)
-    row.barFill:SetColorTexture(1, 1, 1, 1)
+    SetSolidColor(row.barFill, 1, 1, 1, 1)
 
     row.icon = row:CreateTexture(nil, "OVERLAY")
     row.icon:SetSize(22, 22)
@@ -4778,7 +4782,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             row.pctText:SetText(string.format("%.1f%%", pct))
 
             local ratio = maxPlayed > 0 and (data.time / maxPlayed) or 0
-            row.barFill:SetColorTexture(r, g, b, 0.65)
+            SetSolidColor(row.barFill, r, g, b, 0.65)
             row.barFill:SetWidth(math.max(1, ratio * 762))
 
             row:Show()
@@ -4857,7 +4861,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             local bar = AcquireTexture(chart.bars, i, chart, "ARTWORK")
             bar:ClearAllPoints()
             local r, g, b = GetClassColor(data.classFile)
-            bar:SetColorTexture(r, g, b, 0.7)
+            SetSolidColor(bar, r, g, b, 0.7)
             bar:SetPoint("BOTTOMLEFT", chart, "BOTTOMLEFT", x - barWidth/2, chart.plotBottom)
             bar:SetSize(barWidth, math.max(1, barHeight))
 
@@ -4905,7 +4909,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
 
             mouseFrame:SetScript("OnEnter", function(self)
                 if not self.aggregatedData then return end
-                self.barTexture:SetColorTexture(r, g, b, 0.9)
+                SetSolidColor(self.barTexture, r, g, b, 0.9)
 
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:AddLine(self.aggregatedData.name, 1, 0.82, 0)
@@ -4931,7 +4935,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
             end)
 
             mouseFrame:SetScript("OnLeave", function(self)
-                self.barTexture:SetColorTexture(r, g, b, 0.7)
+                SetSolidColor(self.barTexture, r, g, b, 0.7)
                 GameTooltip:Hide()
             end)
         end
@@ -4999,7 +5003,7 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                 local y2 = R_outer * math.sin(rad)
 
                 if pieFrame.CreateLine then
-                    line:SetColorTexture(r, g, b, 0.85)
+                    SetSolidColor(line, r, g, b, 0.85)
                     line:SetThickness(3.5)
                     line:SetStartPoint("CENTER", x1, y1)
                     line:SetEndPoint("CENTER", x2, y2)
@@ -5113,13 +5117,13 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                 if useLShape then
                     -- L-Shape routing (2 segments: vertical, then horizontal)
                     if pieFrame.CreateLine then
-                        line1:SetColorTexture(r, g, b, 0.5)
+                        SetSolidColor(line1, r, g, b, 0.5)
                         line1:SetThickness(1.2)
                         line1:SetStartPoint("CENTER", x1, y1)
                         line1:SetEndPoint("CENTER", x1, y_elbow)
                         line1:Show()
 
-                        line2:SetColorTexture(r, g, b, 0.5)
+                        SetSolidColor(line2, r, g, b, 0.5)
                         line2:SetThickness(1.2)
                         line2:SetStartPoint("CENTER", x1, y_elbow)
                         line2:SetEndPoint("CENTER", x3, y3)
@@ -5145,19 +5149,19 @@ function mQoL_AccountOverview:RefreshPlayedTimeView()
                     local x_elbow = isRightSide and 170 or -170
 
                     if pieFrame.CreateLine then
-                        line1:SetColorTexture(r, g, b, 0.5)
+                        SetSolidColor(line1, r, g, b, 0.5)
                         line1:SetThickness(1.2)
                         line1:SetStartPoint("CENTER", x1, y1)
                         line1:SetEndPoint("CENTER", x_radial, y_radial)
                         line1:Show()
 
-                        line2:SetColorTexture(r, g, b, 0.5)
+                        SetSolidColor(line2, r, g, b, 0.5)
                         line2:SetThickness(1.2)
                         line2:SetStartPoint("CENTER", x_radial, y_radial)
                         line2:SetEndPoint("CENTER", x_elbow, y_elbow)
                         line2:Show()
 
-                        line3:SetColorTexture(r, g, b, 0.5)
+                        SetSolidColor(line3, r, g, b, 0.5)
                         line3:SetThickness(1.2)
                         line3:SetStartPoint("CENTER", x_elbow, y_elbow)
                         line3:SetEndPoint("CENTER", x3, y3)
@@ -5558,7 +5562,7 @@ function mQoL_AccountOverview:CreateOptionsPanel(parent)
 
     local tabSeparatorY = contentContainer.currentY - 36
     local tabSeparator = contentContainer:CreateTexture(nil, "ARTWORK")
-    tabSeparator:SetColorTexture(1, 1, 1, 0.15)
+    SetSolidColor(tabSeparator, 1, 1, 1, 0.15)
     tabSeparator:SetPoint("TOPLEFT", contentContainer, "TOPLEFT", 20, tabSeparatorY)
     tabSeparator:SetSize(770, 1)
 

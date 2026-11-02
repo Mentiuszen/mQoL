@@ -1,4 +1,6 @@
 local addonName = "mQoL"
+local C_Timer = mQoL_Compat.Timer
+local IsInGroup, IsInRaid = mQoL_Compat.IsInGroup, mQoL_Compat.IsInRaid
 local clientInfo = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo or {}
 local DeepCopy = mQoL_Utils.DeepCopy
 
@@ -96,12 +98,15 @@ function mQoL_RaidProfiles:LoadRaidProfile(profileName)
 
     -- Use version adapter to load
     local Adapters = self.VersionAdapters
-    Adapters:LoadProfile(savedCVars, profileName)
+    local ok,reason=Adapters:LoadProfile(savedCVars, profileName)
+    if mQoL_Auto and not ok then mQoL_Compat.Report('RaidProfiles apply',reason) end
+    return ok,reason
 end
 
 function mQoL_RaidProfiles:SaveRaidProfile(name)
     local Adapters = self.VersionAdapters
     local cvarData = Adapters:SaveProfile()
+    if mQoL_Auto and (type(cvarData)~='table' or not next(cvarData)) then return false,'No raid profile data available; existing profile retained' end
 
     self.db.settings.raidProfiles[name] = cvarData
     print(addonName .. ": Saved Raid Profile '" .. name .. "' to mQoL Storage.")
@@ -218,6 +223,12 @@ local function GetPlayerSpecID()
     if specID and specID ~= 0 then return specID end
     return nil
 end
+local function HasPlayerSpecAPI()
+    local getSpecIndex = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
+    local getSpecInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
+    local getNumSpecs = (C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializations) or GetNumSpecializations
+    return type(getSpecIndex) == "function" and type(getSpecInfo) == "function" and type(getNumSpecs) == "function"
+end
 
 function mQoL_RaidProfiles:UpdateCurrentProfile(immediate)
     if self.updateTimer then self.updateTimer:Cancel() end
@@ -243,7 +254,8 @@ function mQoL_RaidProfiles:UpdateCurrentProfile(immediate)
         elseif mode == "Advanced" then
             local _, classFile = UnitClass("player")
             local specID
-            if clientInfo.isRetail or clientInfo.isClassic or clientInfo.isEra or clientInfo.isBCC or clientInfo.isLegion then
+            if clientInfo.isRetail or clientInfo.isMoP or clientInfo.isVanilla or clientInfo.isTBC or clientInfo.isLegion
+                or (mQoL_Auto and HasPlayerSpecAPI()) then
                 specID = GetPlayerSpecID()
                 
                 -- Check if specID is a valid main spec (handles Initial Spec / low level cases)
