@@ -419,9 +419,16 @@ local TeleportData = {
     ["MID_S2"] = {
         obtainable = "starts",
         starts = 20260819,
+        --ends = 20270113,
+        --postEnds = 20270120,
+        ids = { 2813, 2825, 2859, 2923, 2993, 2521, 1762, 1877, },
+    },
+    ["MID_S3"] = {
+        --obtainable = "starts",
+        --starts = 20270120,
         --ends = UNKNOWN,
         --postEnds = UNKNOWN,
-        ids = { 2813, 2825, 2859, 2923, 2993, 2521, 1762, 1877, },
+        ids = { 2811, 2874, 2451, 2284, 1841, 1195, 725, 0, },
     },
 
     ["Midnight"] = {
@@ -433,7 +440,7 @@ local TeleportData = {
         { id = 2825, name = "Den of Nalorakk", texture = 7478533, artOffsetY = 0.00, spellID = 1286807, achievementID = 62439, requiredLevel = 90, location = "Zul'Aman", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 2859, name = "The Blinding Vale", texture = 7478531, artOffsetY = 0.00, spellID = 1286801, achievementID = 62437, requiredLevel = 90, location = "Harandar", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         { id = 2923, name = "Voidscar Arena", texture = 7479111, artOffsetY = 0.00, spellID = 1286804, achievementID = 62438, requiredLevel = 90, location = "Voidstorm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
-        { id = 2993, name = "Altar of Fangs", texture = 7956178, artOffsetY = 0.00, spellID = 1286812, achivementID = 62441, requiredLevel = 90, location = "The Coiled Isle", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 2993, name = "Altar of Fangs", texture = 7956178, artOffsetY = 0.00, spellID = 1286812, achievementID = 62441, requiredLevel = 90, location = "The Coiled Isle", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
         --{ id = 2912, name = "The Voidspire", texture = 7507134, spellID = 0, achievementID = 0, location = "	Voidstorm", source = "Unknown" }, --Unconfirmed
         --{ id = 2939, name = "The Dreamrift", texture = 7570500, spellID = 0, achievementID = 0, location = "Harandar", source = "Unknown" }, --Unconfirmed
         --{ id = 2913, name = "March on Quel'Danas", texture = 7480125, spellID = 0, achievementID = 0, location = "Eversong Woods", source = "Unknown" }, --Unconfirmed
@@ -525,6 +532,7 @@ local TeleportData = {
         { id = 657, name = "Vortex Pinnacle", texture = 526414, artOffsetY = -0.20, spellID = 410080, achievementID = 17847, requiredLevel = 80, location = "Uldum", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 643, name = "Throne of the Tides", texture = 526413, artOffsetY = 0.10, spellID = 424142, achievementID = 19082, requiredLevel = 80, location = "Vashj'ir", source = "Complete Mythic Keystone on Level 20 or higher within the time limit." },
         { id = 670, name = "Grim Batol", texture = 526406, artOffsetY = 0.20, spellID = 445424, achievementID = 20588, requiredLevel = 80, location = "Twilight Highlands", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
+        { id = 725, name = "The Stonecore", texture = 526412, artOffsetY = -0.20, spellID = 0, achievementID = 0, requiredLevel = 90, location = "Deepholm", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
     },
     ["Wrath of the Lich King"] = {
         { id = 658, name = "Pit of Saron", texture = 608249, spellID = 1254555, achievementID = 61271, requiredLevel = 90, location = "Icecrown", source = "Complete Mythic Keystone on Level 10 or higher within the time limit." },
@@ -911,20 +919,56 @@ end
 
 local GetCurrentInstanceMapID
 
+local LISTED_DUNGEON_GCD_THRESHOLD = 1.5
+
+local function ReadSpellCooldownInfo(spellID)
+    if C_Spell and C_Spell.GetSpellCooldown then
+        local ok, info = pcall(C_Spell.GetSpellCooldown, spellID)
+        if ok and type(info) == "table" then
+            return info
+        end
+    end
+
+    if _G.GetSpellCooldown then
+        local ok, start, duration = pcall(_G.GetSpellCooldown, spellID)
+        if ok then
+            return { startTime = start, duration = duration }
+        end
+    end
+
+    return nil
+end
+
 local function IsSpellCooldownActive(spellID)
     spellID = tonumber(spellID) or 0
     if spellID <= 0 then
         return false
     end
 
-    local start, duration = GetSpellCooldownWrapper(spellID)
-    local ok, isActive = pcall(function()
-        start = tonumber(start) or 0
-        duration = tonumber(duration) or 0
-        return start > 0 and duration > 1.5
-    end)
+    local info = ReadSpellCooldownInfo(spellID)
+    if type(info) ~= "table" then
+        return false
+    end
 
-    return ok and isActive
+    -- isActive and isOnGCD are never secret; startTime and duration are secret while cooldowns are restricted.
+    if info.isActive == false then
+        return false
+    end
+
+    local ok, isBeyondGCD = pcall(function()
+        local start = tonumber(info.startTime) or 0
+        local duration = tonumber(info.duration) or 0
+        if start > 0 and duration > LISTED_DUNGEON_GCD_THRESHOLD then
+            return true
+        end
+        return false
+    end)
+    if ok then
+        return isBeyondGCD
+    end
+
+    -- The timing is unreadable, so rely on the flags and never treat an active cooldown as ready.
+    return info.isActive == true and info.isOnGCD ~= true
 end
 
 local function IsAnyListedDungeonTeleportSpellOnCooldown(primarySpellID)
@@ -1005,9 +1049,27 @@ BuildTeleportSpellIDLookup = function(teleportID)
     return lookup
 end
 
+-- The popup answers a join, listing or full-group event. It may wait for combat or for
+-- data that arrives a moment later, but never resurfaces on a later loading screen.
+local LISTED_DUNGEON_POPUP_TRIGGER_WINDOW = 10
+local LISTED_DUNGEON_POPUP_LOGIN_SETTLE_TIME = 10
+local LISTED_DUNGEON_POPUP_REFRESH_DELAYS = { 1, 3, 6 }
+
 local listedDungeonTeleportPopup
-local listedDungeonTeleportPopupKey
-local listedDungeonTeleportPopupDeclinedKey
+-- Popup key -> GetTime() of the event that made it relevant.
+local listedDungeonTeleportPopupSeenAt = {}
+-- Popup keys that were shown, declined or expired.
+local listedDungeonTeleportPopupHandledKeys = {}
+local listedDungeonTeleportPopupCombatKey
+-- nil until the first loading screen; group state seen before it ends already existed.
+local listedDungeonTeleportPopupSettleUntil
+local ScheduleListedDungeonPopupRefresh
+
+local function ResetListedDungeonTeleportPopupTriggers()
+    listedDungeonTeleportPopupSeenAt = {}
+    listedDungeonTeleportPopupHandledKeys = {}
+    listedDungeonTeleportPopupCombatKey = nil
+end
 
 local function GetListedDungeonTeleportPopupKey(info, signature)
     local reason = type(info) == "table" and info.popupReason or nil
@@ -1210,7 +1272,9 @@ local function EnsureListedDungeonTeleportPopup()
     frame.cancelButton:SetPoint("BOTTOMLEFT", frame, "BOTTOM", 6, 14)
     frame.cancelButton:SetScript("OnClick", function(self)
         local parent = self:GetParent()
-        listedDungeonTeleportPopupDeclinedKey = parent.PopupKey
+        if parent.PopupKey then
+            listedDungeonTeleportPopupHandledKeys[parent.PopupKey] = true
+        end
         parent:Hide()
     end)
 
@@ -1262,42 +1326,109 @@ local function ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKe
     return true
 end
 
+local function NoteListedDungeonTeleportPopupTrigger(info, signature, now)
+    if type(info) ~= "table" or info.signature ~= signature then
+        return
+    end
+
+    local PopupKey = GetListedDungeonTeleportPopupKey(info, signature)
+    if listedDungeonTeleportPopupSeenAt[PopupKey] or listedDungeonTeleportPopupHandledKeys[PopupKey] then
+        return
+    end
+
+    if not listedDungeonTeleportPopupSettleUntil or now < listedDungeonTeleportPopupSettleUntil then
+        listedDungeonTeleportPopupHandledKeys[PopupKey] = true
+        return
+    end
+
+    listedDungeonTeleportPopupSeenAt[PopupKey] = now
+    ScheduleListedDungeonPopupRefresh()
+end
+
+local function GetListedDungeonTeleportPopupInfo(popupSettings)
+    local state = listedDungeonHighlightState
+    local signature = state.activeSignature
+
+    -- Pick by the enabled options, so a disabled full-group popup cannot hide the join popup.
+    local fullInfo = state.fullGroupPopupInfo
+    if popupSettings.popupOnFull and type(fullInfo) == "table" and fullInfo.signature == signature then
+        return fullInfo
+    end
+
+    if not popupSettings.popupOnJoin then
+        return nil
+    end
+
+    local joinedInfo = state.joinedGroupInfo
+    if type(joinedInfo) == "table" and joinedInfo.signature == signature then
+        return joinedInfo
+    end
+
+    local activeInfo = state.activeInfo
+    if type(activeInfo) == "table" and activeInfo.signature == signature then
+        return activeInfo
+    end
+
+    return nil
+end
+
 local function MaybeShowListedDungeonTeleportPopup()
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
     if mQoL_Auto and not mQoL_Auto:CanUse(MODULE_KEY,'popup') then return end
     local state = listedDungeonHighlightState
-    local PopupInfo = state.fullGroupPopupInfo or state.joinedGroupInfo or state.activeInfo
     local signature = state.activeSignature
     local teleportID = state.activeTeleportID
 
-    if type(PopupInfo) ~= "table" or not signature or not teleportID then
+    if not signature or not teleportID then
         HideListedDungeonTeleportPopup()
         return
     end
-    if PopupInfo.signature ~= signature then
-        return
-    end
-    local PopupKey = GetListedDungeonTeleportPopupKey(PopupInfo, signature)
-    local popupSettings = GetDungeonTeleportPopupSettings()
-    local popupReason = PopupInfo.popupReason
-        or (PopupInfo == state.joinedGroupInfo and "joined")
-        or "listed"
 
-    if (popupReason == "full" and not popupSettings.popupOnFull)
-        or (popupReason ~= "full" and not popupSettings.popupOnJoin) then
-        if listedDungeonTeleportPopup and listedDungeonTeleportPopup.PopupKey == PopupKey then
-            HideListedDungeonTeleportPopup(signature)
-        end
-        listedDungeonTeleportPopupKey = PopupKey
-        return
+    -- A popup for a previous listing must not keep offering the old dungeon.
+    local popupFrame = listedDungeonTeleportPopup
+    if popupFrame and popupFrame:IsShown() and popupFrame.signature ~= signature then
+        popupFrame:Hide()
     end
 
-    if signature == state.suppressedSignature or PopupKey == listedDungeonTeleportPopupDeclinedKey then
+    if signature == state.suppressedSignature then
         HideListedDungeonTeleportPopup(signature)
         return
     end
-    if PopupKey == listedDungeonTeleportPopupKey then
+
+    -- Note every current trigger, also one whose option is off, so enabling it later does not replay it.
+    local now = GetTime and GetTime() or 0
+    NoteListedDungeonTeleportPopupTrigger(state.fullGroupPopupInfo, signature, now)
+    NoteListedDungeonTeleportPopupTrigger(state.joinedGroupInfo, signature, now)
+    NoteListedDungeonTeleportPopupTrigger(state.activeInfo, signature, now)
+
+    local PopupInfo = GetListedDungeonTeleportPopupInfo(GetDungeonTeleportPopupSettings())
+    if not PopupInfo then
+        HideListedDungeonTeleportPopup(signature)
         return
+    end
+
+    local PopupKey = GetListedDungeonTeleportPopupKey(PopupInfo, signature)
+    local seenAt = listedDungeonTeleportPopupSeenAt[PopupKey]
+    if listedDungeonTeleportPopupHandledKeys[PopupKey] or not seenAt then
+        return
+    end
+
+    local isWaitingForCombat = listedDungeonTeleportPopupCombatKey == PopupKey
+    if not isWaitingForCombat and now - seenAt > LISTED_DUNGEON_POPUP_TRIGGER_WINDOW then
+        listedDungeonTeleportPopupHandledKeys[PopupKey] = true
+        return
+    end
+
+    if InCombatLockdown and InCombatLockdown() then
+        -- The secure teleport button cannot be prepared in combat; offer it when combat ends.
+        listedDungeonTeleportPopupCombatKey = PopupKey
+        return
+    end
+
+    if isWaitingForCombat then
+        listedDungeonTeleportPopupCombatKey = nil
+        listedDungeonTeleportPopupSeenAt[PopupKey] = now
+        ScheduleListedDungeonPopupRefresh()
     end
 
     local entry = FindTeleportDefinitionById(teleportID)
@@ -1312,7 +1443,7 @@ local function MaybeShowListedDungeonTeleportPopup()
     end
 
     if ShowListedDungeonTeleportPopup(entry, spellID, signature, PopupKey, GetListedDungeonTeleportPopupTitle(PopupInfo)) then
-        listedDungeonTeleportPopupKey = PopupKey
+        listedDungeonTeleportPopupHandledKeys[PopupKey] = true
     end
 end
 
@@ -1764,6 +1895,11 @@ local function UpdateListedDungeonHighlightState()
     end
 
     if info then
+        -- The group has been relisted for another dungeon since the player joined it.
+        if type(state.joinedGroupInfo) == "table" and state.joinedGroupInfo.signature ~= info.signature then
+            state.joinedGroupInfo = nil
+            state.joinedGroupInfoExpires = nil
+        end
         changed = SetActiveListedDungeonHighlight(info) or changed
     elseif isInGroup and state.joinedGroupInfo then
         changed = SetActiveListedDungeonHighlight(state.joinedGroupInfo) or changed
@@ -1797,29 +1933,28 @@ local function UpdateListedDungeonFullGroupState()
 
     local signature = tostring(info.signature)
     local groupGUID = info.groupGUID or state.groupGUID
-    local isJoinedGroupInfo = info == state.joinedGroupInfo
-    -- An accepted LFG invite can arrive before the player is in that group's roster.
-    local canObserveIncomplete = not isJoinedGroupInfo or IsPlayerInAnyGroup()
     local trackingChanged = state.groupFillSignature ~= signature
         or (state.groupFillGroupGUID and groupGUID and state.groupFillGroupGUID ~= groupGUID)
 
     if trackingChanged then
         state.groupFillSignature = signature
         state.groupFillGroupGUID = groupGUID
-        state.groupFillSawIncomplete = canObserveIncomplete and memberCount < LISTED_DUNGEON_FULL_GROUP_SIZE
+        state.groupFillSawIncomplete = false
         state.groupFillNotified = false
         state.fullGroupPopupInfo = nil
-        return false
     end
 
     if not state.groupFillGroupGUID and groupGUID then
         state.groupFillGroupGUID = groupGUID
     end
 
+    -- Joining through the group finder took a free slot, so that group was incomplete,
+    -- even when the player was its last member or the invite arrived before the roster.
+    if info == state.joinedGroupInfo or memberCount < LISTED_DUNGEON_FULL_GROUP_SIZE then
+        state.groupFillSawIncomplete = true
+    end
+
     if memberCount < LISTED_DUNGEON_FULL_GROUP_SIZE then
-        if canObserveIncomplete then
-            state.groupFillSawIncomplete = true
-        end
         return false
     end
 
@@ -1904,6 +2039,35 @@ local function ExtractSpellIDFromSpellcastEvent(...)
     return nil
 end
 
+local function RefreshListedDungeonTeleportPopup()
+    if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
+    UpdateListedDungeonHighlightState()
+    SuppressListedDungeonHighlightForCurrentInstance()
+    UpdateListedDungeonFullGroupState()
+    if not IsPlayerInAnyGroup() and not listedDungeonHighlightState.activeSignature then
+        ResetListedDungeonTeleportPopupTriggers()
+    end
+    MaybeShowListedDungeonTeleportPopup()
+end
+
+local listedDungeonPopupRefreshToken = 0
+ScheduleListedDungeonPopupRefresh = function()
+    local after = (mQoL_Compat and mQoL_Compat.After) or (C_Timer and C_Timer.After)
+    if not after then
+        return
+    end
+
+    listedDungeonPopupRefreshToken = listedDungeonPopupRefreshToken + 1
+    local token = listedDungeonPopupRefreshToken
+    for _, delay in ipairs(LISTED_DUNGEON_POPUP_REFRESH_DELAYS) do
+        after(delay, function()
+            if token == listedDungeonPopupRefreshToken then
+                RefreshListedDungeonTeleportPopup()
+            end
+        end)
+    end
+end
+
 local listedDungeonHighlightEventFrame = CreateFrame("Frame")
 local function RegisterListedDungeonHighlightEvent(eventName)
     pcall(listedDungeonHighlightEventFrame.RegisterEvent, listedDungeonHighlightEventFrame, eventName)
@@ -1920,6 +2084,11 @@ RegisterListedDungeonHighlightEvent("UNIT_SPELLCAST_SUCCEEDED")
 RegisterListedDungeonHighlightEvent("PLAYER_REGEN_ENABLED")
 
 listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
+    if event == "PLAYER_ENTERING_WORLD" and not listedDungeonTeleportPopupSettleUntil then
+        local now = GetTime and GetTime() or 0
+        listedDungeonTeleportPopupSettleUntil = now + LISTED_DUNGEON_POPUP_LOGIN_SETTLE_TIME
+    end
+
     if mQoL_Modules and not mQoL_Modules:ShouldLoadModule(MODULE_KEY) then HideListedDungeonTeleportPopup();return end
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit = ...
@@ -1942,16 +2111,17 @@ listedDungeonHighlightEventFrame:SetScript("OnEvent", function(_, event, ...)
         elseif inactiveApplicationStatuses[newStatus] then
             ClearPendingJoinedListedDungeonInfo(searchResultID)
         end
+    elseif event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then
+        local created = ...
+        if created == true then
+            -- A listing created now is not the entry of a group the player just left.
+            listedDungeonHighlightState.ignoreActiveEntryUntilClear = false
+        end
     end
 
-    UpdateListedDungeonHighlightState()
-    SuppressListedDungeonHighlightForCurrentInstance()
-    if not IsPlayerInAnyGroup() and not listedDungeonHighlightState.activeSignature then
-        listedDungeonTeleportPopupKey = nil
-        listedDungeonTeleportPopupDeclinedKey = nil
-    end
-    UpdateListedDungeonFullGroupState()
-    MaybeShowListedDungeonTeleportPopup()
+    RefreshListedDungeonTeleportPopup()
+    -- Group finder data for a new member can arrive shortly after the roster event.
+    ScheduleListedDungeonPopupRefresh()
 end)
 
 if not mQoL_Modules or mQoL_Modules:ShouldLoadModule(MODULE_KEY) then
