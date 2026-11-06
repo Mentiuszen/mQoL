@@ -160,8 +160,9 @@ function mQoL_ActionBarsQoL:ApplyVisibilitySettings(ab)
     SyncMainFacade()
 end
 -- Action Bars checksum helpers
+-- Name is "Firstname Surname" on Forever, so characters sharing a first name stay apart
 local function GetCharacterKey()
-    local name = UnitName("player") or "Unknown"
+    local name = mQoL_Utils.GetUnitCharacterName("player") or "Unknown"
     local realm = GetRealmName() or "UnknownRealm"
     realm = realm:gsub("%s+", "")
     return name .. "-" .. realm

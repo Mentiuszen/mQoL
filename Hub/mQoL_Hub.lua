@@ -12,10 +12,16 @@ local ADDON_PREFIX = "mQoLHub"
 local vreg = _G.vreg
 mQoL_Hub.VersionData = mQoL_Hub.VersionData or {}
 
+-- Player name for the version check: plain UnitName on realm clients (unchanged),
+-- "Firstname Surname" on Forever. vreg.NormalizeName understands both.
+local function GetPlayerVersionName()
+    return mQoL_Utils.GetUnitCharacterName("player")
+end
+
 -- Addon Version
 mQoL_Hub.version = "1.3.0"
-mQoL_Hub.build = "328"
-mQoL_Hub.vendor = "test"    --dev / test / release
+mQoL_Hub.build = "330"
+mQoL_Hub.vendor = "release"    --dev / test / release
 
 -- Styles
 local CreateCustomScrollbar = mQoL_Styles.CreateCustomScrollbar
@@ -104,7 +110,7 @@ SlashCmdList["MQOL_HUBVERSION"] = function()
     mQoL_Hub.VersionFrame:Show()
     mQoL_Hub:ClearVersionPanel()
 
-    mQoL_Hub:AddVersionRow(UnitName("player"), mQoL_Hub.vendor or "unknown", mQoL_Hub.version or "unknown", mQoL_Hub.build or "unknown")
+    mQoL_Hub:AddVersionRow(GetPlayerVersionName(), mQoL_Hub.vendor or "unknown", mQoL_Hub.version or "unknown", mQoL_Hub.build or "unknown")
     mQoL_Hub:RefreshVersionPanel()
 
     if IsInRaid() then
@@ -168,7 +174,7 @@ function mQoL_Hub:InitializeMinimap()
 			else
 				self.VersionFrame:Show()
 				self:ClearVersionPanel()
-				self:AddVersionRow(UnitName("player"), self.vendor or "unknown", self.version or "unknown", self.build or "unknown")
+				self:AddVersionRow(GetPlayerVersionName(), self.vendor or "unknown", self.version or "unknown", self.build or "unknown")
 				self:RefreshVersionPanel()
 
                 if IsInRaid() then
@@ -2040,7 +2046,11 @@ function mQoL_Hub:CreateVersionPanel()
 		f:SetScale(frameScale)
 	end
 
-    f:SetSize(400, 600)
+    -- "Firstname Surname" needs a wider name column than "Name".
+    local nameWidth = mQoL_Utils.UsesSurnameNames() and 210 or 160
+    local totalWidth = nameWidth + 240
+
+    f:SetSize(totalWidth, 600)
     f:SetPoint("CENTER")
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -2095,10 +2105,8 @@ function mQoL_Hub:CreateVersionPanel()
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
     -- Layout configuration
-    local totalWidth = 400
     local leftMargin = 30
     local rightMargin = 30
-    local nameWidth = 160
     local vendorWidth = 60
     local versionWidth = 60
     local buildWidth = 60
@@ -2180,7 +2188,7 @@ function mQoL_Hub:RefreshVersionPanel()
     local f = self.VersionFrame
     local content = f.content
     local rows = f.rows
-    local playerFullName = vreg.NormalizeName(UnitName("player"))
+    local playerFullName = vreg.NormalizeName(GetPlayerVersionName())
 
     for _, row in ipairs(rows) do
         row:Hide()
@@ -2216,6 +2224,7 @@ function mQoL_Hub:RefreshVersionPanel()
             row.nameText:SetPoint("LEFT", row, "LEFT", colX.name, 0)
             row.nameText:SetWidth(columnWidths.name)
             row.nameText:SetJustifyH("LEFT")
+            row.nameText:SetWordWrap(false)
 
             -- Vendor (Source of Addon) (Release = CurseForge etc) (Test = Closed Test) (Dev = UNSTABLE PISS OF SHIT CODE THAT BARLY WORKS)
             row.vendorText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -2240,6 +2249,7 @@ function mQoL_Hub:RefreshVersionPanel()
 
         local fullName = entry.name
         -- Clean name for display (remove realm if present, roughly)
+        -- Forever entries are normalized "Firstname Surname" (no dash), so they stay intact
         local displayName = fullName:gsub("%-.*$", "")
         
         -- Default to hiding mark
@@ -2330,6 +2340,7 @@ function mQoL_Hub:AddVersionRow(name, vendor, version, build)
     row.nameText:SetPoint("LEFT", row, "LEFT", colX.name, 0)
     row.nameText:SetWidth(columnWidths.name)
     row.nameText:SetJustifyH("LEFT")
+    row.nameText:SetWordWrap(false)
     
     local displayName = name or ""
     if vreg and vreg.decorate and vreg.NormalizeName then
@@ -2417,7 +2428,8 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
             senderNormalized = res
         end
         
-        local playerNormalized = vreg and vreg.NormalizeName and vreg.NormalizeName(UnitName("player")) or UnitName("player")
+        local playerName = GetPlayerVersionName()
+        local playerNormalized = vreg and vreg.NormalizeName and vreg.NormalizeName(playerName) or playerName
         
         -- Safe comparison
         local isSelf = false
@@ -2452,7 +2464,14 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
         local playerName = UnitName("player")
         
         -- Fix: Use pcall for comparison to safely handle "secret value" (protected strings)
-        local success, result = pcall(function() return sender == playerName end)
+        local success, result = pcall(function()
+            -- Forever senders are "Firstname Surname"; realm clients keep the plain compare
+            if mQoL_Utils.UsesSurnameNames() then
+                local me = mQoL_Utils.NormalizeFullName(GetPlayerVersionName())
+                return me ~= nil and mQoL_Utils.NormalizeFullName(sender) == me
+            end
+            return sender == playerName
+        end)
         if not success then return end
         if result then return end
 

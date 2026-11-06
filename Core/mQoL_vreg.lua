@@ -24,13 +24,30 @@ local s1 = {
     {91,69,78,93,69,118,101,114,109,111,111,110},
 }
 
+-- Forever names ("Firstname Surname") are regionally unique, so they are compared
+-- without a realm; realm clients keep "Name-Realm".
+local function UsesSurnames()
+    return mQoL_Utils and mQoL_Utils.UsesSurnameNames and mQoL_Utils.UsesSurnameNames() or false
+end
+
+local function PlayerCharacterName()
+    local name = mQoL_Utils and mQoL_Utils.GetUnitCharacterName and mQoL_Utils.GetUnitCharacterName("player")
+    return name or UnitName("player")
+end
+
 function vreg.vf1()
+    if UsesSurnames() then
+        return vreg.NormalizeName(PlayerCharacterName())
+    end
     local n, r = UnitName("player"), GetRealmName()
     r = (r or ""):gsub("%s+", "")
     return n .. "-" .. r
 end
 
 function vreg.NormalizeName(n)
+    if UsesSurnames() then
+        return mQoL_Utils.NormalizeFullName(n) or n
+    end
     if not n:find("-") then
         local r = GetRealmName():gsub("%s+", "")
         return n .. "-" .. r
@@ -48,6 +65,9 @@ function vreg.GetCurrentRegion()
 end
 
 function vreg.vf4(n)
+    if UsesSurnames() then
+        return vreg.NormalizeName(n or PlayerCharacterName())
+    end
     local nn, rr = strsplit("-", n or UnitName("player"))
     if not rr then rr = GetRealmName():gsub("%s+", "") end
     return nn .. "-" .. rr

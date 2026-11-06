@@ -2802,6 +2802,27 @@ function mQoL_AccountOverview:EnsureCharacterRow(index)
     row.favoriteButton = CreateFavoriteButton(row)
     row.favoriteButton:SetPoint("LEFT", row, "LEFT", 0, 0)
 
+    -- Forever shows "Firstname Surname" only; the realm is in a hover tooltip
+    if mQoL_Utils.UsesSurnameNames() then
+        local nameColumn = CHARACTER_COLUMN_BY_KEY.name
+        row.nameHover = CreateFrame("Frame", nil, row)
+        row.nameHover:SetPoint("LEFT", row, "LEFT", nameColumn.x, 0)
+        row.nameHover:SetSize(nameColumn.width, 22)
+        row.nameHover:EnableMouse(true)
+        row.nameHover:SetScript("OnEnter", function(self)
+            if not row.nameTooltipText then
+                return
+            end
+            local r, g, b = row.fonts.name:GetTextColor()
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine(row.nameTooltipText, r, g, b)
+            GameTooltip:Show()
+        end)
+        row.nameHover:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+    end
+
     local professionColumn = CHARACTER_COLUMN_BY_KEY.professions
     row.professionsFrame = CreateFrame("Frame", nil, row)
     row.professionsFrame:SetPoint("LEFT", row, "LEFT", professionColumn.x, 0)
@@ -3004,6 +3025,7 @@ function mQoL_AccountOverview:RefreshCharactersView()
 
     local startY = -50
     local rowHeight = 30
+    local usesSurnames = mQoL_Utils.UsesSurnameNames()
 
     for index, character in ipairs(characters) do
         local row = self:EnsureCharacterRow(index)
@@ -3013,6 +3035,12 @@ function mQoL_AccountOverview:RefreshCharactersView()
         SetTextureColor(row.bg, index % 2 == 1 and ACCOUNT_OVERVIEW_STYLE.rowOdd or ACCOUNT_OVERVIEW_STYLE.rowEven)
 
         local displayName = string.format("%s - %s", character.name or "Unknown", character.realm or "UnknownRealm")
+        -- Forever names ("Firstname Surname") are regionally unique and do not fit the
+        -- column together with the realm, which moves to the hover tooltip instead.
+        if usesSurnames then
+            row.nameTooltipText = displayName
+            displayName = character.name or "Unknown"
+        end
         row.favoriteButton:SetFavorite(character.key, character.isFavorite)
         row.fonts.level:SetText(tostring(tonumber(character.level) or 0))
         row.fonts.level:SetTextColor(0.92, 0.92, 0.92)

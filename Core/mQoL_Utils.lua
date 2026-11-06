@@ -33,10 +33,131 @@ function mQoL_Utils.GetRealmSlug(realmName)
     return tostring(realmName):gsub("%s+", "")
 end
 
+local SURNAME_SEPARATOR = " "
+local surnameMode
+
+local function DetectSurnameMode()
+    local info = mQoL_VersionDetection and mQoL_VersionDetection.clientInfo
+    if not info then
+        return nil
+    end
+    if info.isForever then
+        return true
+    end
+    if not info.isAuto or type(RegionalUniqueNamesEnabled) ~= "function" then
+        return false
+    end
+
+    local okEnabled, enabled = pcall(RegionalUniqueNamesEnabled)
+    if not okEnabled or not enabled then
+        return false
+    end
+
+    -- Unknown client with regional names: surname clients return the surname as the
+    -- second UnitName value, realm clients never return a realm for the player.
+    local okName, name, second = pcall(UnitName, "player")
+    if not okName or type(name) ~= "string" or name == "" or name == UNKNOWNOBJECT then
+        return nil
+    end
+    return type(second) == "string" and second ~= ""
+end
+
+function mQoL_Utils.UsesSurnameNames()
+    if surnameMode == nil then
+        surnameMode = DetectSurnameMode()
+    end
+    return surnameMode == true
+end
+
+local function RealmCompareKey(realm)
+    if type(realm) ~= "string" then
+        return nil
+    end
+    local key = string.lower((realm:gsub("[%s%-]", "")))
+    return key ~= "" and key or nil
+end
+
+local function IsKnownRealmName(value)
+    local target = RealmCompareKey(value)
+    if not target then
+        return false
+    end
+
+    local getters = {GetRealmName, GetNormalizedRealmName}
+    for index = 1, 2 do
+        local getter = getters[index]
+        if type(getter) == "function" then
+            local ok, realm = pcall(getter)
+            if ok and RealmCompareKey(realm) == target then
+                return true
+            end
+        end
+    end
+
+    if type(GetAutoCompleteRealms) == "function" then
+        local ok, realms = pcall(GetAutoCompleteRealms)
+        if ok and type(realms) == "table" then
+            for _, realm in ipairs(realms) do
+                if RealmCompareKey(realm) == target then
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+-- "Firstname Surname", "Firstname Surname-Realm", "Firstname-Surname" and
+-- "Firstname-Surname-Realm" all collapse to "Firstname Surname".
+local function NormalizeSurnameName(name)
+    local first, second, third = strsplit("-", name, 3)
+    if not first or first == "" then
+        return nil
+    end
+    if first:find(SURNAME_SEPARATOR, 1, true) or not second or second == "" then
+        return first
+    end
+    if (third and third ~= "") or not IsKnownRealmName(second) then
+        return first .. SURNAME_SEPARATOR .. second
+    end
+    return first
+end
+
+local function BuildSurnameUnitName(unit)
+    local name, surname = UnitName(unit)
+    if type(name) ~= "string" or name == "" then
+        return nil
+    end
+    if type(surname) == "string" and surname ~= "" then
+        return name .. SURNAME_SEPARATOR .. surname
+    end
+    return name
+end
+
+-- Character name without realm: plain UnitName on realm clients (unchanged),
+-- "Firstname Surname" when surnames are used.
+function mQoL_Utils.GetUnitCharacterName(unit)
+    unit = unit or "player"
+    if not mQoL_Utils.UsesSurnameNames() then
+        return (UnitName(unit))
+    end
+
+    local ok, name = pcall(BuildSurnameUnitName, unit)
+    if ok then
+        return name
+    end
+    return nil
+end
+
 function mQoL_Utils.NormalizeFullName(name)
     name = TrimString(name)
     if not name or name == "" then
         return nil
+    end
+
+    if mQoL_Utils.UsesSurnameNames() then
+        return NormalizeSurnameName(name)
     end
 
     local playerName, realmName = strsplit("-", name, 2)
@@ -57,6 +178,10 @@ function mQoL_Utils.GetUnitFullName(unit)
         return nil
     end
 
+    if mQoL_Utils.UsesSurnameNames() then
+        return mQoL_Utils.GetUnitCharacterName(unit)
+    end
+
     if type(GetUnitName)=='function' then return mQoL_Utils.NormalizeFullName(GetUnitName(unit, true)) end
     local name,realm=UnitName(unit)
     if not name then return nil end
@@ -69,6 +194,10 @@ function mQoL_Utils.GetShortName(name)
         return nil
     end
 
+    if mQoL_Utils.UsesSurnameNames() then
+        return NormalizeSurnameName(name) or name
+    end
+
     return name:match("^[^-]+") or name
 end
 
@@ -77,7 +206,8 @@ function mQoL_Utils.GetDisplayName(fullName)
         return UNKNOWN
     end
 
-    if Ambiguate then
+    -- Ambiguate would read the surname of "Firstname-Surname" as a realm.
+    if Ambiguate and not mQoL_Utils.UsesSurnameNames() then
         return Ambiguate(fullName, "short")
     end
 
@@ -169,7 +299,7 @@ function mQoL_Utils.NormalizeGoldSnapshotData(rawValue)
 end
 
 function mQoL_Utils.GetCurrentCharacterIdentity()
-    local name = UnitName("player") or "Unknown"
+    local name = mQoL_Utils.GetUnitCharacterName("player") or "Unknown"
     local realm = GetRealmName() or "UnknownRealm"
     return mQoL_Utils.GetRealmSlug(realm) .. "-" .. name, name, realm
 end
