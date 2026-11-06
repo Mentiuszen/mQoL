@@ -665,7 +665,7 @@ function mQoL_Hub:CreateHomePanel(parent)
     -- Welcome Title (Centered with Separator)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     title:SetPoint("TOP", 0, currentY)
-    title:SetText("Welcome to mQoL 1.2.0")
+    title:SetText("Welcome to mQoL 1.3.0")
     title:SetTextColor(1, 0.82, 0)
     title:SetJustifyH("CENTER")
     currentY = currentY - 30
@@ -699,14 +699,12 @@ function mQoL_Hub:CreateHomePanel(parent)
         currentY = currentY - textFS:GetStringHeight() - 10
     end
 
-    AddBulletPoint("Point 1 - to be filled.")
-    AddBulletPoint("Point 2 - to be filled.")
-    AddBulletPoint("Point 3 - to be filled.")
-    AddBulletPoint("Point 4 - to be filled.")
-    AddBulletPoint("Point 5 - to be filled.")
-    AddBulletPoint("Point 6 - to be filled.")
-    AddBulletPoint("Point 7 - to be filled.")
-    AddBulletPoint("Point 8 - to be filled.")
+    AddBulletPoint("Profiles: Save your settings as named profiles, or export and import them between accounts and game versions.")
+    AddBulletPoint("First Setup: The First Setup window has been redesigned. Choose step by step which modules to enable.")
+    AddBulletPoint("Dungeon Teleports: The tab now has a separate options window that lets you control when the teleport popup appears.")
+    AddBulletPoint("Auto Mode: mQoL can now run on game clients it doesn't recognize.")
+    AddBulletPoint("Forever: Added support for the Forever client.")
+    AddBulletPoint("Stability: If a module fails to load, the rest of the Hub keeps working.")
     
     currentY = currentY - 20
 
