@@ -4,6 +4,8 @@
 ## Author: Mentiuszen
 ## Version: 1.3.0
 ## SavedVariables: mQoL_DB, mQoL_PvPRewards_DB, mQoL_RaidProfiles_DB, mQoL_Mailbox_DB, mQoL_EditMode_DB, mQoL_AccountOverview_DB, mQoL_AutoDB
+## IconTexture: Interface\AddOns\mQoL\media\textures\logo
+
 # Identity first; availability checks never choose a different Hub.
 Core/mQoL_VersionDetection.lua
 Core/mQoL_Compat.lua
